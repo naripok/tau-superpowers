@@ -15,6 +15,7 @@ from tau_agent.types import JSONValue
 from tau_coding.extensions import ExtensionAPI
 
 from .dispatch import TaskDispatcher
+from .rendering import render_task_call, render_task_result
 from .runner import RECURSION_GUARD, TauChildRunner
 
 _TASK_ITEM_SCHEMA: dict[str, JSONValue] = {
@@ -136,5 +137,7 @@ def setup(tau: ExtensionAPI) -> None:
                 "Do not set provider or model unless the user requests an override.",
                 "Handle BLOCKED and NEEDS_CONTEXT reports explicitly.",
             ),
+            render_call=render_task_call,
+            render_result=render_task_result,
         )
     )

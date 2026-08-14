@@ -25,8 +25,8 @@ def test_setup_registers_exactly_one_capitalized_task(monkeypatch: Any) -> None:
     assert tool.label == "Task"
     assert tool.parameters["properties"]["tasks"]["maxItems"] == 8
     assert tool.execution_mode == "parallel"
-    assert tool.render_call is None
-    assert tool.render_result is None
+    assert tool.render_call is not None
+    assert tool.render_result is not None
 
 
 def test_setup_refuses_recursive_registration(monkeypatch: Any) -> None:
