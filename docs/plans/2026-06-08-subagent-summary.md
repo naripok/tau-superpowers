@@ -1,5 +1,7 @@
 # Subagent Summary Extraction Implementation Plan
 
+> **Historical Pi plan (2026-06-08) — do not execute.** The unchecked tasks, npm commands, Pi dependencies, and TypeScript paths below targeted the removed pre-Tau extension. They are preserved as implementation history, not outstanding work. See the [living Tau specification](../specs/subagent-dispatch.md) and current [Tau port plan](2026-08-14-tau-port.md).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use subagent-driven-development (recommended) or executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Extract only the `## Summary` section from subagent output for the main agent's context, reducing context bloat and delaying premature compaction.

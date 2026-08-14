@@ -1,5 +1,7 @@
 # Spec: Subagent Summary Extraction
 
+> **Historical Pi artifact (2026-06-08).** This feature spec captures the summary behavior proposed for the former Pi extension. It is not the current contract. See the [living Tau specification](../specs/subagent-dispatch.md), which retains the summary behavior and defines the current Tau process, message, status, and result semantics.
+
 ## Domain: subagent-dispatch
 
 ### ADDED Requirements

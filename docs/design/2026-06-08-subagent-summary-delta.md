@@ -1,5 +1,7 @@
 # Delta: Subagent Summary Extraction
 
+> **Historical Pi artifact (2026-06-08).** This delta was applied to the former Pi implementation and is retained only as design history. Do not apply it to the current repository. Its accepted behavior is incorporated into the [living Tau specification](../specs/subagent-dispatch.md).
+
 ## Domain: subagent-dispatch
 
 ### ADDED Requirements

@@ -1,5 +1,7 @@
 # Proposal: Subagent Summary Extraction
 
+> **Historical Pi artifact (2026-06-08).** This proposal records the pre-Tau implementation and is preserved as design history. Pi package names, `.pi` paths, and TypeScript files below do not describe the current repository and must not be used as current instructions. See the [living Tau specification](../specs/subagent-dispatch.md) for current behavior.
+
 ## Intent
 The Task tool currently returns the subagent's full final output as the tool result `content`, which is added to the main agent's LLM context. This inflates the context window and causes compaction to trigger earlier than necessary, because the subagent's detailed work product (tool call logs, intermediate analysis, verbose explanations) occupies context space that could be used for the main agent's actual reasoning.
 
