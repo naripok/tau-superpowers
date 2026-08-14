@@ -13,6 +13,8 @@ When you have multiple unrelated failures (different test files, different subsy
 
 **Core principle:** Dispatch one agent per independent problem domain. Let them work concurrently.
 
+See the [Tau `Task` tool reference](../using-superpowers/references/tau-tools.md) for the complete argument, scope, approval, isolation, and result contract.
+
 ## When to Use
 
 ```dot
@@ -65,21 +67,32 @@ Each agent gets:
 
 ### 3. Dispatch in Parallel
 
-```typescript
-// Pi Task tool — all three run concurrently
-Task({
-  tasks: [
-    { agent: "general-purpose", task: "Fix agent-tool-abort.test.ts failures" },
-    { agent: "general-purpose", task: "Fix batch-completion-behavior.test.ts failures" },
-    { agent: "general-purpose", task: "Fix tool-approval-race-conditions.test.ts failures" },
+Call the capitalized Tau `Task` tool with one `tasks` argument object. It accepts at most eight items, runs at most four children concurrently, and preserves input order in the result:
+
+```json
+{
+  "tasks": [
+    {
+      "agent": "general-purpose",
+      "task": "Fix agent-tool-abort.test.ts failures. Stay within this test domain and return a summary of the root cause, files changed, and tests run."
+    },
+    {
+      "agent": "general-purpose",
+      "task": "Fix batch-completion-behavior.test.ts failures. Stay within this test domain and return a summary of the root cause, files changed, and tests run."
+    },
+    {
+      "agent": "general-purpose",
+      "task": "Fix tool-approval-race-conditions.test.ts failures. Stay within this test domain and return a summary of the root cause, files changed, and tests run."
+    }
   ]
-})
+}
 ```
 
 ### 4. Review and Integrate
 
 When agents return:
-- Read each summary
+- Read each input-ordered summary and inspect `details.results` for status or process failures
+- Resolve `DONE_WITH_CONCERNS`, `BLOCKED`, and `NEEDS_CONTEXT` explicitly; re-dispatch with a complete prompt when more context is needed
 - Verify fixes don't conflict
 - Run full test suite
 - Integrate all changes

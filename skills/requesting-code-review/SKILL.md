@@ -9,6 +9,8 @@ Dispatch read-only subagent to catch issues before they cascade. The reviewer ge
 
 **Core principle:** Review early, review often.
 
+See the [Tau `Task` tool reference](../using-superpowers/references/tau-tools.md) for the complete argument, isolation, approval, and result contract.
+
 ## When to Request Review
 
 **Mandatory:**
@@ -23,41 +25,28 @@ Dispatch read-only subagent to catch issues before they cascade. The reviewer ge
 
 ## How to Request
 
-**1. Get git diff (read-only agent has no bash):**
+**1. Get the git diff (the read-only agent cannot run commands):**
+
 ```bash
 BASE_SHA=$(git rev-parse HEAD~1)  # or origin/main
 HEAD_SHA=$(git rev-parse HEAD)
-DIFF_OUTPUT=$(git diff $BASE_SHA..$HEAD_SHA)
+DIFF_OUTPUT=$(git diff "$BASE_SHA".."$HEAD_SHA")
 ```
 
-**2. Dispatch code-reviewer subagent:**
+**2. Dispatch the code reviewer:**
 
-Use Task tool with `agent: "read-only"`, fill template with the diff output included:
+Read `code-reviewer.md`, fill its placeholders, and embed the complete diff, verification output, and paths of modified files in the delegated prompt. Then call the capitalized Tau `Task` tool with this argument shape:
 
-```typescript
-Task({
-  agent: "read-only",
-  task: `Review the following changes for code quality.
-
-## Git Diff
-${DIFF_OUTPUT}
-
-## Context
-WHAT_WAS_IMPLEMENTED: [what you just built]
-PLAN_OR_REQUIREMENTS: [what it should do]
-DESCRIPTION: [brief summary]
-
-Read the modified files for full context, then review.`
-})
+```json
+{
+  "agent": "read-only",
+  "task": "Review the named modified files for code quality.\n\n## Modified Files\n[LIST EVERY FILE THE REVIEWER MAY NEED TO READ]\n\n## Git Diff\n[PASTE DIFF_OUTPUT]\n\n## Verification Output\n[PASTE TEST, LINT, AND TYPE-CHECK OUTPUT]\n\n## Context\nWHAT_WAS_IMPLEMENTED: [WHAT YOU BUILT]\nPLAN_OR_REQUIREMENTS: [WHAT IT SHOULD DO]\nDESCRIPTION: [BRIEF SUMMARY]\n\nRead the named files for full context, then return the required review format."
+}
 ```
 
-**Placeholders:**
-- `{WHAT_WAS_IMPLEMENTED}` - What you just built
-- `{PLAN_OR_REQUIREMENTS}` - What it should do
-- `{DIFF_OUTPUT}` - The git diff output (must be provided by controller, not the reviewer)
-- `{DESCRIPTION}` - Brief summary
+Replace every bracketed placeholder before dispatch. Do not ask the child to run commands or discover paths: the enforced read-only profile permits only Tau's `read` tool. The policy blocks state-changing Tau tools but is not an OS, filesystem, network, credential, model, or provider sandbox.
 
-**2. Act on feedback:**
+**3. Act on feedback:**
 - Fix Critical issues immediately
 - Fix Important issues before proceeding
 - Note Minor issues for later
@@ -72,9 +61,9 @@ You: Let me request code review before proceeding.
 
 BASE_SHA=$(git log --oneline | grep "Task 1" | head -1 | awk '{print $1}')
 HEAD_SHA=$(git rev-parse HEAD)
-DIFF_OUTPUT=$(git diff $BASE_SHA..$HEAD_SHA)
+DIFF_OUTPUT=$(git diff "$BASE_SHA".."$HEAD_SHA")
 
-[Dispatch Task with agent: 'read-only', including diff output in task prompt]
+[Call `Task` with `agent: "read-only"`; include the complete diff, verification output, requirements, and modified-file paths in `task`]
   WHAT_WAS_IMPLEMENTED: Verification and repair functions for conversation index
   PLAN_OR_REQUIREMENTS: Task 2 from docs/plans/deployment-plan.md
   DESCRIPTION: Added verifyIndex() and repairIndex() with 4 issue types
@@ -118,4 +107,4 @@ You: [Fix progress indicators]
 - Show code/tests that prove it works
 - Request clarification
 
-See template at: requesting-code-review/code-reviewer.md
+See template: [`code-reviewer.md`](code-reviewer.md)

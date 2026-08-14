@@ -6,12 +6,18 @@ Use this template when dispatching a plan document reviewer subagent.
 
 **Dispatch after:** The complete plan and delta spec are written and self-reviewed.
 
-This is a template for constructing the `task` parameter of a `Task` tool call with `agent: "read-only"`.
+This is a template for constructing the `task` string of the capitalized Tau `Task` tool. Call it with this argument shape after replacing every placeholder:
 
+```json
+{
+  "agent": "read-only",
+  "task": "[FILLED PROMPT BELOW]"
+}
 ```
-Task({
-  agent: "read-only",
-  task: `
+
+The child has no controller conversation history. Name the plan, delta spec, and feature spec paths explicitly and include any required command or search output. The enforced read-only profile permits only Tau's `read` tool; it is not an OS, filesystem, network, credential, model, or provider sandbox. Do not add `provider` or `model` unless the user explicitly requested or approved the override.
+
+```markdown
     You are a plan document reviewer. Verify this plan is complete and ready for implementation.
 
     **Plan to review:** [PLAN_FILE_PATH]
@@ -49,8 +55,6 @@ Task({
 
     **Recommendations (advisory, do not block approval):**
     - [suggestions for improvement]
-  `
-})
 ```
 
 **Reviewer returns:** Status, Issues (if any), Recommendations

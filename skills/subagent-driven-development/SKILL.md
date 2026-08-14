@@ -7,7 +7,7 @@ description: Use when executing implementation plans with independent tasks in t
 
 Execute plan by dispatching fresh subagent per task, with two-stage review after each: spec compliance review first, then code quality review.
 
-**Why subagents:** You delegate tasks to specialized agents with isolated context. By precisely crafting their instructions and context, you ensure they stay focused and succeed at their task. They should never inherit your session's context or history — you construct exactly what they need. This also preserves your own context for coordination work.
+**Why subagents:** You delegate tasks to specialized agents with isolated context. By precisely crafting their instructions and context, you ensure they stay focused and succeed at their task. They do not inherit your session's context or history — you construct exactly what they need. A Tau child cannot converse with the controller mid-task; it reports `NEEDS_CONTEXT` or `BLOCKED`, and the controller re-dispatches with a new complete prompt. This also preserves your own context for coordination work.
 
 **Core principle:** Fresh subagent per task + two-stage review (spec then quality) = high quality, fast iteration
 
@@ -52,15 +52,15 @@ digraph process {
     subgraph cluster_per_task {
         label="Per Task";
         "Dispatch implementer subagent (./implementer-prompt.md)" [shape=box];
-        "Implementer subagent asks questions?" [shape=diamond];
-        "Answer questions, provide context" [shape=box];
-        "Implementer subagent implements, tests, commits, self-reviews" [shape=box];
+        "Implementer reports NEEDS_CONTEXT or BLOCKED?" [shape=diamond];
+        "Add context or adjust task, then re-dispatch" [shape=box];
+        "Check implementer report, tests, commit, and self-review" [shape=box];
         "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" [shape=box];
         "Spec reviewer subagent confirms code matches spec?" [shape=diamond];
-        "Implementer subagent fixes spec gaps" [shape=box];
+        "Re-dispatch implementer with spec gaps and complete context" [shape=box];
         "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" [shape=box];
         "Code quality reviewer subagent approves?" [shape=diamond];
-        "Implementer subagent fixes quality issues" [shape=box];
+        "Re-dispatch implementer with quality issues and complete context" [shape=box];
         "Mark task complete (track in a list)" [shape=box];
     }
 
@@ -70,18 +70,18 @@ digraph process {
     "Use finishing-a-development-branch" [shape=box style=filled fillcolor=lightgreen];
 
     "Read plan, extract all tasks with full text, note context, create task tracking list" -> "Dispatch implementer subagent (./implementer-prompt.md)";
-    "Dispatch implementer subagent (./implementer-prompt.md)" -> "Implementer subagent asks questions?";
-    "Implementer subagent asks questions?" -> "Answer questions, provide context" [label="yes"];
-    "Answer questions, provide context" -> "Dispatch implementer subagent (./implementer-prompt.md)";
-    "Implementer subagent asks questions?" -> "Implementer subagent implements, tests, commits, self-reviews" [label="no"];
-    "Implementer subagent implements, tests, commits, self-reviews" -> "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)";
+    "Dispatch implementer subagent (./implementer-prompt.md)" -> "Implementer reports NEEDS_CONTEXT or BLOCKED?";
+    "Implementer reports NEEDS_CONTEXT or BLOCKED?" -> "Add context or adjust task, then re-dispatch" [label="yes"];
+    "Add context or adjust task, then re-dispatch" -> "Dispatch implementer subagent (./implementer-prompt.md)";
+    "Implementer reports NEEDS_CONTEXT or BLOCKED?" -> "Check implementer report, tests, commit, and self-review" [label="no"];
+    "Check implementer report, tests, commit, and self-review" -> "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)";
     "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" -> "Spec reviewer subagent confirms code matches spec?";
-    "Spec reviewer subagent confirms code matches spec?" -> "Implementer subagent fixes spec gaps" [label="no"];
-    "Implementer subagent fixes spec gaps" -> "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" [label="re-review"];
+    "Spec reviewer subagent confirms code matches spec?" -> "Re-dispatch implementer with spec gaps and complete context" [label="no"];
+    "Re-dispatch implementer with spec gaps and complete context" -> "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" [label="re-review"];
     "Spec reviewer subagent confirms code matches spec?" -> "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" [label="yes"];
     "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" -> "Code quality reviewer subagent approves?";
-    "Code quality reviewer subagent approves?" -> "Implementer subagent fixes quality issues" [label="no"];
-    "Implementer subagent fixes quality issues" -> "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" [label="re-review"];
+    "Code quality reviewer subagent approves?" -> "Re-dispatch implementer with quality issues and complete context" [label="no"];
+    "Re-dispatch implementer with quality issues and complete context" -> "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" [label="re-review"];
     "Code quality reviewer subagent approves?" -> "Mark task complete (track in a list)" [label="yes"];
     "Mark task complete (track in a list)" -> "More tasks remain?";
     "More tasks remain?" -> "Dispatch implementer subagent (./implementer-prompt.md)" [label="yes"];
@@ -90,24 +90,15 @@ digraph process {
 }
 ```
 
-## Model Selection
+## Provider and Model Selection
 
-Use the least powerful model that can handle each role to conserve cost and increase speed.
+Omit `provider` and `model` by default so each child uses Tau's configured defaults or its agent definition. Do not set overrides merely to optimize cost or speed. If the user explicitly requests or approves an override, pass `provider` and `model` as separate opaque Task fields; never infer one from the other or split a slash-containing model identifier.
 
-**Mechanical implementation tasks** (isolated functions, clear specs, 1-2 files): use a fast, cheap model. Most implementation tasks are mechanical when the plan is well-specified.
-
-**Integration and judgment tasks** (multi-file coordination, pattern matching, debugging): use a standard model.
-
-**Architecture, design, and review tasks**: use the most capable available model.
-
-**Task complexity signals:**
-- Touches 1-2 files with a complete spec → cheap model
-- Touches multiple files with integration concerns → standard model
-- Requires design judgment or broad codebase understanding → most capable model
+When an approved choice exists, match capability to role: mechanical tasks can use a faster model, integration work needs stronger cross-file reasoning, and architecture or review work needs the most capable approved option. If no approved identifier is known, recommend a capability level rather than inventing a provider or model value.
 
 ## Handling Implementer Status
 
-Implementer subagents report one of four statuses. Handle each appropriately:
+Implementer subagents report one of four semantic statuses in the Task result. Inspect both summary content and `details.results`; process failure, timeout, or cancellation is separate from semantic status. Handle each appropriately:
 
 **DONE:** Proceed to spec compliance review.
 
@@ -116,8 +107,8 @@ Implementer subagents report one of four statuses. Handle each appropriately:
 **NEEDS_CONTEXT:** The implementer needs information that wasn't provided. Provide the missing context and re-dispatch.
 
 **BLOCKED:** The implementer cannot complete the task. Assess the blocker:
-1. If it's a context problem, provide more context and re-dispatch with the same model
-2. If the task requires more reasoning, re-dispatch with a more capable model
+1. If it's a context problem, provide more context and re-dispatch with the configured/default model
+2. If the task requires more reasoning, recommend a more capable model and obtain user approval before passing a `provider` or `model` override
 3. If the task is too large, break it into smaller pieces
 4. If the plan itself is wrong, escalate to the human
 
@@ -128,6 +119,8 @@ Implementer subagents report one of four statuses. Handle each appropriately:
 - `./implementer-prompt.md` - Dispatch implementer subagent
 - `./spec-reviewer-prompt.md` - Dispatch spec compliance reviewer subagent
 - `./code-quality-reviewer-prompt.md` - Dispatch code quality reviewer subagent
+
+All templates use the capitalized Tau `Task` argument schema documented in [`../using-superpowers/references/tau-tools.md`](../using-superpowers/references/tau-tools.md). Reviewer prompts must include every readable file path plus any required diff, search, or command output because the enforced read-only profile permits only Tau's `read` tool.
 
 ## Spec Compliance Review References
 
@@ -163,10 +156,11 @@ Task 1: Hook installation script
 [Get Task 1 text and context (already extracted)]
 [Dispatch Task with agent: 'general-purpose' and the implementer prompt as the task]
 
-Implementer: "Before I begin - should the hook be installed at user or system level?"
+Implementer: `NEEDS_CONTEXT` — "Should the hook be installed at user or system level?"
 
-You: "User level (~/.config/pi/hooks/)"
+You: "User level (`~/.config/example-tool/hooks/`)"
 
+[Re-dispatch the implementer with that answer included in the complete task prompt.]
 Implementer: "Got it. Implementing now..."
 [Later] Implementer:
   - Implemented install-hook command
@@ -187,7 +181,7 @@ Task 2: Recovery modes
 [Get Task 2 text and context (already extracted)]
 [Dispatch Task with agent: 'general-purpose' and the implementer prompt as the task]
 
-Implementer: [No questions, proceeds]
+Implementer: [Returns `DONE` with its implementation report]
 Implementer:
   - Added verify/repair modes
   - 8/8 tests passing
@@ -199,7 +193,7 @@ Spec reviewer: ❌ Issues:
   - Missing: Progress reporting (spec says "report every 100 items")
   - Extra: Added --json flag (not requested)
 
-[Implementer fixes issues]
+[Re-dispatch implementer with the original task, full context, and review findings]
 Implementer: Removed --json flag, added progress reporting
 
 [Spec reviewer reviews again — dispatch Task with agent: 'read-only' again]
@@ -208,7 +202,7 @@ Spec reviewer: ✅ Spec compliant now
 [Dispatch Task with agent: 'read-only' and the code quality reviewer prompt as the task]
 Code reviewer: Strengths: Solid. Issues (Important): Magic number (100)
 
-[Implementer fixes]
+[Re-dispatch implementer with the original task, full context, and review findings]
 Implementer: Extracted PROGRESS_INTERVAL constant
 
 [Code reviewer reviews again — dispatch Task with agent: 'read-only' again]
@@ -230,8 +224,8 @@ Done!
 **vs. Manual execution:**
 - Subagents follow TDD naturally
 - Fresh context per task (no confusion)
-- Parallel-safe (subagents don't interfere)
-- Subagent can ask questions (before AND during work)
+- Sequential implementation dispatches avoid agents editing the same task at once
+- Missing context is surfaced explicitly through `NEEDS_CONTEXT` for a complete re-dispatch
 
 **vs. Executing Plans:**
 - Same session (no handoff)
@@ -242,7 +236,7 @@ Done!
 - No file reading overhead (controller provides full text)
 - Controller curates exactly what context is needed
 - Subagent gets complete information upfront
-- Questions surfaced before work begins (not after)
+- Missing assumptions surface as `NEEDS_CONTEXT` instead of silent guesses
 
 **Quality gates:**
 - Self-review catches issues before handoff
@@ -266,21 +260,21 @@ Done!
 - Dispatch multiple implementation subagents in parallel (conflicts)
 - Make subagent read plan file (provide full text instead)
 - Skip scene-setting context (subagent needs to understand where task fits)
-- Ignore subagent questions (answer before letting them proceed)
+- Ignore a `NEEDS_CONTEXT` report instead of supplying the requested information
 - Accept "close enough" on spec compliance (spec reviewer found issues = not done)
 - Skip review loops (reviewer found issues = implementer fixes = review again)
 - Let implementer self-review replace actual review (both are needed)
 - **Start code quality review before spec compliance is ✅** (wrong order)
 - Move to next task while either review has open issues
 
-**If subagent asks questions:**
+**If a subagent reports `NEEDS_CONTEXT`:**
 - Answer clearly and completely
-- Provide additional context if needed
-- Don't rush them into implementation
+- Add the missing information to a new self-contained task prompt
+- Re-dispatch; there is no mid-task conversation or resumed child context
 
 **If reviewer finds issues:**
-- Implementer (same subagent) fixes them
-- Reviewer reviews again
+- Re-dispatch an implementer with the original task, current state, and specific findings
+- Re-dispatch the reviewer with the complete updated review input
 - Repeat until approved
 - Don't skip the re-review
 
@@ -296,8 +290,8 @@ Done!
 - **requesting-code-review** - Code review template for reviewer subagents
 - **finishing-a-development-branch** - Complete development after all tasks
 
-**Subagents should use:**
-- **test-driven-development** - Subagents follow TDD for each task
+**Implementer prompts should embed:**
+- The required **test-driven-development** steps and discipline. Tau children are instructed not to invoke ambient user skills, so naming a skill is not a substitute for including its required behavior in the delegated prompt.
 
 **Alternative workflow:**
 - **executing-plans** - Use for parallel session instead of same-session execution

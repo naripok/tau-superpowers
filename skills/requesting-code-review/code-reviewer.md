@@ -17,15 +17,23 @@ You are reviewing code changes for production readiness.
 
 {PLAN_REFERENCE}
 
-## Git Range to Review
+## Modified Files
 
-**Base:** {BASE_SHA}
-**Head:** {HEAD_SHA}
+{MODIFIED_FILES}
 
-```bash
-git diff --stat {BASE_SHA}..{HEAD_SHA}
-git diff {BASE_SHA}..{HEAD_SHA}
+## Controller-Provided Git Diff
+
+```diff
+{DIFF_OUTPUT}
 ```
+
+## Controller-Provided Verification Output
+
+```text
+{VERIFICATION_OUTPUT}
+```
+
+You have only Tau's `read` tool: do not try to run Git commands or discover unknown paths. Use the supplied diff, then read the named files when full context is needed. If required command output or a file path is missing, identify exactly what the controller must provide and report `NEEDS_CONTEXT`.
 
 ## Review Checklist
 
@@ -104,6 +112,7 @@ git diff {BASE_SHA}..{HEAD_SHA}
 - Say "looks good" without checking
 - Mark nitpicks as Critical
 - Give feedback on code you didn't review
+- Try to run commands or search for paths unavailable through `read`
 - Be vague ("improve error handling")
 - Avoid giving a clear verdict
 

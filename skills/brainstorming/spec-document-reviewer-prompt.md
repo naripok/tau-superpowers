@@ -6,12 +6,18 @@ Use this template when dispatching a spec document reviewer subagent.
 
 **Dispatch after:** Feature spec is written to `docs/design/`
 
-This is a template for constructing the `task` parameter of a `Task` tool call with `agent: "read-only"`.
+This is a template for constructing the `task` string of the capitalized Tau `Task` tool. Call it with this argument shape after replacing every placeholder:
 
+```json
+{
+  "agent": "read-only",
+  "task": "[FILLED PROMPT BELOW]"
+}
 ```
-Task({
-  agent: "read-only",
-  task: `
+
+The child has no controller conversation history. Name the spec and proposal paths explicitly and include any required command or search output. The enforced read-only profile permits only Tau's `read` tool; it is not an OS, filesystem, network, credential, model, or provider sandbox. Do not add `provider` or `model` unless the user explicitly requested or approved the override.
+
+```markdown
     You are reviewing whether a feature spec is complete, truly behavioral, and ready for implementation planning.
 
     **Spec to review:** [SPEC_FILE_PATH]
@@ -60,8 +66,6 @@ Task({
 
     **Recommendations (advisory, do not block approval):**
     - [suggestions for improvement]
-  `
-})
 ```
 
 **Reviewer returns:** Status, Issues (if any), Recommendations

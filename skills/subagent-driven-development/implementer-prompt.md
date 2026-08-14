@@ -2,12 +2,18 @@
 
 Use this template when dispatching an implementer subagent.
 
-This is a template for constructing the `task` parameter of a `Task` tool call with `agent: "general-purpose"`.
+This is a template for constructing the `task` string of the capitalized Tau `Task` tool. Call it with this argument shape after replacing every placeholder:
 
+```json
+{
+  "agent": "general-purpose",
+  "task": "[FILLED PROMPT BELOW]"
+}
 ```
-Task({
-  agent: "general-purpose",
-  task: `
+
+Do not add `provider` or `model` unless the user explicitly requested or approved the override. The child has no controller conversation history, cannot converse mid-task, and is instructed not to invoke ambient user skills. Include all required file paths, command output, requirements, and workflow steps in the filled prompt.
+
+```markdown
     You are implementing Task N: [task name]
 
     ## Task Description
@@ -20,28 +26,32 @@ Task({
 
     ## Before You Begin
 
-    If you have questions about:
+    Check whether you have enough information about:
     - The requirements or acceptance criteria
     - The approach or implementation strategy
     - Dependencies or assumptions
-    - Anything unclear in the task description
+    - Every file path or command result you need
 
-    **Ask them now.** Raise any concerns before starting work.
+    There is no mid-task conversation with the controller. If essential information is
+    missing, do not guess or modify files. Report exactly what is missing with status
+    NEEDS_CONTEXT so the controller can send a new complete task.
 
     ## Your Job
 
     Once you're clear on requirements:
     1. Implement exactly what the task specifies
-    2. Write tests (following TDD if task says to)
-    3. Verify implementation works
+    2. For behavior changes, follow TDD explicitly: write the smallest failing test, run it
+       and confirm the expected failure, implement the minimum fix, rerun tests, then refactor
+    3. Run the required focused and broader verification
     4. Commit your work
     5. Self-review (see below)
     6. Report back
 
     Work from: [directory]
 
-    **While you work:** If you encounter something unexpected or unclear, **ask questions**.
-    It's always OK to pause and clarify. Don't guess or make assumptions.
+    If you later encounter something essential that is unexpected or unclear, stop safely
+    and report NEEDS_CONTEXT or BLOCKED. Do not assume the controller can answer during this
+    invocation, and do not depend on invoking a skill for instructions omitted from this prompt.
 
     ## Code Organization
 
@@ -70,8 +80,8 @@ Task({
 
     **How to escalate:** Report back with status BLOCKED or NEEDS_CONTEXT. Describe
     specifically what you're stuck on, what you've tried, and what kind of help you need.
-    The controller can provide more context, re-dispatch with a more capable model,
-    or break the task into smaller pieces.
+    The controller can provide more context, seek user approval for a more capable model
+    override, or break the task into smaller pieces.
 
     ## Before Reporting Back: Self-Review
 
@@ -102,15 +112,15 @@ Task({
     ## Report Format
 
     When done, report:
-    - **Status:** DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT
     - What you implemented (or what you attempted, if blocked)
     - What you tested and test results
     - Files changed
     - Self-review findings (if any)
     - Any issues or concerns
+    - A final line exactly matching one supported marker: **Status: DONE**,
+      **Status: DONE_WITH_CONCERNS**, **Status: BLOCKED**, or **Status: NEEDS_CONTEXT**
 
     Use DONE_WITH_CONCERNS if you completed the work but have doubts about correctness.
     Use BLOCKED if you cannot complete the task. Use NEEDS_CONTEXT if you need
     information that wasn't provided. Never silently produce work you're unsure about.
-  `
-})
+```

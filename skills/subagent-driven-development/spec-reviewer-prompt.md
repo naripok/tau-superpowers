@@ -4,14 +4,20 @@ Use this template when dispatching a spec compliance reviewer subagent.
 
 **Purpose:** Verify implementer built what was requested (nothing more, nothing less)
 
-This is a template for constructing the `task` parameter of a `Task` tool call with `agent: "read-only"`.
+This is a template for constructing the `task` string of the capitalized Tau `Task` tool. Call it with this argument shape after replacing every placeholder:
+
+```json
+{
+  "agent": "read-only",
+  "task": "[FILLED PROMPT BELOW]"
+}
+```
 
 **IMPORTANT:** The delta spec is a REQUIRED input. If the controller did not include the delta spec's full text, report `NEEDS_CONTEXT` and request it. You cannot review spec compliance without the behavioral contract.
 
-```
-Task({
-  agent: "read-only",
-  task: `
+The read-only profile permits only Tau's `read` tool. The controller must name every implementation file and embed any required diff, search, or test output. The policy is not an OS, filesystem, network, credential, model, or provider sandbox. Do not add `provider` or `model` unless the user explicitly requested or approved the override.
+
+```markdown
     You are reviewing whether an implementation matches its specification.
 
     ## Behavioral Contract (Primary Reference)
@@ -40,6 +46,17 @@ Task({
     ## What Implementer Claims They Built
 
     [From implementer's report]
+
+    ## Implementation Evidence
+
+    **Files you may read:** [LIST EVERY RELEVANT FILE PATH]
+
+    **Controller-provided diff and verification output:**
+
+    [PASTE THE COMPLETE RELEVANT DIFF AND TEST/CHECK OUTPUT]
+
+    You cannot run commands or discover unknown paths. If required evidence or a path is
+    missing, report NEEDS_CONTEXT and identify exactly what the controller must provide.
 
     ## CRITICAL: Do Not Trust the Report
 
@@ -90,5 +107,4 @@ Task({
 
     If you find a discrepancy between the code and the delta spec, note it clearly
     so the controller can decide whether to fix the code or update the delta spec.
-  `
-})
+```

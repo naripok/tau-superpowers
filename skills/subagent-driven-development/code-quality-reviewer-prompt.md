@@ -6,18 +6,28 @@ Use this template when dispatching a code quality reviewer subagent.
 
 **Only dispatch after spec compliance review passes.**
 
-This is a template for constructing the `task` parameter of a `Task` tool call with `agent: "read-only"`.
+This is a template for constructing the `task` string of the capitalized Tau `Task` tool. Call it with this argument shape after replacing every placeholder:
 
-**Note:** The `read-only` agent has no bash access (no `git diff`). The controller must run `git diff` itself and include the diff output in the reviewer's task prompt.
-
+```json
+{
+  "agent": "read-only",
+  "task": "[FILLED PROMPT BELOW]"
+}
 ```
-Task({
-  agent: "read-only",
-  task: `
+
+**Note:** The enforced read-only profile permits only Tau's `read` tool. It cannot run `git diff`, search for unknown paths, or execute tests. The controller must include the complete diff and verification output and name every file the reviewer may need to read. This tool policy is not an OS, filesystem, network, credential, model, or provider sandbox. Do not add `provider` or `model` unless the user explicitly requested or approved the override.
+
+```markdown
     Review the following changes for code quality.
 
+    ## Modified Files
+    [Controller must list every relevant file path here]
+
     ## Git Diff
-    [Controller must provide git diff output here]
+    [Controller must provide complete git diff output here]
+
+    ## Verification Output
+    [Controller must provide relevant test, lint, and type-check output here]
 
     ## Context
     WHAT_WAS_IMPLEMENTED: [from implementer's report]
@@ -26,7 +36,8 @@ Task({
 
     ## What to Check
 
-    Read the modified files for full context, then review:
+    Read the named modified files for full context, then review. If required evidence or
+    a file path is missing, report NEEDS_CONTEXT and request that exact input. Check:
     - Does each file have one clear responsibility with a well-defined interface?
     - Are units decomposed so they can be understood and tested independently?
     - Is the implementation following the file structure from the plan?
@@ -48,5 +59,4 @@ Task({
     - Minor: [nice to fix]
 
     **Assessment:** Approved | Needs fixes
-  `
-})
+```
