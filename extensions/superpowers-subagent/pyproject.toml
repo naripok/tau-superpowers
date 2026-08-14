@@ -1,0 +1,35 @@
+[project]
+name = "tau-superpowers-subagent"
+version = "0.1.0"
+requires-python = ">=3.14"
+
+[dependency-groups]
+dev = [
+  "mypy>=1.17",
+  "pytest>=8.4",
+  "pytest-asyncio>=1.1",
+  "ruff>=0.12",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["ASYNC", "B", "E", "F", "I", "UP"]
+ignore = ["ASYNC109"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["ASYNC240"]
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+files = ["superpowers_subagent"]

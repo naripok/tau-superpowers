@@ -1,6 +1,7 @@
 ---
 name: general-purpose
 description: General-purpose subagent with full tool access. Use for implementation, scouting, exploration, and any task that requires reading and writing files or running commands.
+profile: general-purpose
 ---
 
 You are a subagent operating in an isolated context window. You have no access to the main session's history or conversation.

@@ -1,0 +1,300 @@
+"""Asynchronous Tau child process execution and JSONL collection."""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import os
+import tempfile
+from collections.abc import Callable
+from pathlib import Path
+from typing import cast
+
+from pydantic import TypeAdapter, ValidationError
+from tau_agent.messages import AgentMessage, AssistantMessage, ToolResultMessage
+from tau_agent.tools import ToolCancellationToken
+
+from .models import AgentConfig, ChildResult
+from .utils import (
+    build_tau_argv,
+    effective_provider_model,
+    final_output,
+    parse_status,
+    resolve_child_cwd,
+)
+
+RECURSION_GUARD = "TAU_SUPERPOWERS_SUBAGENT"
+
+_SHARED_INSTRUCTIONS = """## Delegated Task Rules
+
+This is an isolated delegated task. Rely only on this prompt and the task input;
+you do not have the controller's conversation history. Do not invoke ambient user
+skills. That instruction is behavioral guidance, not a security boundary.
+
+## Response Format
+
+End your response with an exact `## Summary` heading and a concise summary covering
+what you accomplished or found, files read or modified, tests, errors, and concerns.
+
+End the summary with exactly one supported status marker:
+
+- **Status: DONE**
+- **Status: DONE_WITH_CONCERNS**
+- **Status: BLOCKED**
+- **Status: NEEDS_CONTEXT**
+"""
+
+_READ_ONLY_INSTRUCTIONS = """## Enforced Read-Only Profile
+
+Only the `read` tool is permitted. Do not call `bash`, `write`, `edit`, or any other
+tool. If named-file reads are insufficient, report `NEEDS_CONTEXT` and request the
+missing command output from the controller. A Tau tool-call hook enforces this profile,
+but it is not an OS, filesystem, network, credential, model, or provider sandbox.
+"""
+
+_POLICY_EXTENSION = '''"""Generated read-only policy for one delegated Tau child."""
+
+from tau_coding.extensions import ExtensionAPI, ToolCallHookEvent, ToolCallHookResult
+
+
+def setup(tau: ExtensionAPI) -> None:
+    @tau.on("tool_call")
+    def permit_read_only(event: object, _context: object) -> ToolCallHookResult | None:
+        if isinstance(event, ToolCallHookEvent) and event.tool_name != "read":
+            return ToolCallHookResult(
+                block=True,
+                reason="read-only subagent profile permits only the read tool",
+            )
+        return None
+'''
+
+_MESSAGE_ADAPTER: TypeAdapter[AgentMessage] = TypeAdapter(AgentMessage)
+ChildUpdate = Callable[[ChildResult], None]
+
+
+class TauChildRunner:
+    """Run one agent in an isolated Tau subprocess."""
+
+    def __init__(self, executable: str = "tau") -> None:
+        self.executable = executable
+
+    async def run(
+        self,
+        *,
+        default_cwd: Path,
+        agent: AgentConfig,
+        task: str,
+        cwd_override: str | None,
+        provider_override: str | None,
+        model_override: str | None,
+        timeout_seconds: float,
+        signal: ToolCancellationToken | None,
+        step: int | None = None,
+        on_message: ChildUpdate | None = None,
+    ) -> ChildResult:
+        """Launch and collect one child, retaining partial state on every exit path."""
+
+        cwd = resolve_child_cwd(default_cwd, cwd_override)
+        provider, model = effective_provider_model(agent, provider_override, model_override)
+        result = ChildResult(
+            agent=agent.name,
+            agent_source=agent.source,
+            task=task,
+            cwd=str(cwd),
+            provider=provider,
+            model=model,
+            step=step,
+        )
+        if _is_cancelled(signal):
+            result.cancelled = True
+            result.stop_reason = "aborted"
+            result.error_message = "Dispatch cancelled before child process started."
+            return result
+
+        prompt = compose_child_prompt(agent)
+        with tempfile.TemporaryDirectory(prefix="tau-subagent-") as temp_dir_name:
+            temp_dir = Path(temp_dir_name)
+            prompt_path = temp_dir / "prompt.md"
+            prompt_path.write_text(prompt, encoding="utf-8")
+            prompt_path.chmod(0o600)
+            policy_path: Path | None = None
+            if agent.profile == "read-only":
+                policy_path = temp_dir / "read_only_policy.py"
+                policy_path.write_text(_POLICY_EXTENSION, encoding="utf-8")
+                policy_path.chmod(0o600)
+
+            argv = build_tau_argv(
+                executable=self.executable,
+                cwd=cwd,
+                prompt_path=prompt_path,
+                task=task,
+                provider=provider,
+                model=model,
+                policy_path=policy_path,
+            )
+            environment = os.environ.copy()
+            environment[RECURSION_GUARD] = "1"
+            try:
+                process = await asyncio.create_subprocess_exec(
+                    *argv,
+                    cwd=str(cwd),
+                    env=environment,
+                    stdin=asyncio.subprocess.DEVNULL,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    limit=10 * 1024 * 1024,
+                )
+            except (OSError, ValueError) as exc:
+                result.error_message = f"Could not start Tau child: {exc}"
+                return result
+
+            assert process.stdout is not None
+            assert process.stderr is not None
+            stdout_task = asyncio.create_task(_collect_stdout(process.stdout, result, on_message))
+            stderr_task = asyncio.create_task(process.stderr.read())
+            wait_task = asyncio.create_task(process.wait())
+            cancellation_task: asyncio.Task[None] | None = None
+            if signal is not None:
+                cancellation_task = asyncio.create_task(_wait_for_cancellation(signal))
+
+            controls: set[asyncio.Task[object]] = {cast("asyncio.Task[object]", wait_task)}
+            if cancellation_task is not None:
+                controls.add(cast("asyncio.Task[object]", cancellation_task))
+            done, _ = await asyncio.wait(
+                controls,
+                timeout=timeout_seconds,
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            if wait_task not in done:
+                if cancellation_task is not None and cancellation_task in done:
+                    result.cancelled = True
+                    result.stop_reason = "aborted"
+                    result.error_message = "Tau child was cancelled."
+                else:
+                    result.timed_out = True
+                    result.stop_reason = "error"
+                    result.error_message = f"Tau child timed out after {timeout_seconds:g} seconds."
+                await _terminate_process(process, wait_task)
+            if cancellation_task is not None:
+                cancellation_task.cancel()
+                await asyncio.gather(cancellation_task, return_exceptions=True)
+
+            await asyncio.gather(stdout_task, return_exceptions=False)
+            stderr_bytes = await stderr_task
+            result.stderr = stderr_bytes.decode("utf-8", errors="replace")
+            result.exit_code = process.returncode if process.returncode is not None else 1
+
+        has_assistant = any(isinstance(message, AssistantMessage) for message in result.messages)
+        if (
+            result.exit_code == 0
+            and not has_assistant
+            and not result.cancelled
+            and not result.timed_out
+        ):
+            result.stop_reason = "error"
+            result.error_message = "Tau child exited without a valid assistant message."
+        elif result.exit_code != 0 and result.error_message is None:
+            result.error_message = f"Tau child exited with code {result.exit_code}."
+        result.status = parse_status(final_output(result.messages), failed=not result.succeeded)
+        return result
+
+
+def compose_child_prompt(agent: AgentConfig) -> str:
+    """Preserve the agent body, then append fixed isolation/profile instructions."""
+
+    sections = [_SHARED_INSTRUCTIONS]
+    if agent.profile == "read-only":
+        sections.insert(0, _READ_ONLY_INSTRUCTIONS)
+    suffix = "\n\n".join(section.rstrip() for section in sections) + "\n"
+    if not agent.system_prompt:
+        return suffix
+    separator = (
+        ""
+        if agent.system_prompt.endswith("\n\n")
+        else ("\n" if agent.system_prompt.endswith("\n") else "\n\n")
+    )
+    return f"{agent.system_prompt}{separator}{suffix}"
+
+
+async def _collect_stdout(
+    stream: asyncio.StreamReader,
+    result: ChildResult,
+    on_message: ChildUpdate | None,
+) -> None:
+    buffer = b""
+    while chunk := await stream.read(64 * 1024):
+        buffer += chunk
+        lines = buffer.split(b"\n")
+        buffer = lines.pop()
+        for line in lines:
+            _process_json_line(line, result, on_message)
+    if buffer:
+        _process_json_line(buffer, result, on_message)
+
+
+def _process_json_line(
+    raw_line: bytes,
+    result: ChildResult,
+    on_message: ChildUpdate | None,
+) -> None:
+    if not raw_line.strip():
+        return
+    try:
+        event = json.loads(raw_line.decode("utf-8"))
+    except UnicodeDecodeError, json.JSONDecodeError:
+        result.malformed_json_lines += 1
+        return
+    if not isinstance(event, dict) or event.get("type") != "message_end":
+        return
+    try:
+        message = _MESSAGE_ADAPTER.validate_python(event.get("message"))
+    except ValidationError:
+        result.malformed_json_lines += 1
+        return
+    result.messages.append(message)
+    if isinstance(message, AssistantMessage):
+        result.usage.turns += 1
+        result.usage.input += message.usage.input
+        result.usage.output += message.usage.output
+        result.usage.cache_read += message.usage.cache_read
+        result.usage.cache_write += message.usage.cache_write
+        result.usage.cost += message.usage.cost.total
+        result.usage.context_tokens = message.usage.total_tokens
+        if result.provider is None:
+            result.provider = message.provider
+        if result.model is None:
+            result.model = message.model
+        result.stop_reason = message.stop_reason
+        result.error_message = message.error_message
+    if on_message is not None and isinstance(message, (AssistantMessage, ToolResultMessage)):
+        on_message(result)
+
+
+async def _wait_for_cancellation(signal: ToolCancellationToken) -> None:
+    # Tau's public cancellation protocol only exposes a synchronous polling method.
+    while not signal.is_cancelled():  # noqa: ASYNC110
+        await asyncio.sleep(0.05)
+
+
+async def _terminate_process(
+    process: asyncio.subprocess.Process,
+    wait_task: asyncio.Task[int],
+) -> None:
+    if process.returncode is not None:
+        return
+    try:
+        process.terminate()
+    except ProcessLookupError:
+        return
+    done, _ = await asyncio.wait({wait_task}, timeout=5.0)
+    if wait_task in done:
+        return
+    try:
+        process.kill()
+    except ProcessLookupError:
+        return
+    await process.wait()
+
+
+def _is_cancelled(signal: ToolCancellationToken | None) -> bool:
+    return signal is not None and signal.is_cancelled()
