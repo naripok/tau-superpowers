@@ -1,0 +1,11 @@
+{
+  "name": "pi-superpowers",
+  "description": "Superpowers skills and the Task subagent extension for pi-coding-agent",
+  "keywords": ["pi-package"],
+  "license": "MIT",
+  "private": true,
+  "pi": {
+    "extensions": ["./extensions"],
+    "skills": ["./skills"]
+  }
+}
