@@ -31,7 +31,7 @@ cd tau-superpowers
 The installer creates individual links without replacing unrelated resources:
 
 ```text
-~/.agents/skills/<skill-name>                  -> <checkout>/skills/<skill-name>
+~/.tau/skills/<skill-name>                     -> <checkout>/skills/<skill-name>
 ~/.tau/extensions/superpowers-subagent         -> <checkout>/extensions/superpowers-subagent
 ```
 

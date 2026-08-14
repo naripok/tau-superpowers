@@ -20,8 +20,8 @@ assert_link() {
 }
 
 installed_home="$temporary_dir/installed-home"
-mkdir -p "$installed_home/.agents/skills" "$temporary_dir/unrelated-skill"
-ln -s "$temporary_dir/unrelated-skill" "$installed_home/.agents/skills/unrelated"
+mkdir -p "$installed_home/.tau/skills" "$temporary_dir/unrelated-skill"
+ln -s "$temporary_dir/unrelated-skill" "$installed_home/.tau/skills/unrelated"
 
 HOME="$installed_home" "$repo_root/install.sh" >"$temporary_dir/first-install.log"
 
@@ -29,28 +29,28 @@ skill_count=0
 for skill_dir in "$repo_root"/skills/*; do
   [[ -f "$skill_dir/SKILL.md" ]] || continue
   skill_name=${skill_dir##*/}
-  assert_link "$installed_home/.agents/skills/$skill_name" "$skill_dir"
+  assert_link "$installed_home/.tau/skills/$skill_name" "$skill_dir"
   ((skill_count += 1))
 done
 [[ $skill_count -gt 0 ]] || fail "no source skills found"
 assert_link \
   "$installed_home/.tau/extensions/superpowers-subagent" \
   "$repo_root/extensions/superpowers-subagent"
-assert_link "$installed_home/.agents/skills/unrelated" "$temporary_dir/unrelated-skill"
+assert_link "$installed_home/.tau/skills/unrelated" "$temporary_dir/unrelated-skill"
 
 HOME="$installed_home" "$repo_root/install.sh" >"$temporary_dir/second-install.log"
 
 conflicting_home="$temporary_dir/conflicting-home"
-mkdir -p "$conflicting_home/.agents/skills/brainstorming"
-printf 'keep me\n' >"$conflicting_home/.agents/skills/brainstorming/marker"
+mkdir -p "$conflicting_home/.tau/skills/brainstorming"
+printf 'keep me\n' >"$conflicting_home/.tau/skills/brainstorming/marker"
 
 if HOME="$conflicting_home" "$repo_root/install.sh" \
   >"$temporary_dir/conflict.log" 2>&1; then
   fail "installer accepted a conflicting destination"
 fi
-[[ -f "$conflicting_home/.agents/skills/brainstorming/marker" ]] ||
+[[ -f "$conflicting_home/.tau/skills/brainstorming/marker" ]] ||
   fail "installer replaced a conflicting destination"
-[[ ! -e "$conflicting_home/.agents/skills/using-superpowers" ]] ||
+[[ ! -e "$conflicting_home/.tau/skills/using-superpowers" ]] ||
   fail "installer made partial skill links before reporting a conflict"
 [[ ! -e "$conflicting_home/.tau/extensions/superpowers-subagent" ]] ||
   fail "installer made the extension link before reporting a conflict"

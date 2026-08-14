@@ -6,7 +6,7 @@ set -euo pipefail
 repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 skills_source="$repo_root/skills"
 extension_source="$repo_root/extensions/superpowers-subagent"
-skills_destination="$HOME/.agents/skills"
+skills_destination="$HOME/.tau/skills"
 extensions_destination="$HOME/.tau/extensions"
 
 if [[ ! -d "$skills_source" ]]; then

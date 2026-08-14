@@ -10,7 +10,7 @@ This is the canonical description of current behavior. See the [Tau `Task` tool 
 
 ### Requirement: Tau-discoverable installation
 
-The package SHALL keep one canonical top-level `skills/` tree and expose it to project Tau sessions through the relative `.agents/skills` link. The installer SHALL link individual skills under `~/.agents/skills` and the extension under `~/.tau/extensions/superpowers-subagent` without replacing unrelated resources. A checkout SHALL support explicit extension loading with `tau -e extensions/superpowers-subagent` and SHALL NOT expose executable code through project `.tau/extensions` by default.
+The package SHALL keep one canonical top-level `skills/` tree and expose it to project Tau sessions through the relative `.agents/skills` link. The installer SHALL link individual skills under `~/.tau/skills` and the extension under `~/.tau/extensions/superpowers-subagent` without replacing unrelated resources. A checkout SHALL support explicit extension loading with `tau -e extensions/superpowers-subagent` and SHALL NOT expose executable code through project `.tau/extensions` by default.
 
 #### Scenario: Checkout discovery
 

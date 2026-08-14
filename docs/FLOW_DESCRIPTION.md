@@ -4,7 +4,7 @@ This document describes the spec-driven development flow enforced by the Tau Sup
 
 ## Tau Activation
 
-A user installation links skills individually under `~/.agents/skills`. In this checkout, Tau exposes the canonical tree through `.agents/skills -> ../skills` only after project input is approved. The model initially receives skill metadata only and requests the full `SKILL.md` when its description matches the task. A user may invoke a skill explicitly with `/skill:<name>`.
+A user installation links skills individually under `~/.tau/skills`. In this checkout, Tau exposes the canonical tree through `.agents/skills -> ../skills` only after project input is approved. The model initially receives skill metadata only and requests the full `SKILL.md` when its description matches the task. A user may invoke a skill explicitly with `/skill:<name>`.
 
 The Python extension registers the capitalized `Task` tool when installed under `~/.tau/extensions/superpowers-subagent` or explicitly loaded with:
 
