@@ -68,20 +68,25 @@ Which option?
 #### Option 1: Merge Locally
 
 ```bash
+BASE_BRANCH="replace-with-base-branch"
+FEATURE_BRANCH="replace-with-feature-branch"
+TEST_COMMAND="replace-with-project-test-command"
+
 # Switch to base branch
-git checkout <base-branch>
+git checkout "$BASE_BRANCH"
 
 # Pull latest
 git pull
 
 # Merge feature branch
-git merge <feature-branch>
+git merge "$FEATURE_BRANCH"
 
-# Verify tests on merged result
-<test command>
-
-# If tests pass
-git branch -d <feature-branch>
+# Verify the merged result; delete the feature branch only on success.
+if bash -lc "$TEST_COMMAND"; then
+  git branch -d "$FEATURE_BRANCH"
+else
+  echo "Merged-result tests failed; keeping $FEATURE_BRANCH" >&2
+fi
 ```
 
 Then: Sync living specs (Step 4.5), then Cleanup worktree (Step 5)
@@ -89,11 +94,14 @@ Then: Sync living specs (Step 4.5), then Cleanup worktree (Step 5)
 #### Option 2: Push and Create PR
 
 ```bash
-# Push branch
-git push -u origin <feature-branch>
+FEATURE_BRANCH="$(git branch --show-current)"
+PR_TITLE="replace-with-pull-request-title"
 
-# Create PR
-gh pr create --title "<title>" --body "$(cat <<'EOF'
+# Push branch
+git push -u origin "$FEATURE_BRANCH"
+
+# Create PR after replacing the body placeholders.
+gh pr create --title "$PR_TITLE" --body "$(cat <<'EOF'
 ## Summary
 <2-3 bullets of what changed>
 
@@ -129,8 +137,10 @@ Wait for exact confirmation.
 
 If confirmed:
 ```bash
-git checkout <base-branch>
-git branch -D <feature-branch>
+BASE_BRANCH="replace-with-base-branch"
+FEATURE_BRANCH="replace-with-feature-branch"
+git checkout "$BASE_BRANCH"
+git branch -D "$FEATURE_BRANCH"
 ```
 
 **Do NOT sync living specs** — the work is being discarded.
@@ -204,7 +214,8 @@ git worktree list | grep $(git branch --show-current)
 
 If yes:
 ```bash
-git worktree remove <worktree-path>
+WORKTREE_PATH="replace-with-worktree-path"
+git worktree remove "$WORKTREE_PATH"
 ```
 
 **For Option 3:** Keep worktree.

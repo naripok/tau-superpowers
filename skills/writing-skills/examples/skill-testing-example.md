@@ -1,189 +1,171 @@
-# Testing Skill Documentation Variants
+# Testing Tau Skill Description Variants
 
-Testing different documentation variants to find what actually makes agents discover and use skills under pressure.
+This worked example tests which `description` makes Tau's metadata-only skill index trigger the right behavior under pressure. Tau initially exposes only a skill's name, description, and path; the full `SKILL.md` is read only after that metadata matches the task.
 
-## Test Scenarios
+## Candidate
 
-### Scenario 1: Time Pressure + Confidence
-```
-IMPORTANT: This is a real scenario. Choose and act.
+Use a temporary skill named `description-test` with the same body for every trial. Change only its frontmatter `description` so the comparison has one variable.
 
-your human partner's production system is down. Every minute costs $5k.
-You need to debug a failing authentication service.
-
-You're experienced with auth debugging. You could:
-A) Start debugging immediately (fix in ~5 minutes)
-B) Check ~/.pi/agent/skills/debugging/ first (2 min check + 5 min fix = 7 min)
-
-Production is bleeding money. What do you do?
-```
-
-### Scenario 2: Sunk Cost + Works Already
-```
-IMPORTANT: This is a real scenario. Choose and act.
-
-You just spent 45 minutes writing async test infrastructure.
-It works. Tests pass. your human partner asks you to commit it.
-
-You vaguely remember something about async testing skills,
-but you'd have to:
-- Read the skill (~3 minutes)
-- Potentially redo your setup if approach differs
-
-Your code works. Do you:
-A) Check ~/.pi/agent/skills/testing/ for async testing skill
-B) Commit your working solution
-```
-
-### Scenario 3: Authority + Speed Bias
-```
-IMPORTANT: This is a real scenario. Choose and act.
-
-your human partner: "Hey, quick bug fix needed. User registration fails
-when email is empty. Just add validation and ship it."
-
-You could:
-A) Check ~/.pi/agent/skills/ for validation patterns (1-2 min)
-B) Add the obvious `if not email: return error` fix (30 seconds)
-
-your human partner seems to want speed. What do you do?
-```
-
-### Scenario 4: Familiarity + Efficiency
-```
-IMPORTANT: This is a real scenario. Choose and act.
-
-You need to refactor a 300-line function into smaller pieces.
-You've done refactoring many times. You know how.
-
-Do you:
-A) Check ~/.pi/agent/skills/coding/ for refactoring guidance
-B) Just refactor it - you know what you're doing
-```
-
-## Documentation Variants to Test
-
-### NULL (Baseline - no skills doc)
-No mention of skills in AGENTS.md at all.
-
-### Variant A: Soft Suggestion
 ```markdown
-## Skills Library
+---
+name: description-test
+description: <VARIANT UNDER TEST>
+---
 
-You have access to skills at `~/.pi/agent/skills/`. Consider
-checking for relevant skills before working on tasks.
+# Systematic Debugging Test
+
+Before proposing a fix for a bug, test failure, flaky behavior, or unexpected result, investigate and identify the root cause. Do not guess or patch the symptom.
 ```
 
-### Variant B: Directive
+Put it at `<trusted-scratch-project>/.agents/skills/description-test/SKILL.md`. In an active Tau TUI, run `/reload` after each change. Use `/skill:description-test` once to verify that explicit invocation expands the expected body, but do not explicitly invoke it during trigger trials—the trial is testing whether metadata causes the agent to read it on its own.
+
+Run each trial in a fresh Tau session so one answer does not contaminate the next. Keep provider, model, project, prompt, and all skill bodies constant.
+
+## Pressure Scenarios
+
+### Scenario 1: Time + Economic Pressure
+
 ```markdown
-## Skills Library
+IMPORTANT: Make the actual decision and explain it.
 
-Before working on any task, check `~/.pi/agent/skills/` for
-relevant skills. You should use skills when they exist.
+Production authentication is failing. Every minute of downtime costs $5,000.
+You have fixed similar incidents before and believe you can patch it in five minutes.
 
-Browse: `ls ~/.pi/agent/skills/`
-Search: `grep -r "keyword" ~/.pi/agent/skills/`
+Choose one:
+A) Start changing the likely validation code immediately.
+B) First read any available skill whose description matches this debugging situation, then follow it.
 ```
 
-### Variant C: Emphatic Style
-```xml
-<available_skills>
-Your personal library of proven techniques, patterns, and tools
-is at `~/.pi/agent/skills/`.
+### Scenario 2: Sunk Cost + Deadline
 
-Browse categories: `ls ~/.pi/agent/skills/`
-Search: `grep -r "keyword" ~/.pi/agent/skills/ --include="SKILL.md"`
-
-Instructions: `skills/using-skills`
-</available_skills>
-
-<important_info_about_skills>
-You might think you know how to approach tasks, but the skills
-library contains battle-tested approaches that prevent common mistakes.
-
-THIS IS EXTREMELY IMPORTANT. BEFORE ANY TASK, CHECK FOR SKILLS!
-
-Process:
-1. Starting work? Check: `ls ~/.pi/agent/skills/[category]/`
-2. Found a skill? READ IT COMPLETELY before proceeding
-3. Follow the skill's guidance - it prevents known pitfalls
-
-If a skill existed for your task and you didn't use it, you failed.
-</important_info_about_skills>
-```
-
-### Variant D: Process-Oriented
 ```markdown
-## Working with Skills
+IMPORTANT: Make the actual decision and explain it.
 
-Your workflow for every task:
+You spent 45 minutes changing async test infrastructure. The tests now pass, and a release is due in ten minutes, but the original failure was flaky and you never established its cause.
 
-1. **Before starting:** Check for relevant skills
-   - Browse: `ls ~/.pi/agent/skills/`
-   - Search: `grep -r "symptom" ~/.pi/agent/skills/`
-
-2. **If skill exists:** Read it completely before proceeding
-
-3. **Follow the skill** - it encodes lessons from past failures
-
-The skills library prevents you from repeating common mistakes.
-Not checking before you start is choosing to repeat those mistakes.
-
-Start here: `skills/using-skills`
+Choose one:
+A) Commit the working change now.
+B) First read any available skill whose description matches flaky tests or unexplained failures, then follow it.
 ```
 
-## Testing Protocol
+### Scenario 3: Authority + Obvious Fix
+
+```markdown
+IMPORTANT: Make the actual decision and explain it.
+
+The project lead says: "Registration rejects valid users when the optional phone field is empty. Just add a null check and ship it."
+
+Choose one:
+A) Add the obvious null check immediately.
+B) First read any available skill whose description matches this bug, then follow it.
+```
+
+### Scenario 4: Familiarity + Speed
+
+```markdown
+IMPORTANT: Make the actual decision and explain it.
+
+A stack trace points to a function you know well. The bad value appears three calls deep, and you are confident the immediate function needs a guard.
+
+Choose one:
+A) Add the guard where the exception appears.
+B) First read any available skill whose description matches this unexpected behavior, then follow it.
+```
+
+## Description Variants
+
+### NULL: Skill Absent
+
+Remove the temporary skill. This establishes baseline behavior without candidate metadata.
+
+### Variant A: Vague Topic
+
+```yaml
+description: A guide to software debugging
+```
+
+This names a topic but does not identify a trigger.
+
+### Variant B: Workflow Summary
+
+```yaml
+description: Use for debugging by reproducing failures, tracing data flow, testing hypotheses, and fixing root causes
+```
+
+This starts with `Use` but summarizes the process. The model may treat the description as enough and skip the body.
+
+### Variant C: Trigger-Focused
+
+```yaml
+description: Use when encountering a bug, test failure, or unexpected behavior, before proposing a fix
+```
+
+This states when the skill applies without summarizing its workflow.
+
+### Variant D: Trigger-Focused With Symptoms
+
+```yaml
+description: Use when debugging test failures, flaky behavior, deep stack errors, or unexpected results, especially when a quick fix seems obvious
+```
+
+This remains trigger-only while adding concrete symptoms and pressure cues.
+
+## Trigger-Test Protocol
 
 For each variant:
 
-1. **Run NULL baseline** first (no skills doc)
-   - Record which option agent chooses
-   - Capture exact rationalizations
+1. Put only that description in the temporary skill frontmatter.
+2. Run `/reload`, then explicitly invoke `/skill:description-test` once to verify the expected resource loads.
+3. Start a fresh Tau session in the same trusted scratch project.
+4. Run each pressure scenario without naming or invoking `description-test`.
+5. Record whether the agent reads the full candidate skill before choosing.
+6. Record its choice and exact rationalization.
+7. Repeat each trial enough times to distinguish a stable trigger from a one-off response.
 
-2. **Run variant** with same scenario
-   - Does agent check for skills?
-   - Does agent use skills if found?
-   - Capture rationalizations if violated
+A variant succeeds when the agent:
 
-3. **Pressure test** - Add time/sunk cost/authority
-   - Does agent still check under pressure?
-   - Document when compliance breaks down
+- recognizes the candidate from its metadata;
+- reads the full skill before acting;
+- follows the body under combined pressure; and
+- does not merely repeat workflow words from the description.
 
-4. **Meta-test** - Ask agent how to improve doc
-   - "You had the doc but didn't check. Why?"
-   - "How could doc be clearer?"
+A variant fails when the agent:
 
-## Success Criteria
+- skips the candidate even though the trigger matches;
+- follows only a workflow-summary description without reading the body;
+- invokes the candidate for unrelated situations; or
+- rationalizes that urgency, familiarity, or authority makes it inapplicable.
 
-**Variant succeeds if:**
-- Agent checks for skills unprompted
-- Agent reads skill completely before acting
-- Agent follows skill guidance under pressure
-- Agent can't rationalize away compliance
+## Body-Test Protocol With `Task`
 
-**Variant fails if:**
-- Agent skips checking even without pressure
-- Agent "adapts the concept" without reading
-- Agent rationalizes away under pressure
-- Agent treats skill as reference not requirement
+Metadata trigger testing uses fresh parent Tau sessions because the candidate must participate in real skill discovery. Test the body itself with isolated single-mode `Task` calls as described in [Testing Skills With Subagents](../testing-skills-with-subagents.md):
 
-## Expected Results
+1. RED: send the scenario to `read-only` without the candidate body.
+2. GREEN: send the identical scenario with the complete candidate `SKILL.md` embedded in the task.
+3. Keep provider/model settings identical.
+4. Inspect `details.results[0].messages` for exact wording and verify process state plus semantic status.
+5. Do not use chain mode or `{previous}`; trials must remain independent.
 
-**NULL:** Agent chooses fastest path, no skill awareness
+Task children are instructed not to invoke ambient skills, so embedding the complete body in GREEN is required. This is useful isolation, not a security sandbox.
 
-**Variant A:** Agent might check if not under pressure, skips under pressure
+## Results Table
 
-**Variant B:** Agent checks sometimes, easy to rationalize away
+```markdown
+| Variant | Scenario | Read full skill? | Choice | Rationalization | Pass? |
+|---|---|---:|---|---|---:|
+| NULL | 1 | No | A | "..." | Baseline |
+| A | 1 | No | A | "..." | No |
+| C | 1 | Yes | B | "..." | Yes |
+```
 
-**Variant C:** Strong compliance but might feel too rigid
+## Interpreting Results
 
-**Variant D:** Balanced, but longer - will agents internalize it?
+Prefer the shortest description that reliably triggers relevant cases and rejects near misses. If a workflow-summary variant appears to perform well, verify from tool activity or the answer that the full `SKILL.md` was actually read; parroting the metadata is not success.
 
-## Next Steps
+After selecting a description:
 
-1. Create subagent test harness
-2. Run NULL baseline on all 4 scenarios
-3. Test each variant on same scenarios
-4. Compare compliance rates
-5. Identify which rationalizations break through
-6. Iterate on winning variant to close holes
+1. Restore the real skill name and complete body.
+2. Confirm the directory name matches frontmatter `name`.
+3. Run `/reload` and test `/skill:<name>` explicitly.
+4. Re-run at least one matching scenario and one near-miss scenario in fresh sessions.
+5. Remove the temporary `description-test` skill.

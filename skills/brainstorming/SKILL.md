@@ -17,18 +17,18 @@ Every project goes through this process. A todo list, a single-function utility,
 
 ## Checklist
 
-You MUST create a task for each of these items and complete them in order:
+Copy this checklist into your working notes and mark each Markdown checkbox as you complete it. Complete the items in order:
 
-1. **Read living specs** — check `docs/specs/` for relevant domain specs. They describe current system behavior. If no spec exists for the relevant domain, note that the feature spec will define the domain's initial behavioral requirements.
-2. **Explore project context** — check files, docs, recent commits
-3. **Ask clarifying questions** — one at a time, understand purpose/constraints/success criteria
-4. **Propose 2-3 approaches** — with trade-offs and your recommendation
-5. **Present design** — in sections scaled to their complexity, get user approval after each section
-6. **Write proposal** — save to `docs/design/YYYY-MM-DD-<topic>-proposal.md` and commit
-7. **Write feature spec** — save to `docs/design/YYYY-MM-DD-<topic>-spec.md` and commit
-8. **Dispatch spec reviewer** — use `spec-document-reviewer-prompt.md` to verify the spec is complete and behavioral
-9. **User reviews proposal + spec** — ask user to review both artifacts before proceeding
-10. **Transition to implementation** — invoke writing-plans skill to create implementation plan
+- [ ] **Read living specs** — check `docs/specs/` for relevant domain specs. They describe current system behavior. If no spec exists for the relevant domain, note that the feature spec will define the domain's initial behavioral requirements.
+- [ ] **Explore project context** — check files, docs, recent commits
+- [ ] **Ask clarifying questions** — one at a time, understand purpose/constraints/success criteria
+- [ ] **Propose 2-3 approaches** — with trade-offs and your recommendation
+- [ ] **Present design** — in sections scaled to their complexity, get user approval after each section
+- [ ] **Write proposal** — save to `docs/design/YYYY-MM-DD-<topic>-proposal.md` and commit
+- [ ] **Write feature spec** — save to `docs/design/YYYY-MM-DD-<topic>-spec.md` and commit
+- [ ] **Dispatch spec reviewer** — use `spec-document-reviewer-prompt.md` to verify the spec is complete and behavioral
+- [ ] **User reviews proposal + spec** — ask user to review both artifacts before proceeding
+- [ ] **Transition to implementation** — invoke writing-plans skill to create implementation plan
 
 ## Process Flow
 

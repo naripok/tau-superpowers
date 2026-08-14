@@ -9,15 +9,20 @@ description: Use when creating new skills, editing existing skills, or verifying
 
 **Writing skills IS Test-Driven Development applied to process documentation.**
 
-**Personal skills live in `~/.pi/agent/skills/` (or `.pi/skills/` for project-local skills).**
+Tau discovers skills from these directories in increasing precedence:
 
-You write test cases (pressure scenarios with subagents), watch them fail (baseline behavior), write the skill (documentation), watch tests pass (agents comply), and refactor (close loopholes).
+1. `~/.tau/skills/`
+2. `~/.agents/skills/`
+3. `<cwd>/.tau/skills/`
+4. `<cwd>/.agents/skills/`
+
+Each skill is a directory containing `SKILL.md`. A higher-precedence skill with the same name overrides a lower-precedence one. In an active TUI, run `/reload` after changing a skill. Users can explicitly invoke it with `/skill:<name> [request]`.
+
+You write test cases (pressure scenarios with isolated subagents), watch them fail (baseline behavior), write the skill (documentation), watch tests pass (agents comply), and refactor (close loopholes).
 
 **Core principle:** If you didn't watch an agent fail without the skill, you don't know if the skill teaches the right thing.
 
 **REQUIRED BACKGROUND:** You MUST understand test-driven-development before using this skill. That skill defines the fundamental RED-GREEN-REFACTOR cycle. This skill adapts TDD to documentation.
-
-
 
 ## What is a Skill?
 
@@ -73,11 +78,13 @@ API docs, syntax guides, tool documentation (office docs)
 
 
 ```
-skills/
+<skills-dir>/
   skill-name/
     SKILL.md              # Main reference (required)
     supporting-file.*     # Only if needed
 ```
+
+`<skills-dir>` is one of Tau's user or project discovery directories listed above. Keep the directory name and frontmatter `name` identical for portability.
 
 **Flat namespace** - all skills in one searchable namespace
 
@@ -94,17 +101,16 @@ skills/
 
 **Frontmatter (YAML):**
 - Two required fields: `name` and `description` (see [agentskills.io/specification](https://agentskills.io/specification) for all supported fields)
-- Max 1024 characters total
-- `name`: Use letters, numbers, and hyphens only (no parentheses, special chars)
-- `description`: Third-person, describes ONLY when to use (NOT what it does)
+- `name`: 1-64 characters; lowercase letters, numbers, and single hyphens only; must not start or end with a hyphen; must match the parent directory
+- `description`: 1-1024 characters; third-person and trigger-focused
   - Start with "Use when..." to focus on triggering conditions
   - Include specific symptoms, situations, and contexts
-  - **NEVER summarize the skill's process or workflow** (see CSO section for why)
+  - **NEVER summarize the skill's process or workflow** (see SSO section for why)
   - Keep under 500 characters if possible
 
 ```markdown
 ---
-name: Skill-Name-With-Hyphens
+name: skill-name-with-hyphens
 description: Use when [specific triggering conditions and symptoms]
 ---
 
@@ -143,7 +149,7 @@ Concrete results
 
 ### 1. Rich Description Field
 
-**Purpose:** The agent reads the description to decide which skills to load for a given task. Make it answer: "Should I read this skill right now?"
+**Purpose:** Tau initially puts only each skill's name, description, and path in the system prompt. The agent uses that metadata to decide whether to read the full `SKILL.md`. Make the description answer: "Should I read this skill right now?"
 
 **Format:** Start with "Use when..." to focus on triggering conditions
 
@@ -212,12 +218,12 @@ Use words the agent would search for:
 
 ### 4. Token Efficiency (Critical)
 
-**Problem:** getting-started and frequently-referenced skills load into EVERY conversation. Every token counts.
+**Problem:** Every discovered skill contributes name, description, and path metadata to the system prompt. Full skill content loads only when the agent reads it or the user invokes `/skill:<name>`, but unnecessary body text still consumes context at that point.
 
-**Target word counts:**
-- getting-started workflows: <150 words each
-- Frequently-loaded skills: <200 words total
-- Other skills: <500 words (still be concise)
+**Targets:**
+- Keep descriptions concise because their metadata is always indexed
+- Keep frequently-used skill bodies focused
+- Move heavy references and reusable tools to supporting files
 
 **Techniques:**
 
@@ -261,8 +267,7 @@ You: Searching...
 **Verification:**
 ```bash
 wc -w skills/path/SKILL.md
-# getting-started workflows: aim for <150 each
-# Other frequently-loaded: aim for <200 total
+# Review whether heavy details can move to supporting files.
 ```
 
 **Name by what you DO or core insight:**
@@ -275,17 +280,17 @@ wc -w skills/path/SKILL.md
 - `creating-skills`, `testing-skills`, `debugging-with-logs`
 - Active, describes the action you're taking
 
-### 4. Cross-Referencing Other Skills
+### 5. Cross-Referencing Other Skills
 
 **When writing documentation that references other skills:**
 
-Use skill name only, with explicit requirement markers:
+Use the skill name only, with explicit requirement markers:
 - ✅ Good: `**REQUIRED SUB-SKILL:** Use test-driven-development`
 - ✅ Good: `**REQUIRED BACKGROUND:** You MUST understand systematic-debugging`
-- ❌ Bad: `See skills/testing/test-driven-development` (unclear if required)
-- ❌ Bad: `@skills/testing/test-driven-development/SKILL.md` (force-loads, burns context)
+- ❌ Bad: `See skills/testing/test-driven-development` (unclear if required and assumes a layout)
+- ❌ Bad: `Open @skills/testing/test-driven-development/SKILL.md` (repository-path syntax is not Tau skill invocation)
 
-**Why no @ links:** `@` syntax force-loads files immediately, consuming 200k+ context before you need them.
+The model can resolve a named skill from Tau's metadata index. `/skill:<name>` is the user-facing explicit invocation syntax; prose inside another skill should state the dependency by name rather than assume an installation path.
 
 ## Flowchart Usage
 
@@ -522,12 +527,12 @@ Make it easy for agents to self-check when rationalizing:
 **All of these mean: Delete code. Start over with TDD.**
 ```
 
-### Update CSO for Violation Symptoms
+### Update SSO for Violation Symptoms
 
-Add to description: symptoms of when you're ABOUT to violate the rule:
+Add to the description symptoms of when you're ABOUT to violate the rule:
 
 ```yaml
-description: use when implementing any feature or bugfix, before writing implementation code
+description: Use when implementing any feature or bugfix, before writing implementation code
 ```
 
 ## RED-GREEN-REFACTOR for Skills
@@ -553,8 +558,9 @@ Run same scenarios WITH skill. Agent should now comply.
 
 Agent found new rationalization? Add explicit counter. Re-test until bulletproof.
 
-**Testing methodology:** See `testing-skills-with-subagents.md` for the complete testing methodology:
-- How to write pressure scenarios
+**Testing methodology:** See `testing-skills-with-subagents.md` for the complete Tau-compatible methodology:
+- How to use isolated `Task` calls for baseline and skill-present runs
+- How to include the candidate skill text explicitly despite child skill isolation
 - Pressure types (time, sunk cost, authority, exhaustion)
 - Plugging holes systematically
 - Meta-testing techniques
@@ -595,7 +601,7 @@ Deploying untested skills = deploying untested code. It's a violation of quality
 
 ## Skill Creation Checklist (TDD Adapted)
 
-**IMPORTANT: Use TodoWrite to create todos for EACH checklist item below.**
+**IMPORTANT: Copy this checklist into your working notes and track every item with ordinary Markdown checkboxes.**
 
 **RED Phase - Write Failing Test:**
 - [ ] Create pressure scenarios (3+ combined pressures for discipline skills)
@@ -603,8 +609,8 @@ Deploying untested skills = deploying untested code. It's a violation of quality
 - [ ] Identify patterns in rationalizations/failures
 
 **GREEN Phase - Write Minimal Skill:**
-- [ ] Name uses only letters, numbers, hyphens (no parentheses/special chars)
-- [ ] YAML frontmatter with required `name` and `description` fields (max 1024 chars; see [spec](https://agentskills.io/specification))
+- [ ] Name is 1-64 lowercase letters/numbers/single hyphens, has no edge hyphen, and matches its directory
+- [ ] YAML frontmatter has non-empty `name` and `description`; description is at most 1024 characters (see [spec](https://agentskills.io/specification))
 - [ ] Description starts with "Use when..." and includes specific triggers/symptoms
 - [ ] Description written in third person
 - [ ] Keywords throughout for search (errors, symptoms, tools)
@@ -637,10 +643,10 @@ Deploying untested skills = deploying untested code. It's a violation of quality
 How future agent instances find your skill:
 
 1. **Encounters problem** ("tests are flaky")
-3. **Finds SKILL** (description matches)
-4. **Scans overview** (is this relevant?)
-5. **Reads patterns** (quick reference table)
-6. **Loads example** (only when implementing)
+2. **Finds skill metadata** (description matches)
+3. **Reads `SKILL.md`** (is this relevant?)
+4. **Scans patterns** (quick reference table)
+5. **Loads supporting example** (only when implementing)
 
 **Optimize for this flow** - put searchable terms early and often.
 

@@ -21,7 +21,7 @@ execute directly using this skill.
 1. Read plan file
 2. Review critically - identify any questions or concerns about the plan
 3. If concerns: Raise them with your human partner before starting
-4. If no concerns: Create task tracking list and proceed
+4. If no concerns: Copy the plan checklist into your working notes, mark items with ordinary Markdown checkboxes, and proceed
 
 ### Step 2: Execute Tasks
 
