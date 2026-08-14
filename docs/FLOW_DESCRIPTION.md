@@ -83,15 +83,14 @@ FINISHING
   1. Run fresh repository verification.
   2. Determine the base branch.
   3. Present merge, pull request, keep, or discard options.
-  4. If discard was selected, require typed confirmation, discard, and stop without
-     syncing the living spec.
-  5. For merge/PR/keep, inspect the delta:
+  4. Execute the selected outcome. If discard was selected, first require typed
+     confirmation, then discard and stop without syncing the living spec.
+  5. After merge/PR/keep, inspect the delta:
        a. If it has no behavioral changes, skip sync preview, confirmation, update,
           and sync commit.
        b. If it changes behavior, show the proposed sync, get confirmation, merge
           ADDED/MODIFIED/REMOVED requirements into docs/specs/, and commit the sync.
-  6. Only after that branch completes, execute the selected merge/PR/keep outcome.
-  7. Clean up the branch/worktree only when the selected outcome requires it.
+  6. Clean up the branch/worktree only when the selected outcome requires it.
 ```
 
 ## `Task` Dispatch in the Flow
@@ -161,7 +160,7 @@ The feature spec expresses desired behavior. The delta expresses only the change
 | Worktree baseline | `using-git-worktrees` | No feature work on main/master or from a failing unexplained baseline |
 | Spec compliance before quality | `subagent-driven-development` | No quality approval for behavior that misses the delta |
 | Fresh verification | `verification-before-completion` / `finishing-a-development-branch` | No completion or integration claim without current evidence |
-| Confirmed living-spec sync | `finishing-a-development-branch` | No behavior-changing merge/PR/keep before its sync is confirmed, applied, and committed; discard and no-behavior-change paths do not sync |
+| Confirmed living-spec sync | `finishing-a-development-branch` | No merge/PR/keep workflow completes without its required sync being confirmed, applied, and committed; discard and no-behavior-change paths do not sync |
 
 ## Edge Cases
 
