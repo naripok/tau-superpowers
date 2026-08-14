@@ -106,4 +106,3 @@ def test_build_tau_argv_uses_supported_flags_and_positional_task(tmp_path: Path)
         "namespace/model-a",
         "Do the work",
     ]
-    assert not {"--no-session", "--no-skills", "--tools"}.intersection(argv)

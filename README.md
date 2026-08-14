@@ -23,7 +23,7 @@ The project combines ideas and material from [obra/superpowers](https://github.c
 Clone the repository, inspect the extension code, and run the installer:
 
 ```bash
-git clone https://github.com/naripok/pi-superpowers.git tau-superpowers
+git clone <repository-url> tau-superpowers
 cd tau-superpowers
 ./install.sh
 ```
