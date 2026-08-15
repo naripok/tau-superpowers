@@ -31,7 +31,9 @@ def test_call_renderer_prefers_escaped_one_line_description() -> None:
         }
     )
 
-    assert rendered == "▸ [bold]Task[/bold] · Review \\[unsafe] markup"
+    # The TUI renders tool invocations as plain text (no Rich markup), so the
+    # call line must not contain markup tags.
+    assert rendered == "▸ Task · Review \\[unsafe] markup"
 
 
 def test_call_renderer_describes_each_mode_without_description() -> None:

@@ -10,14 +10,18 @@ from tau_agent.types import JSONValue
 
 
 def render_task_call(arguments: Mapping[str, JSONValue]) -> str:
-    """Render one concise Task invocation line for Tau frontends."""
+    """Render one concise Task invocation line for Tau frontends.
+
+    Tau frontends render tool invocations as plain text (Rich markup is only
+    parsed for ``render_result`` output), so this line must not contain tags.
+    """
 
     description = arguments.get("description")
     if isinstance(description, str) and description.strip():
         label = _one_line(description)
     else:
         label = _call_label(arguments)
-    return f"▸ [bold]Task[/bold] · {escape(label)}"
+    return f"▸ Task · {escape(label)}"
 
 
 def render_task_result(result: AgentToolResult, *, expanded: bool) -> str | None:
