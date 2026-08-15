@@ -6,7 +6,7 @@ Use this template when dispatching a code quality reviewer subagent.
 
 **Only dispatch after spec compliance review passes.**
 
-This is a template for constructing the `task` string of the capitalized Tau `Task` tool. Call it with this argument shape after replacing every placeholder:
+This is a template for constructing the `task` string of the Tau `task` tool. Call it with this argument shape after replacing every placeholder:
 
 ```json
 {

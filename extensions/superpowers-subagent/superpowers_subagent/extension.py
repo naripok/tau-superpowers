@@ -96,7 +96,7 @@ _TASK_PARAMETERS: dict[str, JSONValue] = {
 
 
 def setup(tau: ExtensionAPI) -> None:
-    """Register the capitalized Task tool unless this process is a child."""
+    """Register the task tool unless this process is a child."""
 
     if os.environ.get(RECURSION_GUARD):
         return
@@ -119,8 +119,8 @@ def setup(tau: ExtensionAPI) -> None:
 
     tau.register_tool(
         AgentTool(
-            name="Task",
-            label="Task",
+            name="task",
+            label="task",
             description=(
                 "Dispatch complete tasks to isolated Tau subagents. Use agent + task for "
                 "single mode, tasks for ordered parallel mode (max eight, four active), "

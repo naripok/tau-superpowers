@@ -9,7 +9,7 @@ Dispatch read-only subagent to catch issues before they cascade. The reviewer ge
 
 **Core principle:** Review early, review often.
 
-See the [Tau `Task` tool reference](../using-superpowers/references/tau-tools.md) for the complete argument, isolation, approval, and result contract.
+See the [Tau `task` tool reference](../using-superpowers/references/tau-tools.md) for the complete argument, isolation, approval, and result contract.
 
 ## When to Request Review
 
@@ -35,7 +35,7 @@ DIFF_OUTPUT=$(git diff "$BASE_SHA".."$HEAD_SHA")
 
 **2. Dispatch the code reviewer:**
 
-Read `code-reviewer.md`, fill its placeholders, and embed the complete diff, verification output, and paths of modified files in the delegated prompt. Then call the capitalized Tau `Task` tool with this argument shape:
+Read `code-reviewer.md`, fill its placeholders, and embed the complete diff, verification output, and paths of modified files in the delegated prompt. Then call the Tau `task` tool with this argument shape:
 
 ```json
 {
@@ -63,7 +63,7 @@ BASE_SHA=$(git log --oneline | grep "Task 1" | head -1 | awk '{print $1}')
 HEAD_SHA=$(git rev-parse HEAD)
 DIFF_OUTPUT=$(git diff "$BASE_SHA".."$HEAD_SHA")
 
-[Call `Task` with `agent: "read-only"`; include the complete diff, verification output, requirements, and modified-file paths in `task`]
+[Call `task` with `agent: "read-only"`; include the complete diff, verification output, requirements, and modified-file paths in `task`]
   WHAT_WAS_IMPLEMENTED: Verification and repair functions for conversation index
   PLAN_OR_REQUIREMENTS: Task 2 from docs/plans/deployment-plan.md
   DESCRIPTION: Added verifyIndex() and repairIndex() with 4 issue types

@@ -2,9 +2,9 @@
 
 ## Purpose
 
-The capitalized `Task` tool delegates complete units of work to isolated Tau subprocesses. It supports single, ordered parallel, and sequential chain dispatch while preferring summary-first parent-model content and preserving complete accepted child messages in structured details. When a child omits the exact summary heading, its complete final assistant output is the documented fallback.
+The `task` tool delegates complete units of work to isolated Tau subprocesses. It supports single, ordered parallel, and sequential chain dispatch while preferring summary-first parent-model content and preserving complete accepted child messages in structured details. When a child omits the exact summary heading, its complete final assistant output is the documented fallback.
 
-This is the canonical description of current behavior. See the [Tau `Task` tool reference](../../skills/using-superpowers/references/tau-tools.md) for copyable calls and the [README](../../README.md) for installation.
+This is the canonical description of current behavior. See the [Tau `task` tool reference](../../skills/using-superpowers/references/tau-tools.md) for copyable calls and the [README](../../README.md) for installation.
 
 ## Requirements
 
@@ -16,7 +16,7 @@ The package SHALL keep one canonical top-level `skills/` tree and expose it to p
 
 - GIVEN Tau runs in an approved repository checkout
 - WHEN Tau discovers project skills and the extension is explicitly loaded
-- THEN Tau discovers the canonical skills and registers one tool named `Task`
+- THEN Tau discovers the canonical skills and registers one tool named `task`
 
 #### Scenario: User installation collision
 
@@ -31,9 +31,9 @@ The package SHALL keep one canonical top-level `skills/` tree and expose it to p
 - WHEN Tau starts without a user installation or explicit extension path
 - THEN no executable project extension is discovered from this checkout
 
-### Requirement: Task modes and validation
+### Requirement: task modes and validation
 
-A `Task` call SHALL select exactly one non-empty mode: single (`agent` and `task`), parallel (`tasks`), or chain (`chain`). Empty arrays SHALL NOT select a mode. Single mode SHALL accept an optional top-level `cwd`; parallel and chain items SHALL accept their own optional `cwd` values. Every mode MAY include an optional `description` string used only as a display label.
+A `task` call SHALL select exactly one non-empty mode: single (`agent` and `task`), parallel (`tasks`), or chain (`chain`). Empty arrays SHALL NOT select a mode. Single mode SHALL accept an optional top-level `cwd`; parallel and chain items SHALL accept their own optional `cwd` values. Every mode MAY include an optional `description` string used only as a display label.
 
 Parallel mode SHALL accept at most eight items, run no more than four child processes concurrently, and preserve input order. Chain mode SHALL run sequentially, replace every `{previous}` occurrence with the preceding child's complete final assistant text, and assign one-based step numbers.
 
@@ -42,7 +42,7 @@ Invalid fields, values, mode combinations, or required strings SHALL prevent chi
 #### Scenario: Single dispatch
 
 - GIVEN exactly one non-empty `agent` and `task`
-- WHEN `Task` executes
+- WHEN `task` executes
 - THEN one child runs with the requested agent and effective working directory
 
 #### Scenario: Ordered parallel dispatch
@@ -86,7 +86,7 @@ The extension SHALL discover Markdown agent definitions in three increasing-prec
 
 1. bundled `extensions/superpowers-subagent/agents/*.md`;
 2. user `~/.tau/agents/*.md`;
-3. the nearest ancestor `.tau/agents/*.md` from the parent Task session working directory.
+3. the nearest ancestor `.tau/agents/*.md` from the parent session working directory.
 
 `agentScope: user` SHALL be the default and include bundled plus user definitions. `project` SHALL include bundled plus project definitions. `both` SHALL include all layers. A higher layer SHALL replace an agent with the same name, and final ordering SHALL be lexical.
 
@@ -101,7 +101,7 @@ Definitions SHALL contain scalar YAML frontmatter with non-empty string `name` a
 #### Scenario: Nearest project directory
 
 - GIVEN more than one ancestor contains `.tau/agents`
-- WHEN discovery starts from the Task session working directory
+- WHEN discovery starts from the parent session working directory
 - THEN only the nearest directory is used as the project layer
 
 #### Scenario: User scope
@@ -145,19 +145,19 @@ Requested definitions that resolve to the project layer SHALL require separate a
 #### Scenario: Headless fail closed
 
 - GIVEN a requested name resolves to a project definition, confirmation is enabled, and no UI is available
-- WHEN `Task` executes
+- WHEN `task` executes
 - THEN no child starts
 - AND content explains how to inspect and explicitly approve the definition
 
 #### Scenario: Scope without project selection
 
 - GIVEN project scope is enabled but every requested name resolves to bundled or user definitions
-- WHEN `Task` executes
+- WHEN `task` executes
 - THEN no project-agent confirmation is required
 
 ### Requirement: Isolated Tau child invocation
 
-Each child SHALL run as a separate Tau JSON-mode process with safe argv and no shell. The process SHALL use its effective working directory and receive `--no-extensions`, `--no-approve`, `--cwd`, and a temporary `--append-system-prompt` file before the positional delegated task. Discovered child extensions and protected project resources SHALL be disabled, and a recursion guard SHALL prevent `Task` registration if the extension is explicitly loaded in a child.
+Each child SHALL run as a separate Tau JSON-mode process with safe argv and no shell. The process SHALL use its effective working directory and receive `--no-extensions`, `--no-approve`, `--cwd`, and a temporary `--append-system-prompt` file before the positional delegated task. Discovered child extensions and protected project resources SHALL be disabled, and a recursion guard SHALL prevent `task` registration if the extension is explicitly loaded in a child.
 
 The appended prompt SHALL preserve the selected agent body and state that the child has no controller conversation history. It SHALL tell the child not to invoke ambient user skills. Because Tau cannot independently disable user-global skills, that instruction SHALL be documented as behavioral guidance rather than security enforcement.
 
@@ -173,13 +173,13 @@ The appended prompt SHALL preserve the selected agent body and state that the ch
 - GIVEN an item-specific relative or absolute `cwd`
 - WHEN the child starts
 - THEN the process working directory and Tau `--cwd` both use the resolved directory
-- AND a relative value is resolved from the parent Task session working directory
+- AND a relative value is resolved from the parent session working directory
 
 #### Scenario: Recursion guard
 
 - GIVEN a child process carries the recursion environment guard
 - WHEN the subagent extension is explicitly loaded despite disabled discovery
-- THEN its setup does not register `Task`
+- THEN its setup does not register `task`
 
 ### Requirement: Provider and model overrides
 
@@ -299,7 +299,7 @@ Details SHALL be JSON with `schemaVersion: 1`, mode, scope, project agent direct
 #### Scenario: Single success
 
 - GIVEN a successful child returns a summary after earlier output
-- WHEN `Task` returns
+- WHEN `task` returns
 - THEN parent-model content contains only the summary
 - AND details retain every accepted child message
 
@@ -313,7 +313,7 @@ Details SHALL be JSON with `schemaVersion: 1`, mode, scope, project agent direct
 #### Scenario: Chain failure
 
 - GIVEN a chain stops on a process or protocol failure, timeout, or cancellation
-- WHEN `Task` returns
+- WHEN `task` returns
 - THEN content identifies the stopped step
 - AND details contain completed and partial steps
 
@@ -383,7 +383,7 @@ The tool MAY provide public string-returning `render_call` and `render_result` c
 
 ## Intentional Port Differences
 
-The current Tau implementation preserves capitalized `Task`, all three dispatch modes, deterministic ordering, agent precedence, summary-first content with complete-output fallback, complete details, timeout, and cancellation. These differences from the historical pre-Tau implementation are intentional:
+The current Tau implementation uses the lowercase `task` tool name and preserves all three dispatch modes, deterministic ordering, agent precedence, summary-first content with complete-output fallback, complete details, timeout, and cancellation. These differences from the historical pre-Tau implementation are intentional:
 
 | Historical capability | Current Tau behavior |
 | --- | --- |

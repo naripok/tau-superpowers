@@ -116,7 +116,7 @@ def load_task_tool(
     )
     runtime.bind(RecordingSession(tmp_path))
     assert runtime.extension_names == ("superpowers-subagent",)
-    assert [tool.name for tool in runtime.extension_tools] == ["Task"]
+    assert [tool.name for tool in runtime.extension_tools] == ["task"]
     return runtime, runtime.extension_tools[0]
 
 
@@ -146,7 +146,7 @@ async def collect_session_events(stream: AsyncIterator[Any]) -> list[Any]:
 
 
 def tool_call_stream(arguments: dict[str, JSONValue]) -> list[object]:
-    call = ToolCall(id="task-call", name="Task", arguments=arguments)
+    call = ToolCall(id="task-call", name="task", arguments=arguments)
     message = AssistantMessage(content=[call], model="fake")
     return [
         AssistantStartEvent(partial=AssistantMessage(model="fake")),
@@ -197,7 +197,7 @@ def test_real_tau_cli_loads_directory_extension_and_registers_task(tmp_path: Pat
     )
 
     assert completed.returncode == 0, completed.stderr
-    assert "- Task: Dispatch work to an isolated Tau subagent." in completed.stdout
+    assert "- task: Dispatch work to an isolated Tau subagent." in completed.stdout
     assert completed.stderr == ""
 
 
@@ -208,7 +208,7 @@ async def test_real_runtime_executes_single_parallel_and_chain_with_ordered_upda
 ) -> None:
     _executable, log_path = fake_tau_environment
     runtime, tool = load_task_tool(tmp_path)
-    assert runtime.render_tool_call("Task", {"agent": "general-purpose", "task": "alpha"})
+    assert runtime.render_tool_call("task", {"agent": "general-purpose", "task": "alpha"})
 
     single_updates: list[AgentToolResult] = []
     single = await tool.execute(
@@ -223,8 +223,8 @@ async def test_real_runtime_executes_single_parallel_and_chain_with_ordered_upda
     assert len(single_child["messages"]) == 2
     assert len(single_updates) == 3
     assert all(update.details["schemaVersion"] == 1 for update in single_updates)
-    collapsed = runtime.render_tool_result("Task", single, expanded=False)
-    expanded = runtime.render_tool_result("Task", single, expanded=True)
+    collapsed = runtime.render_tool_result("task", single, expanded=False)
+    expanded = runtime.render_tool_result("task", single, expanded=True)
     assert collapsed is not None and "1/1 succeeded" in collapsed
     assert expanded is not None and "full output for alpha" in expanded
 
@@ -307,7 +307,7 @@ async def test_coding_session_propagates_task_partial_updates_and_small_result_c
         )
     )
     try:
-        assert "Task" in {tool.name for tool in session.tools}
+        assert "task" in {tool.name for tool in session.tools}
         events = await collect_session_events(session.prompt("delegate"))
     finally:
         await session.aclose()
@@ -316,7 +316,7 @@ async def test_coding_session_propagates_task_partial_updates_and_small_result_c
     ended = next(event for event in events if isinstance(event, ToolExecutionEndEvent))
     assert len(updates) == 3
     assert all(update.partial_result.details["schemaVersion"] == 1 for update in updates)
-    assert ended.tool_name == "Task"
+    assert ended.tool_name == "task"
     assert ended.result.text == "## Summary\nsummary for session-child\n**Status: DONE**"
     assert "full output" not in ended.result.text
     assert "full output for session-child" in json.dumps(ended.result.details)

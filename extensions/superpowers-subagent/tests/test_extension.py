@@ -14,15 +14,15 @@ class FakeTau:
         self.tools.append(tool)
 
 
-def test_setup_registers_exactly_one_capitalized_task(monkeypatch: Any) -> None:
+def test_setup_registers_exactly_one_task(monkeypatch: Any) -> None:
     monkeypatch.delenv(RECURSION_GUARD, raising=False)
     tau = FakeTau()
 
     setup(tau)  # type: ignore[arg-type]
 
-    assert [tool.name for tool in tau.tools] == ["Task"]
+    assert [tool.name for tool in tau.tools] == ["task"]
     tool = tau.tools[0]
-    assert tool.label == "Task"
+    assert tool.label == "task"
     assert tool.parameters["properties"]["tasks"]["maxItems"] == 8
     assert tool.execution_mode == "parallel"
     assert tool.render_call is not None

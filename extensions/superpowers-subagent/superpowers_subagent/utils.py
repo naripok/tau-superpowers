@@ -49,7 +49,7 @@ def parse_status(text: str, *, failed: bool) -> SubagentStatus:
 
 
 def resolve_child_cwd(default_cwd: Path, override: str | None) -> Path:
-    """Resolve a child cwd relative to the Task session cwd."""
+    """Resolve a child cwd relative to the parent session cwd."""
 
     if override is None:
         return default_cwd.expanduser().resolve()

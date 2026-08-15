@@ -1,14 +1,14 @@
-# Tau `Task` Tool Reference
+# Tau `task` Tool Reference
 
-The `superpowers-subagent` Tau extension registers one capitalized tool named `Task`. It launches isolated `tau` subprocesses for single, parallel, or chained work. The extension must be installed under `~/.tau/extensions/superpowers-subagent` or explicitly loaded with:
+The `superpowers-subagent` Tau extension registers one tool named `task`. It launches isolated `tau` subprocesses for single, parallel, or chained work. The extension must be installed under `~/.tau/extensions/superpowers-subagent` or explicitly loaded with:
 
 ```bash
 tau -e extensions/superpowers-subagent
 ```
 
-## Task Tool API
+## task Tool API
 
-Call `Task` with exactly one non-empty mode. The examples below are the JSON argument objects for the tool call.
+Call `task` with exactly one non-empty mode. The examples below are the JSON argument objects for the tool call.
 
 ### Single mode
 
@@ -64,7 +64,7 @@ Use `chain` for unconditional sequential work. Every `{previous}` occurrence is 
 }
 ```
 
-A chain stops on child process/protocol failure, timeout, or cancellation. A successful child whose semantic status is `BLOCKED` or `NEEDS_CONTEXT` does not automatically stop the chain, so use separate `Task` calls for conditional review or repair loops.
+A chain stops on child process/protocol failure, timeout, or cancellation. A successful child whose semantic status is `BLOCKED` or `NEEDS_CONTEXT` does not automatically stop the chain, so use separate `task` calls for conditional review or repair loops.
 
 ## Common Options
 
@@ -123,7 +123,7 @@ Do not combine or split values. In particular, a slash inside `model` remains pa
 
 ## Child Context and Skill Isolation
 
-Each child receives the selected agent body and the complete delegated task, but not the controller's conversation history. There is no mid-task conversation with the controller: when a child reports missing context, supply it in a new complete `Task` call.
+Each child receives the selected agent body and the complete delegated task, but not the controller's conversation history. There is no mid-task conversation with the controller: when a child reports missing context, supply it in a new complete `task` call.
 
 Children run with discovered extensions and project resources disabled. Tau cannot independently disable user-global skills, so those skills may remain listed; the appended child prompt instructs the child not to invoke them. That prompt-only instruction is behavioral guidance, not a security boundary. Always include all workflow steps, requirements, relevant file paths, command output, and expected response format in the delegated task.
 
@@ -174,7 +174,7 @@ HEAD_SHA=$(git rev-parse HEAD)
 git diff "$BASE_SHA".."$HEAD_SHA"
 ```
 
-Then call `Task` with the complete output embedded in `task`:
+Then call `task` with the complete output embedded in `task`:
 
 ```json
 {
@@ -183,4 +183,4 @@ Then call `Task` with the complete output embedded in `task`:
 }
 ```
 
-Use chain mode only for unconditional pipelines. For conditional loops such as implement → review → fix if needed → re-review, inspect each result and make separate `Task` calls.
+Use chain mode only for unconditional pipelines. For conditional loops such as implement → review → fix if needed → re-review, inspect each result and make separate `task` calls.

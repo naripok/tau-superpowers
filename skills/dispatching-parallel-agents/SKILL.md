@@ -13,7 +13,7 @@ When you have multiple unrelated failures (different test files, different subsy
 
 **Core principle:** Dispatch one agent per independent problem domain. Let them work concurrently.
 
-See the [Tau `Task` tool reference](../using-superpowers/references/tau-tools.md) for the complete argument, scope, approval, isolation, and result contract.
+See the [Tau `task` tool reference](../using-superpowers/references/tau-tools.md) for the complete argument, scope, approval, isolation, and result contract.
 
 ## When to Use
 
@@ -67,7 +67,7 @@ Each agent gets:
 
 ### 3. Dispatch in Parallel
 
-Call the capitalized Tau `Task` tool with one `tasks` argument object. It accepts at most eight items, runs at most four children concurrently, and preserves input order in the result:
+Call the Tau `task` tool with one `tasks` argument object. It accepts at most eight items, runs at most four children concurrently, and preserves input order in the result:
 
 ```json
 {

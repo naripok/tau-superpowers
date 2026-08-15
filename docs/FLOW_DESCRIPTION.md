@@ -1,18 +1,18 @@
 # Living Spec Flow in Tau
 
-This document describes the spec-driven development flow enforced by the Tau Superpowers skills and shows where isolated `Task` subagents participate.
+This document describes the spec-driven development flow enforced by the Tau Superpowers skills and shows where isolated `task` subagents participate.
 
 ## Tau Activation
 
 A user installation links skills individually under `~/.tau/skills`. In this checkout, Tau exposes the canonical tree through `.agents/skills -> ../skills` only after project input is approved. The model initially receives skill metadata only and requests the full `SKILL.md` when its description matches the task. A user may invoke a skill explicitly with `/skill:<name>`.
 
-The Python extension registers the capitalized `Task` tool when installed under `~/.tau/extensions/superpowers-subagent` or explicitly loaded with:
+The Python extension registers the `task` tool when installed under `~/.tau/extensions/superpowers-subagent` or explicitly loaded with:
 
 ```bash
 tau -e extensions/superpowers-subagent
 ```
 
-Each `Task` child has a fresh conversation context. The controller must provide complete requirements, paths, diffs or command output, and expected response format; a child cannot see the controller conversation or resume it later.
+Each `task` child has a fresh conversation context. The controller must provide complete requirements, paths, diffs or command output, and expected response format; a child cannot see the controller conversation or resume it later.
 
 ## The Big Picture
 
@@ -45,7 +45,7 @@ BRAINSTORMING
   2. Explore context and clarify one question at a time.
   3. Compare 2-3 approaches and get design approval.
   4. Write proposal and behavioral feature spec.
-  5. Task(read-only): review the spec from named files and supplied context.
+  5. task(read-only): review the spec from named files and supplied context.
   6. Fix and re-dispatch until the reviewer reports DONE.
   7. Get user approval for both artifacts.
 
@@ -57,7 +57,7 @@ WRITING PLANS
   2. Derive the delta before implementation tasks.
   3. Map file responsibilities and write TDD-sized tasks.
   4. Self-review feature -> delta -> plan coverage.
-  5. Task(read-only): review the plan, full delta, named files, and supplied output.
+  5. task(read-only): review the plan, full delta, named files, and supplied output.
   6. Fix and re-dispatch until the reviewer reports DONE.
   7. Ask the user to choose subagent-driven or inline executing-plans execution.
                                   |
@@ -66,11 +66,11 @@ IMPLEMENTATION
   1. Work in an isolated Git worktree, never directly on main/master.
   2. For each task, use red -> green -> refactor and run named checks.
   3. If subagent-driven development was selected:
-       a. Task(general-purpose): implement one complete task.
+       a. task(general-purpose): implement one complete task.
        b. Inspect summary, process fields, semantic status, tests, and commit.
-       c. Task(read-only): spec-compliance review against the full delta.
+       c. task(read-only): spec-compliance review against the full delta.
        d. Fix and re-review until DONE.
-       e. Task(read-only): code-quality review with controller-supplied diff/output.
+       e. task(read-only): code-quality review with controller-supplied diff/output.
        f. Fix and re-review until DONE.
   4. If inline executing-plans was selected:
        a. Execute each plan task directly in order and run its named checks.
@@ -93,9 +93,9 @@ FINISHING
   6. Clean up the branch/worktree only when the selected outcome requires it.
 ```
 
-## `Task` Dispatch in the Flow
+## `task` Dispatch in the Flow
 
-The full argument and result contract is in the [Tau `Task` tool reference](../skills/using-superpowers/references/tau-tools.md). Workflow dispatches use two bundled profiles:
+The full argument and result contract is in the [Tau `task` tool reference](../skills/using-superpowers/references/tau-tools.md). Workflow dispatches use two bundled profiles:
 
 | Profile | Tool access | Workflow use |
 | --- | --- | --- |
@@ -170,11 +170,11 @@ The feature spec expresses desired behavior. The delta expresses only the change
 | **No behavioral change** | Feature spec and delta say `No Behavioral Changes`; finishing skips living-spec sync. |
 | **Multiple domains** | Feature spec and delta use one domain section per living spec; sync each independently. |
 | **Implementation diverges from delta** | Decide whether code or delta is wrong, update the correct artifact, recheck coverage, and re-run compliance review. |
-| **Reviewer lacks context** | Supply named paths plus missing diff/search/command output in a new complete `Task` prompt. |
+| **Reviewer lacks context** | Supply named paths plus missing diff/search/command output in a new complete `task` prompt. |
 | **Child reports a semantic blocker** | Do not infer process failure or automatic chain stopping; inspect details and re-dispatch or escalate. |
 | **User discards the branch** | Do not sync the delta; leave canonical behavior unchanged. |
 | **User keeps the branch** | If behavior changes, sync it first; otherwise skip sync. Preserve the branch/worktree in either case. |
 
 ## Isolation Boundaries
 
-`Task` isolates conversation context and disables discovered child extensions and protected project resources. It is not an operating-system, filesystem, network, credential, provider, or model sandbox. The read-only profile enforces Tau tool calls only, and the instruction not to invoke ambient user skills is prompt guidance only. Complete child messages remain in structured details; parent content uses the extracted summary when present and complete final output as fallback when absent.
+`task` isolates conversation context and disables discovered child extensions and protected project resources. It is not an operating-system, filesystem, network, credential, provider, or model sandbox. The read-only profile enforces Tau tool calls only, and the instruction not to invoke ambient user skills is prompt guidance only. Complete child messages remain in structured details; parent content uses the extracted summary when present and complete final output as fallback when absent.

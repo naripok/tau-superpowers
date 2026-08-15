@@ -16,11 +16,11 @@ You run scenarios without the skill (RED - watch agent fail), write skill addres
 
 ## Tau Test Harness
 
-This harness requires the `superpowers-subagent` Tau extension; see the [Tau `Task` tool reference](../using-superpowers/references/tau-tools.md) for loading instructions and the complete result contract.
+This harness requires the `superpowers-subagent` Tau extension; see the [Tau `task` tool reference](../using-superpowers/references/tau-tools.md) for loading instructions and the complete result contract.
 
-Use separate calls to the capitalized `Task` tool so every trial has isolated context. The bundled `read-only` agent is sufficient for choice-and-explanation scenarios and prevents state-changing Tau tool calls. This tool policy is not an OS, network, credential, or provider sandbox, so keep scenarios non-destructive.
+Use separate calls to the `task` tool so every trial has isolated context. The bundled `read-only` agent is sufficient for choice-and-explanation scenarios and prevents state-changing Tau tool calls. This tool policy is not an OS, network, credential, or provider sandbox, so keep scenarios non-destructive.
 
-A Task child does not inherit this conversation. Discovered child resources are disabled as far as Tau's public CLI permits, and the child is instructed not to invoke ambient skills. Use that isolation for the RED baseline. For GREEN, include the complete candidate `SKILL.md` text in the task itself; do **not** tell the child to use `/skill:<name>`, which is a user-facing Tau invocation rather than a child test harness.
+A `task` child does not inherit this conversation. Discovered child resources are disabled as far as Tau's public CLI permits, and the child is instructed not to invoke ambient skills. Use that isolation for the RED baseline. For GREEN, include the complete candidate `SKILL.md` text in the task itself; do **not** tell the child to use `/skill:<name>`, which is a user-facing Tau invocation rather than a child test harness.
 
 **RED call:**
 
@@ -40,7 +40,7 @@ A Task child does not inherit this conversation. Discovered child resources are 
 }
 ```
 
-Use the same provider/model settings and exact scenario in both calls. Do not use chain mode: baseline and skill-present trials must be independent, not inherit `{previous}`. `Task` content is summary-sized, so inspect `details.results[0].messages` when recording the child's exact wording, and verify process fields plus semantic `status` before counting a trial. Re-dispatch a complete prompt if the result is `NEEDS_CONTEXT`; do not continue an old child conversation.
+Use the same provider/model settings and exact scenario in both calls. Do not use chain mode: baseline and skill-present trials must be independent, not inherit `{previous}`. `task` content is summary-sized, so inspect `details.results[0].messages` when recording the child's exact wording, and verify process fields plus semantic `status` before counting a trial. Re-dispatch a complete prompt if the result is `NEEDS_CONTEXT`; do not continue an old child conversation.
 
 Before deployment, also verify real Tau discovery in the parent TUI: put the skill in one of Tau's discovery directories, run `/reload`, confirm its metadata appears, and invoke `/skill:<name>` explicitly. This discovery smoke test complements behavior trials; it does not replace them.
 
@@ -79,7 +79,7 @@ This is identical to TDD's "write failing test first" - you MUST see what agents
 **Process:**
 
 - [ ] **Create pressure scenarios** (3+ combined pressures)
-- [ ] **Run WITHOUT skill** - use the RED `Task` call with the realistic pressure scenario
+- [ ] **Run WITHOUT skill** - use the RED `task` call with the realistic pressure scenario
 - [ ] **Document choices and rationalizations** word-for-word
 - [ ] **Identify patterns** - which excuses appear repeatedly?
 - [ ] **Note effective pressures** - which scenarios trigger violations?
@@ -101,7 +101,7 @@ C) Write tests now (30 min delay)
 Choose A, B, or C.
 ```
 
-Run this with the RED `Task` call. If the child chooses B or C, capture rationalizations such as:
+Run this with the RED `task` call. If the child chooses B or C, capture rationalizations such as:
 - "I already manually tested it"
 - "Tests after achieve same goals"
 - "Deleting is wasteful"
@@ -113,7 +113,7 @@ Run this with the RED `Task` call. If the child chooses B or C, capture rational
 
 Write the skill to address the specific baseline failures you documented. Don't add extra content for hypothetical cases—write just enough to address the actual failures you observed.
 
-Run the same scenarios with the GREEN `Task` call, embedding the complete candidate skill text. The child should now comply.
+Run the same scenarios with the GREEN `task` call, embedding the complete candidate skill text. The child should now comply.
 
 If agent still fails: skill is unclear or incomplete. Revise and re-test.
 
@@ -189,7 +189,7 @@ Do not avoid the choice by asking a hypothetical question.
 Explain what you would do, but do not modify files or run commands.
 ```
 
-Keep the decision realistic without falsely asking a test child to mutate the project. In GREEN, place the complete skill before the identical scenario; a path or skill name alone is not enough because Task children must not rely on ambient skill discovery.
+Keep the decision realistic without falsely asking a test child to mutate the project. In GREEN, place the complete skill before the identical scenario; a path or skill name alone is not enough because `task` children must not rely on ambient skill discovery.
 
 ## REFACTOR Phase: Close Loopholes (Stay Green)
 

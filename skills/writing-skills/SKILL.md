@@ -559,7 +559,7 @@ Run same scenarios WITH skill. Agent should now comply.
 Agent found new rationalization? Add explicit counter. Re-test until bulletproof.
 
 **Testing methodology:** See `testing-skills-with-subagents.md` for the complete Tau-compatible methodology:
-- How to use isolated `Task` calls for baseline and skill-present runs
+- How to use isolated `task` calls for baseline and skill-present runs
 - How to include the candidate skill text explicitly despite child skill isolation
 - Pressure types (time, sunk cost, authority, exhaustion)
 - Plugging holes systematically

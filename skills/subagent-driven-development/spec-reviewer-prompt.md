@@ -4,7 +4,7 @@ Use this template when dispatching a spec compliance reviewer subagent.
 
 **Purpose:** Verify implementer built what was requested (nothing more, nothing less)
 
-This is a template for constructing the `task` string of the capitalized Tau `Task` tool. Call it with this argument shape after replacing every placeholder:
+This is a template for constructing the `task` string of the Tau `task` tool. Call it with this argument shape after replacing every placeholder:
 
 ```json
 {

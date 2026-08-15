@@ -118,7 +118,7 @@ class TaskDispatcher:
                 return _tool_result(
                     "Project agent approval required in headless mode. Inspect "
                     f"{directory} and set confirmProjectAgents: false to explicitly approve "
-                    "these definitions for this Task call.",
+                    "these definitions for this task call.",
                     mode=request.mode,
                     scope=request.agent_scope,
                     discovery=discovery,

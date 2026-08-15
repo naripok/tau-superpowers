@@ -46,7 +46,7 @@ If AGENTS.md says "don't use TDD" and a skill says "always use TDD," follow the 
 
 Tau discovers skills and initially places only each skill's name, description, and path in the system prompt. When a skill applies, read its `SKILL.md` before acting and follow its instructions. Users can invoke one explicitly with `/skill:<name>`. Resolve supporting files relative to the skill directory.
 
-Subagent dispatch is handled by the capitalized `Task` tool from the Tau extension (see [`references/tau-tools.md`](references/tau-tools.md)). A child does not inherit this conversation, so every delegated task must be self-contained.
+Subagent dispatch is handled by the `task` tool from the Tau extension (see [`references/tau-tools.md`](references/tau-tools.md)). A child does not inherit this conversation, so every delegated task must be self-contained.
 
 # Using Skills
 

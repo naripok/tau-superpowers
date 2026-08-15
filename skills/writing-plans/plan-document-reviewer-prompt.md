@@ -6,7 +6,7 @@ Use this template when dispatching a plan document reviewer subagent.
 
 **Dispatch after:** The complete plan and delta spec are written and self-reviewed.
 
-This is a template for constructing the `task` string of the capitalized Tau `Task` tool. Call it with this argument shape after replacing every placeholder:
+This is a template for constructing the `task` string of the Tau `task` tool. Call it with this argument shape after replacing every placeholder:
 
 ```json
 {

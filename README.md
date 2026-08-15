@@ -1,13 +1,13 @@
 # Tau Superpowers
 
-Tau Superpowers is a collection of Agent Skills for spec-driven development, TDD, debugging, planning, and review, plus a Python Tau extension that registers an isolated-subagent `Task` tool.
+Tau Superpowers is a collection of Agent Skills for spec-driven development, TDD, debugging, planning, and review, plus a Python Tau extension that registers an isolated-subagent `task` tool.
 
 The project combines ideas and material from [obra/superpowers](https://github.com/obra/superpowers) and [Fission-AI/OpenSpec](https://github.com/Fission-AI/OpenSpec), adapted for [Tau](https://github.com/earendil-works/tau).
 
 ## What You Get
 
 - 14 Tau-discoverable Agent Skills covering the full design-to-delivery workflow.
-- A capitalized `Task` tool for single, parallel, and chained Tau subprocesses.
+- A `task` tool for single, parallel, and chained Tau subprocesses.
 - Bundled `general-purpose` and tool-enforced `read-only` child profiles.
 - User and project agent definitions with deterministic precedence and explicit project-agent approval.
 - Summary-sized parent context with complete child messages retained in structured result details.
@@ -43,7 +43,7 @@ Start Tau normally and explicitly invoke the bootstrap skill if desired:
 /skill:using-superpowers
 ```
 
-Tau discovers the installed user extension by default, so the `Task` tool is available without an `-e` option.
+Tau discovers the installed user extension by default, so the `task` tool is available without an `-e` option.
 
 ## Use Directly from a Checkout
 
@@ -80,11 +80,11 @@ If you intentionally create your own project extension link, Tau requires both p
 
 Tau initially loads only skill names, descriptions, and paths. It reads the full `SKILL.md` when a skill matches the task. Use `/skill:<name>` to invoke one explicitly.
 
-## The `Task` Extension
+## The `task` Extension
 
 The extension launches child `tau --mode json` processes with isolated conversation context. Every delegated task must therefore include all requirements, file paths, relevant command output, and expected response format.
 
-Call `Task` with exactly one mode. The snippets below are tool argument objects.
+Call `task` with exactly one mode. The snippets below are tool argument objects.
 
 ### Single
 
@@ -150,7 +150,7 @@ A chain stops for child process/protocol failure, timeout, or cancellation. Sema
 
 In single mode, `cwd` is top-level. Parallel and chain items each carry their own optional `cwd`.
 
-The complete argument, status, progress, and schema-v1 result contract is in [the Tau `Task` tool reference](skills/using-superpowers/references/tau-tools.md).
+The complete argument, status, progress, and schema-v1 result contract is in [the Tau `task` tool reference](skills/using-superpowers/references/tau-tools.md).
 
 ## Agents and Tool Profiles
 
@@ -257,13 +257,13 @@ tau --mode text --approve --no-extensions \
   -e extensions/superpowers-subagent /system
 ```
 
-The printed system prompt should list the skills and `Task`. For a user installation, run this from another directory:
+The printed system prompt should list the skills and `task`. For a user installation, run this from another directory:
 
 ```bash
 tau --mode text --no-approve /system
 ```
 
-It should still list the installed user skills and `Task`. Tau must have a configured provider even though `/system` itself does not call the model.
+It should still list the installed user skills and `task`. Tau must have a configured provider even though `/system` itself does not call the model.
 
 Run the installer regression test:
 

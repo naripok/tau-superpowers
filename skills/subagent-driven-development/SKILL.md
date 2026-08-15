@@ -92,13 +92,13 @@ digraph process {
 
 ## Provider and Model Selection
 
-Omit `provider` and `model` by default so each child uses Tau's configured defaults or its agent definition. Do not set overrides merely to optimize cost or speed. If the user explicitly requests or approves an override, pass `provider` and `model` as separate opaque Task fields; never infer one from the other or split a slash-containing model identifier.
+Omit `provider` and `model` by default so each child uses Tau's configured defaults or its agent definition. Do not set overrides merely to optimize cost or speed. If the user explicitly requests or approves an override, pass `provider` and `model` as separate opaque `task` fields; never infer one from the other or split a slash-containing model identifier.
 
 When an approved choice exists, match capability to role: mechanical tasks can use a faster model, integration work needs stronger cross-file reasoning, and architecture or review work needs the most capable approved option. If no approved identifier is known, recommend a capability level rather than inventing a provider or model value.
 
 ## Handling Implementer Status
 
-Implementer subagents report one of four semantic statuses in the Task result. Inspect both summary content and `details.results`; process failure, timeout, or cancellation is separate from semantic status. Handle each appropriately:
+Implementer subagents report one of four semantic statuses in the `task` result. Inspect both summary content and `details.results`; process failure, timeout, or cancellation is separate from semantic status. Handle each appropriately:
 
 **DONE:** Proceed to spec compliance review.
 
@@ -120,7 +120,7 @@ Implementer subagents report one of four semantic statuses in the Task result. I
 - `./spec-reviewer-prompt.md` - Dispatch spec compliance reviewer subagent
 - `./code-quality-reviewer-prompt.md` - Dispatch code quality reviewer subagent
 
-All templates use the capitalized Tau `Task` argument schema documented in [`../using-superpowers/references/tau-tools.md`](../using-superpowers/references/tau-tools.md). Reviewer prompts must include every readable file path plus any required diff, search, or command output because the enforced read-only profile permits only Tau's `read` tool.
+All templates use the Tau `task` argument schema documented in [`../using-superpowers/references/tau-tools.md`](../using-superpowers/references/tau-tools.md). Reviewer prompts must include every readable file path plus any required diff, search, or command output because the enforced read-only profile permits only Tau's `read` tool.
 
 ## Spec Compliance Review References
 
@@ -154,7 +154,7 @@ You: I'm using Subagent-Driven Development to execute this plan.
 Task 1: Hook installation script
 
 [Get Task 1 text and context (already extracted)]
-[Dispatch Task with agent: 'general-purpose' and the implementer prompt as the task]
+[Dispatch task with agent: 'general-purpose' and the implementer prompt as the task]
 
 Implementer: `NEEDS_CONTEXT` — "Should the hook be installed at user or system level?"
 
@@ -168,10 +168,10 @@ Implementer: "Got it. Implementing now..."
   - Self-review: Found I missed --force flag, added it
   - Committed
 
-[Dispatch Task with agent: 'read-only' and the spec reviewer prompt as the task]
+[Dispatch task with agent: 'read-only' and the spec reviewer prompt as the task]
 Spec reviewer: ✅ Spec compliant - all requirements met, nothing extra
 
-[Get git SHAs, dispatch Task with agent: 'read-only' and the code quality reviewer prompt as the task]
+[Get git SHAs, dispatch task with agent: 'read-only' and the code quality reviewer prompt as the task]
 Code reviewer: Strengths: Good test coverage, clean. Issues: None. Approved.
 
 [Mark Task 1 complete in task tracking list]
@@ -179,7 +179,7 @@ Code reviewer: Strengths: Good test coverage, clean. Issues: None. Approved.
 Task 2: Recovery modes
 
 [Get Task 2 text and context (already extracted)]
-[Dispatch Task with agent: 'general-purpose' and the implementer prompt as the task]
+[Dispatch task with agent: 'general-purpose' and the implementer prompt as the task]
 
 Implementer: [Returns `DONE` with its implementation report]
 Implementer:
@@ -188,7 +188,7 @@ Implementer:
   - Self-review: All good
   - Committed
 
-[Dispatch Task with agent: 'read-only' and the spec reviewer prompt as the task]
+[Dispatch task with agent: 'read-only' and the spec reviewer prompt as the task]
 Spec reviewer: ❌ Issues:
   - Missing: Progress reporting (spec says "report every 100 items")
   - Extra: Added --json flag (not requested)
@@ -196,16 +196,16 @@ Spec reviewer: ❌ Issues:
 [Re-dispatch implementer with the original task, full context, and review findings]
 Implementer: Removed --json flag, added progress reporting
 
-[Spec reviewer reviews again — dispatch Task with agent: 'read-only' again]
+[Spec reviewer reviews again — dispatch task with agent: 'read-only' again]
 Spec reviewer: ✅ Spec compliant now
 
-[Dispatch Task with agent: 'read-only' and the code quality reviewer prompt as the task]
+[Dispatch task with agent: 'read-only' and the code quality reviewer prompt as the task]
 Code reviewer: Strengths: Solid. Issues (Important): Magic number (100)
 
 [Re-dispatch implementer with the original task, full context, and review findings]
 Implementer: Extracted PROGRESS_INTERVAL constant
 
-[Code reviewer reviews again — dispatch Task with agent: 'read-only' again]
+[Code reviewer reviews again — dispatch task with agent: 'read-only' again]
 Code reviewer: ✅ Approved
 
 [Mark Task 2 complete in task tracking list]
@@ -213,7 +213,7 @@ Code reviewer: ✅ Approved
 ...
 
 [After all tasks]
-[Dispatch Task with agent: 'read-only' for final code review]
+[Dispatch task with agent: 'read-only' for final code review]
 Final reviewer: All requirements met, ready to merge
 
 Done!
