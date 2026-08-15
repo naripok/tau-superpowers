@@ -149,10 +149,17 @@ def details_dict(
     project_agents_dir: Path | None,
     discovery_diagnostics: tuple[str, ...],
     results: list[ChildResult],
+    planned: int | None = None,
 ) -> dict[str, JSONValue]:
-    """Serialize schema-versioned Task details."""
+    """Serialize schema-versioned Task details.
 
-    return {
+    ``planned`` is the number of children the dispatch intends to run. It lets
+    partial-result renderers show accurate live counts before every child has
+    produced its first message; renderers fall back to ``len(results)`` when
+    absent.
+    """
+
+    details: dict[str, JSONValue] = {
         "schemaVersion": 1,
         "mode": mode,
         "agentScope": agent_scope,
@@ -160,3 +167,6 @@ def details_dict(
         "discoveryDiagnostics": list(discovery_diagnostics),
         "results": [result.to_dict() for result in results],
     }
+    if planned is not None:
+        details["planned"] = planned
+    return details

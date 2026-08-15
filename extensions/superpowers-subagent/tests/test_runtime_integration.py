@@ -225,8 +225,13 @@ async def test_real_runtime_executes_single_parallel_and_chain_with_ordered_upda
     assert all(update.details["schemaVersion"] == 1 for update in single_updates)
     collapsed = runtime.render_tool_result("task", single, expanded=False)
     expanded = runtime.render_tool_result("task", single, expanded=True)
-    assert collapsed is not None and "1/1 succeeded" in collapsed
+    # Collapsed keeps the pi-style header and previews the streamed work;
+    # expanded shows the full output and the delegated task.
+    assert collapsed is not None and "general-purpose" in collapsed
+    assert "(bundled · DONE)" in collapsed
+    assert "full output for alpha" in collapsed
     assert expanded is not None and "full output for alpha" in expanded
+    assert "─── Task ───" in expanded
 
     parallel_updates: list[AgentToolResult] = []
     parallel = await tool.execute(

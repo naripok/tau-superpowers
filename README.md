@@ -150,6 +150,10 @@ A chain stops for child process/protocol failure, timeout, or cancellation. Sema
 
 In single mode, `cwd` is top-level. Parallel and chain items each carry their own optional `cwd`.
 
+### Live TUI visibility
+
+While children run, the tool row refreshes after every child message so you can watch the work happen: status icons (`✓` DONE, `⚠` DONE_WITH_CONCERNS, `✗` BLOCKED, `?` NEEDS_CONTEXT, `…` in flight), each child's streamed tool calls (`→ $ command`, `read path:lines`, `write path (N lines)`, `edit path`) and assistant text, plus usage counters (`turns`, `↑`/`↓` tokens, cache reads/writes, cost, context, model). Collapsed rows show compact per-child previews with accurate live counts (`2/4 succeeded · 1 running · 1 pending`); press `Ctrl+O` to expand the full per-child work stream, delegated task, status hints, and aggregate usage.
+
 The complete argument, status, progress, and schema-v1 result contract is in [the Tau `task` tool reference](skills/using-superpowers/references/tau-tools.md).
 
 ## Agents and Tool Profiles

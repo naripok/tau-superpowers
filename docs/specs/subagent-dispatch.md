@@ -294,7 +294,7 @@ Status parsing SHALL independently use the last recognized case-insensitive bold
 
 Final `content` SHALL prefer summary-scale text while `details` retains complete accepted child messages. Successful single content SHALL be the extracted summary, the complete final-output fallback when no exact heading exists, or `(no output)` for empty final text; failed single content SHALL be a concise failure. Parallel content SHALL include a success count and one input-ordered `[agent] (completed|failed)` summary/fallback section per item. Successful chain content SHALL be the final step's summary/fallback; failed chain content SHALL identify the stopped step concisely. A child that omits the requested summary can therefore return complete final output to the parent context.
 
-Details SHALL be JSON with `schemaVersion: 1`, mode, scope, project agent directory, discovery diagnostics, and ordered child results. Each child result SHALL contain `agent`, `agentSource`, effective `task` and `cwd`, `exitCode`, complete accepted wire `messages`, `stderr`, usage fields, `status`, `timedOut`, `cancelled`, and `malformedJsonLines`; applicable `provider`, `model`, `stopReason`, `errorMessage`, and `step` fields SHALL also be included. Failure SHALL be represented through content and these fields because Tau tool results have no portable `isError` property.
+Details SHALL be JSON with `schemaVersion: 1`, mode, scope, project agent directory, discovery diagnostics, and ordered child results; partial results SHALL include `planned`, the intended child count, so live viewers can show accurate counts before every child has produced a message, and renderers SHALL fall back to the result count when `planned` is absent. Each child result SHALL contain `agent`, `agentSource`, effective `task` and `cwd`, `exitCode`, complete accepted wire `messages`, `stderr`, usage fields, `status`, `timedOut`, `cancelled`, and `malformedJsonLines`; applicable `provider`, `model`, `stopReason`, `errorMessage`, and `step` fields SHALL also be included. Failure SHALL be represented through content and these fields because Tau tool results have no portable `isError` property.
 
 #### Scenario: Single success
 
@@ -365,13 +365,28 @@ Each child SHALL default to a 3600-second timeout and accept a positive call ove
 
 ### Requirement: Portable rendering
 
-The tool MAY provide public string-returning `render_call` and `render_result` callbacks. Collapsed rendering MAY show mode and success counts; expanded rendering MAY show complete final assistant output from details without adding it to parent-model content. Rendering SHALL use only public Tau APIs, and generic portable content SHALL remain usable if custom rendering is unavailable or returns no rendering.
+The tool MAY provide public string-returning `render_call` and `render_result` callbacks. Rendering SHALL use only public Tau APIs, and generic portable content SHALL remain usable if custom rendering is unavailable or returns no rendering.
+
+Collapsed rendering SHALL stay compact: a mode headline with status icon and live counts, plus per-child headers, short work previews, and usage counters. Expanded rendering SHALL show each child's complete streamed work from details — status icon and hint, error, delegated task, interleaved assistant text and tool calls in message order, and usage counters — plus aggregate usage for multi-child modes. Rendering SHALL distinguish in-flight children (process not yet reaped) from succeeded and failed ones and SHALL map semantic status to icons (`DONE` ✓, `DONE_WITH_CONCERNS` ⚠, `BLOCKED` ✗, `NEEDS_CONTEXT` ?). Because Tau re-renders the tool row after every accepted child message, expanded and collapsed views SHALL update live from the same details payload. Rendering SHALL NOT add or change parent-model content.
+
+#### Scenario: Live single view
+
+- GIVEN a child is running and has emitted an assistant message with a tool call
+- WHEN the update renders the result
+- THEN the row shows an in-flight marker, the streamed tool call, and partial usage
+- AND the child's final assistant output remains available in subsequent renders
+
+#### Scenario: Live parallel counts
+
+- GIVEN partial details include `planned` and fewer children than planned
+- WHEN the result renders collapsed
+- THEN the headline shows `succeeded/planned` with running and pending counts
 
 #### Scenario: Expanded result
 
 - GIVEN schema-versioned details contain a child's final assistant message
 - WHEN the result is rendered in expanded form
-- THEN the renderer may display the complete final assistant output from details
+- THEN the renderer shows complete streamed output, the delegated task, and usage from details
 - AND rendering does not add or change parent-model content
 
 #### Scenario: Unsupported details

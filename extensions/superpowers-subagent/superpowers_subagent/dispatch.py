@@ -144,7 +144,7 @@ class TaskDispatcher:
             results = await self._run_parallel(request, discovery, agents, signal, on_update)
         else:
             results = await self._run_chain(request, discovery, agents, signal, on_update)
-        return _final_result(request, discovery, results)
+        return _final_result(request, discovery, results, planned=len(request.items))
 
     async def _run_single(
         self,
@@ -493,6 +493,7 @@ def _tool_result(
     scope: AgentScope,
     discovery: DiscoveryResult,
     results: list[ChildResult],
+    planned: int | None = None,
 ) -> AgentToolResult:
     return AgentToolResult(
         content=[TextContent(text=content)],
@@ -502,6 +503,7 @@ def _tool_result(
             project_agents_dir=discovery.project_agents_dir,
             discovery_diagnostics=discovery.diagnostics,
             results=results,
+            planned=planned,
         ),
     )
 
@@ -510,6 +512,8 @@ def _final_result(
     request: ParsedRequest,
     discovery: DiscoveryResult,
     results: list[ChildResult],
+    *,
+    planned: int,
 ) -> AgentToolResult:
     if request.mode == "single":
         content = _single_content(results[0])
@@ -538,6 +542,7 @@ def _final_result(
         scope=request.agent_scope,
         discovery=discovery,
         results=results,
+        planned=planned,
     )
 
 
@@ -570,6 +575,7 @@ def _emit_update(
             scope=request.agent_scope,
             discovery=discovery,
             results=results,
+            planned=len(request.items),
         )
     )
 
