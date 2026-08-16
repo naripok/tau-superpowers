@@ -15,6 +15,10 @@ AgentProfile = Literal["general-purpose", "read-only"]
 DispatchMode = Literal["single", "parallel", "chain"]
 SubagentStatus = Literal["DONE", "DONE_WITH_CONCERNS", "BLOCKED", "NEEDS_CONTEXT"]
 
+#: Tau thinking levels, mirrored from Tau's own catalog vocabulary so the
+#: extension validates reasoning-effort values without importing Tau internals.
+THINKING_LEVELS: tuple[str, ...] = ("off", "minimal", "low", "medium", "high", "xhigh")
+
 
 @dataclass(frozen=True, slots=True)
 class AgentConfig:
@@ -28,6 +32,7 @@ class AgentConfig:
     profile: AgentProfile = "general-purpose"
     provider: str | None = None
     model: str | None = None
+    reasoning_effort: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,6 +94,7 @@ class ChildResult:
     usage: UsageStats = field(default_factory=UsageStats)
     provider: str | None = None
     model: str | None = None
+    reasoning_effort: str | None = None
     stop_reason: str | None = None
     error_message: str | None = None
     status: SubagentStatus = "BLOCKED"
@@ -133,6 +139,8 @@ class ChildResult:
             result["provider"] = self.provider
         if self.model is not None:
             result["model"] = self.model
+        if self.reasoning_effort is not None:
+            result["reasoningEffort"] = self.reasoning_effort
         if self.stop_reason is not None:
             result["stopReason"] = self.stop_reason
         if self.error_message is not None:

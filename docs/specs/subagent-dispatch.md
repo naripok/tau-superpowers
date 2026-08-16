@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The `task` tool delegates complete units of work to isolated Tau subprocesses. It supports single, ordered parallel, and sequential chain dispatch while preferring summary-first parent-model content and preserving complete accepted child messages in structured details. When a child omits the exact summary heading, its complete final assistant output is the documented fallback.
+The `task` tool delegates complete units of work to isolated Tau subprocesses. It supports single, ordered parallel, and sequential chain dispatch while preferring summary-first parent-model content and preserving complete accepted child messages in structured details. When a child returns an exact `## Code Review` heading followed by an exact `## Summary` heading, both sections are relayed; when a child omits the exact summary heading, its complete final assistant output is the documented fallback.
 
 This is the canonical description of current behavior. See the [Tau `task` tool reference](../../skills/using-superpowers/references/tau-tools.md) for copyable calls and the [README](../../README.md) for installation.
 
@@ -90,7 +90,9 @@ The extension SHALL discover Markdown agent definitions in three increasing-prec
 
 `agentScope: user` SHALL be the default and include bundled plus user definitions. `project` SHALL include bundled plus project definitions. `both` SHALL include all layers. A higher layer SHALL replace an agent with the same name, and final ordering SHALL be lexical.
 
-Definitions SHALL contain scalar YAML frontmatter with non-empty string `name` and `description` values. They MAY contain `profile` (`general-purpose` or `read-only`), `provider`, and `model`; profile SHALL default to `general-purpose`. Unknown metadata SHALL be ignored. Malformed, unreadable, incomplete, empty optional, or unknown-profile definitions SHALL be skipped with diagnostics that do not expose the body.
+Definitions SHALL contain scalar YAML frontmatter with non-empty string `name` and `description` values. They MAY contain `profile` (`general-purpose` or `read-only`), `provider`, `model`, and `reasoningEffort` (one of `off`, `minimal`, `low`, `medium`, `high`, `xhigh`); profile SHALL default to `general-purpose`. Unknown metadata SHALL be ignored. Malformed, unreadable, incomplete, empty optional, unknown-profile, or unknown-reasoning-effort definitions SHALL be skipped with diagnostics that do not expose the body.
+
+The bundled definitions are `general-purpose`, `read-only`, `implementation` (general-purpose profile, `local-gateway:qwen3.8-27b`, `xhigh`), and `code-review` (read-only profile, `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh`, strict `## Code Review` plus `## Summary` report format).
 
 #### Scenario: Same-name override
 
@@ -157,7 +159,9 @@ Requested definitions that resolve to the project layer SHALL require separate a
 
 ### Requirement: Isolated Tau child invocation
 
-Each child SHALL run as a separate Tau JSON-mode process with safe argv and no shell. The process SHALL use its effective working directory and receive `--no-extensions`, `--no-approve`, `--cwd`, and a temporary `--append-system-prompt` file before the positional delegated task. Discovered child extensions and protected project resources SHALL be disabled, and a recursion guard SHALL prevent `task` registration if the extension is explicitly loaded in a child.
+Each child SHALL run as a separate Tau JSON-mode process with safe argv and no shell. The process SHALL use its effective working directory and receive `--no-extensions`, `--no-approve`, `--cwd`, and a temporary `--append-system-prompt` file before the positional delegated task. Discovered child extensions and protected project resources SHALL be disabled, and a recursion guard SHALL prevent `task` registration if the extension is explicitly loaded in a child. Read-only children SHALL additionally load a temporary policy extension blocking every tool call except `read`, and children with an effective reasoning effort SHALL additionally load a temporary extension that applies that level to the child session before its first turn.
+
+Tau 0.3 exposes no CLI flag or extension-hook seam for a child's startup thinking level, so the generated extension calls the child session's own `set_thinking_level` API at `session_start`, reaching the bound session through the extension runtime view. The level is validated against the effective provider/model catalog; when it is unavailable, the child SHALL print a `[superpowers-subagent] could not apply reasoning effort ...` diagnostic to `stderr` and continue at its ambient level.
 
 The appended prompt SHALL preserve the selected agent body and state that the child has no controller conversation history. It SHALL tell the child not to invoke ambient user skills. Because Tau cannot independently disable user-global skills, that instruction SHALL be documented as behavioral guidance rather than security enforcement.
 
@@ -181,9 +185,11 @@ The appended prompt SHALL preserve the selected agent body and state that the ch
 - WHEN the subagent extension is explicitly loaded despite disabled discovery
 - THEN its setup does not register `task`
 
-### Requirement: Provider and model overrides
+### Requirement: Provider, model, and reasoning-effort overrides
 
 `provider` and `model` SHALL be independent opaque strings at call and agent-definition levels. A call-level value SHALL override only the corresponding agent value. Effective values SHALL map directly to Tau's separate `--provider` and `--model` flags; absent values SHALL omit their flags. The extension SHALL NOT split combined values or infer a provider from a slash-containing model identifier.
+
+`reasoningEffort` SHALL be an optional call-level thinking level resolved at call then agent precedence, mapped to the generated child extension described under child invocation, and recorded as `reasoningEffort` on the child result. Invalid or empty call values SHALL be rejected before child startup; invalid agent-definition values SHALL skip that definition with a diagnostic.
 
 #### Scenario: Partial call override
 
@@ -205,6 +211,22 @@ The appended prompt SHALL preserve the selected agent body and state that the ch
 - WHEN the value is mapped to argv
 - THEN the complete value is passed to `--model`
 - AND no provider is inferred
+
+#### Scenario: Effective reasoning effort
+
+- GIVEN a call passes `reasoningEffort` and the agent definition also sets one
+- WHEN the child is launched
+- THEN the call value wins
+- AND the generated child extension applies it before the first turn
+- AND the child result records the effective value
+
+#### Scenario: Unsupported reasoning effort
+
+- GIVEN the effective provider/model does not support the requested level
+- WHEN the child session validates the level
+- THEN the child prints a `[superpowers-subagent]` diagnostic to `stderr`
+- AND the child still completes at its ambient level
+- AND the result retains the `stderr` diagnostic
 
 ### Requirement: Child tool profiles
 
@@ -256,11 +278,11 @@ Final assistant output SHALL concatenate every text block in the last accepted a
 - WHEN the runner finalizes the child
 - THEN the result is a protocol failure with default `BLOCKED` status
 
-### Requirement: Summary extraction and status
+### Requirement: Summary and code-review extraction, and status
 
-The appended response instructions SHALL tell every child to end with an exact `## Summary` heading and one of four status markers: `DONE`, `DONE_WITH_CONCERNS`, `BLOCKED`, or `NEEDS_CONTEXT`.
+The appended response instructions SHALL tell every child to end with an exact `## Summary` heading and one of four status markers: `DONE`, `DONE_WITH_CONCERNS`, `BLOCKED`, or `NEEDS_CONTEXT`. The bundled `code-review` definition additionally mandates an exact `## Code Review` heading directly before the summary so its actionable points are relayed with the summary.
 
-Summary extraction SHALL recognize only a full line whose horizontal-whitespace-trimmed value is exactly `## Summary`, use the last matching line, and return from that heading through output end unchanged. Without a matching heading, the complete final assistant output SHALL be the fallback.
+Summary extraction SHALL recognize only a full line whose horizontal-whitespace-trimmed value is exactly `## Summary`, use the last matching line, and return from that heading through output end unchanged. Content extraction SHALL prefer the last exact `## Code Review` heading when an exact `## Summary` heading appears at or after it, returning from the review heading through output end so both sections reach the parent; otherwise it SHALL use the summary rule. Without a matching heading, the complete final assistant output SHALL be the fallback.
 
 Status parsing SHALL independently use the last recognized case-insensitive bold or plain supported marker in final assistant output. If no marker exists, a successful child SHALL default to `DONE`; a failed, cancelled, timed-out, or protocol-invalid child SHALL default to `BLOCKED`.
 
@@ -270,6 +292,13 @@ Status parsing SHALL independently use the last recognized case-insensitive bold
 - WHEN summary extraction runs
 - THEN the last exact heading wins
 - AND inline or extended heading text is ignored
+
+#### Scenario: Review plus summary
+
+- GIVEN final output contains an exact `## Code Review` heading followed by an exact `## Summary` heading
+- WHEN content is constructed
+- THEN content starts at the `## Code Review` heading
+- AND both the actionable points and the summary reach the parent
 
 #### Scenario: Missing summary
 
@@ -294,7 +323,7 @@ Status parsing SHALL independently use the last recognized case-insensitive bold
 
 Final `content` SHALL prefer summary-scale text while `details` retains complete accepted child messages. Successful single content SHALL be the extracted summary, the complete final-output fallback when no exact heading exists, or `(no output)` for empty final text; failed single content SHALL be a concise failure. Parallel content SHALL include a success count and one input-ordered `[agent] (completed|failed)` summary/fallback section per item. Successful chain content SHALL be the final step's summary/fallback; failed chain content SHALL identify the stopped step concisely. A child that omits the requested summary can therefore return complete final output to the parent context.
 
-Details SHALL be JSON with `schemaVersion: 1`, mode, scope, project agent directory, discovery diagnostics, and ordered child results; partial results SHALL include `planned`, the intended child count, so live viewers can show accurate counts before every child has produced a message, and renderers SHALL fall back to the result count when `planned` is absent. Each child result SHALL contain `agent`, `agentSource`, effective `task` and `cwd`, `exitCode`, complete accepted wire `messages`, `stderr`, usage fields, `status`, `timedOut`, `cancelled`, and `malformedJsonLines`; applicable `provider`, `model`, `stopReason`, `errorMessage`, and `step` fields SHALL also be included. Failure SHALL be represented through content and these fields because Tau tool results have no portable `isError` property.
+Details SHALL be JSON with `schemaVersion: 1`, mode, scope, project agent directory, discovery diagnostics, and ordered child results; partial results SHALL include `planned`, the intended child count, so live viewers can show accurate counts before every child has produced a message, and renderers SHALL fall back to the result count when `planned` is absent. Each child result SHALL contain `agent`, `agentSource`, effective `task` and `cwd`, `exitCode`, complete accepted wire `messages`, `stderr`, usage fields, `status`, `timedOut`, `cancelled`, and `malformedJsonLines`; applicable `provider`, `model`, `reasoningEffort`, `stopReason`, `errorMessage`, and `step` fields SHALL also be included. Failure SHALL be represented through content and these fields because Tau tool results have no portable `isError` property.
 
 #### Scenario: Single success
 
@@ -328,7 +357,7 @@ Details SHALL be JSON with `schemaVersion: 1`, mode, scope, project agent direct
 
 The extension SHALL emit portable partial results after each accepted assistant or tool-result message and after child completion. Single and chain updates SHALL retain accumulated results; parallel updates SHALL use deterministic input-order slots and progress counts.
 
-Each child SHALL default to a 3600-second timeout and accept a positive call override no greater than 3600. Cancellation or timeout SHALL terminate the process, wait no more than five seconds, kill it if necessary, preserve partial messages and stderr, and prevent queued parallel or later chain work from starting. Every temporary prompt and read-only policy file SHALL be removed on success and all failure paths.
+Each child SHALL default to a 3600-second timeout and accept a positive call override no greater than 3600. Cancellation or timeout SHALL terminate the process, wait no more than five seconds, kill it if necessary, preserve partial messages and stderr, and prevent queued parallel or later chain work from starting. Every temporary prompt, read-only policy file, and thinking-policy file SHALL be removed on success and all failure paths.
 
 #### Scenario: Partial message update
 
@@ -361,7 +390,7 @@ Each child SHALL default to a 3600-second timeout and accept a positive call ove
 
 - GIVEN dispatch exits through success, spawn error, protocol error, cancellation, or timeout
 - WHEN finalization completes
-- THEN no temporary prompt or policy file remains
+- THEN no temporary prompt, policy, or thinking-policy file remains
 
 ### Requirement: Portable rendering
 
@@ -403,6 +432,7 @@ The current Tau implementation uses the lowercase `task` tool name and preserves
 | Historical capability | Current Tau behavior |
 | --- | --- |
 | Combined provider/model setting | Separate opaque `provider` and `model` values |
+| Per-agent reasoning level | `reasoningEffort` at call and definition levels, applied by a generated child extension because Tau 0.3 has no thinking-level CLI flag |
 | Arbitrary per-agent tool lists | Fixed `general-purpose` and `read-only` profiles |
 | Complete skill suppression in children | Project resources and extensions are disabled; ambient user skills are discouraged by prompt only |
 | Framework-specific component rendering | Public string renderers with generic fallback |

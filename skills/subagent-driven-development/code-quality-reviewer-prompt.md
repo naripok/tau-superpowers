@@ -10,12 +10,12 @@ This is a template for constructing the `task` string of the Tau `task` tool. Ca
 
 ```json
 {
-  "agent": "read-only",
+  "agent": "code-review",
   "task": "[FILLED PROMPT BELOW]"
 }
 ```
 
-**Note:** The enforced read-only profile permits only Tau's `read` tool. It cannot run `git diff`, search for unknown paths, or execute tests. The controller must include the complete diff and verification output and name every file the reviewer may need to read. This tool policy is not an OS, filesystem, network, credential, model, or provider sandbox. Do not add `provider` or `model` unless the user explicitly requested or approved the override.
+**Note:** The `code-review` agent uses the enforced read-only profile, which permits only Tau's `read` tool. It cannot run `git diff`, search for unknown paths, or execute tests. The controller must include the complete diff and verification output and name every file the reviewer may need to read. This tool policy is not an OS, filesystem, network, credential, model, or provider sandbox. Do not add `provider`, `model`, or `reasoningEffort` unless the user explicitly requested or approved the override; the agent is already pinned to `openrouter:deepseek/deepseek-v4-flash-0731` at `xhigh`, and its result carries a strict `## Code Review` section plus a `## Summary` that the `task` result relays to the controller.
 
 ```markdown
     Review the following changes for code quality.
@@ -48,15 +48,26 @@ This is a template for constructing the `task` string of the Tau `task` tool. Ca
 
     ## Output Format
 
+    Return exactly two sections with the exact headings `## Code Review` and
+    `## Summary`, in that order, so the controller can relay both to the parent.
+
     ## Code Review
 
+    **Verdict:** Approved | Approved with fixes | Needs fixes
+
     **Strengths:**
-    - [what's good]
+    - [what's good, with file:line]
 
-    **Issues:**
-    - Critical: [must fix]
-    - Important: [should fix]
-    - Minor: [nice to fix]
+    **Critical (must fix):**
+    - [file:line] what's wrong, why it matters, how to fix
 
-    **Assessment:** Approved | Needs fixes
+    **Important (should fix):**
+    - [file:line] what's wrong, why it matters, how to fix
+
+    **Minor (nice to fix):**
+    - [file:line] what could be improved
+
+    ## Summary
+
+    [One short paragraph: what was reviewed, key findings, verdict. Self-contained because it is relayed to the parent session.]
 ```

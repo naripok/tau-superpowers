@@ -84,6 +84,16 @@ _TASK_PARAMETERS: dict[str, JSONValue] = {
             "minLength": 1,
             "description": "Opaque Tau model override; never split on slash.",
         },
+        "reasoningEffort": {
+            "type": "string",
+            "enum": ["off", "minimal", "low", "medium", "high", "xhigh"],
+            "description": (
+                "Thinking level for every child; a call-level value overrides "
+                "the agent definition's reasoningEffort. Applied as the child's "
+                "Tau thinking level at session start; an unsupported level is "
+                "reported on the child's stderr."
+            ),
+        },
         "timeoutSeconds": {
             "type": "number",
             "exclusiveMinimum": 0,
@@ -124,8 +134,9 @@ def setup(tau: ExtensionAPI) -> None:
             description=(
                 "Dispatch complete tasks to isolated Tau subagents. Use agent + task for "
                 "single mode, tasks for ordered parallel mode (max eight, four active), "
-                "or chain for sequential work with {previous}. Fixed agents include "
-                "general-purpose and enforced read-only profiles. Project-controlled "
+                "or chain for sequential work with {previous}. Bundled agents include "
+                "general-purpose, implementation, code-review, and the enforced "
+                "read-only profile. Project-controlled "
                 "agent prompts require explicit approval."
             ),
             parameters=_TASK_PARAMETERS,
@@ -133,8 +144,10 @@ def setup(tau: ExtensionAPI) -> None:
             prompt_snippet="Dispatch work to an isolated Tau subagent.",
             prompt_guidelines=(
                 "Include all required context because subagents cannot see this conversation.",
-                "Use general-purpose for implementation and read-only for inspection.",
-                "Do not set provider or model unless the user requests an override.",
+                "Use implementation for implementation work, code-review for reviews, "
+                "and read-only for plain file inspection.",
+                "Do not set provider, model, or reasoningEffort unless the user "
+                "requests an override or a skill prescribes it.",
                 "Handle BLOCKED and NEEDS_CONTEXT reports explicitly.",
             ),
             render_call=render_task_call,

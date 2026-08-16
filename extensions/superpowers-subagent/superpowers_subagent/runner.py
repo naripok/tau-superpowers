@@ -18,6 +18,7 @@ from .models import AgentConfig, ChildResult
 from .utils import (
     build_tau_argv,
     effective_provider_model,
+    effective_reasoning_effort,
     final_output,
     parse_status,
     resolve_child_cwd,
@@ -68,6 +69,45 @@ def setup(tau: ExtensionAPI) -> None:
         return None
 '''
 
+_THINKING_EXTENSION = '''"""Generated reasoning-effort setter for one delegated Tau child.
+
+Tau 0.3 has no CLI flag or public extension hook for the startup thinking
+level, so the child session's own `set_thinking_level` API is invoked at
+`session_start`; it validates the level against the provider/model catalog and
+rebuilds the runtime provider before the first turn. The session handle is
+reached through the extension runtime's bound-session view (``tau._runtime``),
+which is the only reachable handle; if any part of that seam is missing or the
+level is unsupported, a diagnostic is printed to stderr and the child proceeds
+with its ambient level.
+"""
+
+from __future__ import annotations
+
+import sys
+
+
+def setup(tau: object) -> None:
+    @tau.on("session_start")  # type: ignore[attr-defined]
+    async def apply_reasoning_effort(_event: object, _context: object) -> None:
+        level = "{level}"
+        try:
+            runtime = getattr(tau, "_runtime", None)
+            session = getattr(runtime, "session_view", None) if runtime is not None else None
+            if session is None:
+                raise RuntimeError("session not reachable through this Tau version")
+            set_level = getattr(session, "set_thinking_level", None)
+            if set_level is None:
+                raise RuntimeError("Tau session has no set_thinking_level API")
+            if getattr(session, "thinking_level", None) != level:
+                await set_level(level)
+        except Exception as exc:  # noqa: BLE001 - diagnostics must never crash the child
+            print(
+                f"[superpowers-subagent] could not apply reasoning effort {level}: {{exc}}",
+                file=sys.stderr,
+                flush=True,
+            )
+'''
+
 _MESSAGE_ADAPTER: TypeAdapter[AgentMessage] = TypeAdapter(AgentMessage)
 ChildUpdate = Callable[[ChildResult], None]
 
@@ -87,6 +127,7 @@ class TauChildRunner:
         cwd_override: str | None,
         provider_override: str | None,
         model_override: str | None,
+        reasoning_effort_override: str | None,
         timeout_seconds: float,
         signal: ToolCancellationToken | None,
         step: int | None = None,
@@ -96,6 +137,7 @@ class TauChildRunner:
 
         cwd = resolve_child_cwd(default_cwd, cwd_override)
         provider, model = effective_provider_model(agent, provider_override, model_override)
+        reasoning_effort = effective_reasoning_effort(agent, reasoning_effort_override)
         result = ChildResult(
             agent=agent.name,
             agent_source=agent.source,
@@ -103,6 +145,7 @@ class TauChildRunner:
             cwd=str(cwd),
             provider=provider,
             model=model,
+            reasoning_effort=reasoning_effort,
             step=step,
         )
         if _is_cancelled(signal):
@@ -122,6 +165,14 @@ class TauChildRunner:
                 policy_path = temp_dir / "read_only_policy.py"
                 policy_path.write_text(_POLICY_EXTENSION, encoding="utf-8")
                 policy_path.chmod(0o600)
+            thinking_policy_path: Path | None = None
+            if reasoning_effort is not None:
+                thinking_policy_path = temp_dir / "thinking_policy.py"
+                thinking_policy_path.write_text(
+                    _THINKING_EXTENSION.format(level=reasoning_effort),
+                    encoding="utf-8",
+                )
+                thinking_policy_path.chmod(0o600)
 
             argv = build_tau_argv(
                 executable=self.executable,
@@ -131,6 +182,7 @@ class TauChildRunner:
                 provider=provider,
                 model=model,
                 policy_path=policy_path,
+                thinking_policy_path=thinking_policy_path,
             )
             environment = os.environ.copy()
             environment[RECURSION_GUARD] = "1"

@@ -8,14 +8,14 @@ This is a template for constructing the `task` string of the Tau `task` tool. Ca
 
 ```json
 {
-  "agent": "read-only",
+  "agent": "code-review",
   "task": "[FILLED PROMPT BELOW]"
 }
 ```
 
 **IMPORTANT:** The delta spec is a REQUIRED input. If the controller did not include the delta spec's full text, report `NEEDS_CONTEXT` and request it. You cannot review spec compliance without the behavioral contract.
 
-The read-only profile permits only Tau's `read` tool. The controller must name every implementation file and embed any required diff, search, or test output. The policy is not an OS, filesystem, network, credential, model, or provider sandbox. Do not add `provider` or `model` unless the user explicitly requested or approved the override.
+The `code-review` agent uses the enforced read-only profile, which permits only Tau's `read` tool. The controller must name every implementation file and embed any required diff, search, or test output. The policy is not an OS, filesystem, network, credential, model, or provider sandbox. Do not add `provider`, `model`, or `reasoningEffort` unless the user explicitly requested or approved the override; the agent is already pinned to `openrouter:deepseek/deepseek-v4-flash-0731` at `xhigh`, and its result carries a strict `## Code Review` section plus a `## Summary` that the `task` result relays to the controller.
 
 ```markdown
     You are reviewing whether an implementation matches its specification.
@@ -101,9 +101,18 @@ The read-only profile permits only Tau's `read` tool. The controller must name e
 
     **Verify by reading code, not by trusting report.**
 
-    Report:
-    - ✅ Spec compliant (if everything matches after code inspection)
-    - ❌ Issues found: [list specifically what's missing or extra, with file:line references]
+    Report in the strict two-section format (exact headings, in this order):
+
+    ## Code Review
+
+    **Verdict:** Spec compliant | Issues found
+
+    - ✅ [what was verified, with file:line references]
+    - ❌ [what's missing or extra, with file:line references]
+
+    ## Summary
+
+    [One short paragraph: what was checked, verdict, and whether the controller should fix code or update the delta spec. Self-contained because it is relayed to the parent session.]
 
     If you find a discrepancy between the code and the delta spec, note it clearly
     so the controller can decide whether to fix the code or update the delta spec.

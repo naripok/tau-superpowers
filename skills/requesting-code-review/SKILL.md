@@ -35,16 +35,20 @@ DIFF_OUTPUT=$(git diff "$BASE_SHA".."$HEAD_SHA")
 
 **2. Dispatch the code reviewer:**
 
+The bundled `code-review` agent is a read-only reviewer pinned to `openrouter:deepseek/deepseek-v4-flash-0731` at `xhigh` reasoning effort, and it returns a strict `## Code Review` section (verdict + severity-ordered actionable points) followed by a `## Summary`. The `task` result relays **both** sections to you, so the actionable points stay in your context alongside the summary. Do not pass `provider`, `model`, or `reasoningEffort` overrides.
+
 Read `code-reviewer.md`, fill its placeholders, and embed the complete diff, verification output, and paths of modified files in the delegated prompt. Then call the Tau `task` tool with this argument shape:
 
 ```json
 {
-  "agent": "read-only",
+  "agent": "code-review",
   "task": "Review the named modified files for code quality.\n\n## Modified Files\n[LIST EVERY FILE THE REVIEWER MAY NEED TO READ]\n\n## Git Diff\n[PASTE DIFF_OUTPUT]\n\n## Verification Output\n[PASTE TEST, LINT, AND TYPE-CHECK OUTPUT]\n\n## Context\nWHAT_WAS_IMPLEMENTED: [WHAT YOU BUILT]\nPLAN_OR_REQUIREMENTS: [WHAT IT SHOULD DO]\nDESCRIPTION: [BRIEF SUMMARY]\n\nRead the named files for full context, then return the required review format."
 }
 ```
 
 Replace every bracketed placeholder before dispatch. Do not ask the child to run commands or discover paths: the enforced read-only profile permits only Tau's `read` tool. The policy blocks state-changing Tau tools but is not an OS, filesystem, network, credential, model, or provider sandbox.
+
+**The result contains the `## Code Review` section (actionable points) plus the `## Summary`. Act on the points; treat the summary as the digest.**
 
 **3. Act on feedback:**
 - Fix Critical issues immediately
@@ -63,17 +67,23 @@ BASE_SHA=$(git log --oneline | grep "Task 1" | head -1 | awk '{print $1}')
 HEAD_SHA=$(git rev-parse HEAD)
 DIFF_OUTPUT=$(git diff "$BASE_SHA".."$HEAD_SHA")
 
-[Call `task` with `agent: "read-only"`; include the complete diff, verification output, requirements, and modified-file paths in `task`]
+[Call `task` with `agent: "code-review"`; include the complete diff, verification output, requirements, and modified-file paths in `task`]
   WHAT_WAS_IMPLEMENTED: Verification and repair functions for conversation index
   PLAN_OR_REQUIREMENTS: Task 2 from docs/plans/deployment-plan.md
   DESCRIPTION: Added verifyIndex() and repairIndex() with 4 issue types
 
 [Subagent returns]:
+  ## Code Review
+  Verdict: Approved with fixes
   Strengths: Clean architecture, real tests
   Issues:
     Important: Missing progress indicators
     Minor: Magic number (100) for reporting interval
-  Assessment: Ready to proceed
+
+  ## Summary
+  Reviewed verifyIndex()/repairIndex(); solid implementation, fix the two issues before merge.
+
+[You receive BOTH sections in the task result and act on the issues]
 
 You: [Fix progress indicators]
 [Continue to Task 3]

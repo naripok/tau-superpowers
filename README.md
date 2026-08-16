@@ -8,9 +8,10 @@ The project combines ideas and material from [obra/superpowers](https://github.c
 
 - 14 Tau-discoverable Agent Skills covering the full design-to-delivery workflow.
 - A `task` tool for single, parallel, and chained Tau subprocesses.
-- Bundled `general-purpose` and tool-enforced `read-only` child profiles.
+- Bundled child agents: `general-purpose`, tool-enforced `read-only`, `implementation` (local gateway, `xhigh` reasoning), and `code-review` (OpenRouter DeepSeek, `xhigh` reasoning, strict `## Code Review` + `## Summary` reports).
 - User and project agent definitions with deterministic precedence and explicit project-agent approval.
-- Summary-sized parent context with complete child messages retained in structured result details.
+- Per-child `reasoningEffort` at call or definition level, applied as the child's Tau thinking level.
+- Summary-sized parent context with complete child messages retained in structured result details; code-review children relay both the `## Code Review` section and the `## Summary`.
 
 ## Requirements
 

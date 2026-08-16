@@ -321,6 +321,18 @@ def test_expanded_single_shows_usage_stats_and_model() -> None:
     assert "acme/fast-1" in expanded
 
 
+def test_usage_line_shows_reasoning_effort_next_to_model() -> None:
+    usage = {"turns": 1, "input": 10, "output": 20, "cost": 0.0}
+    details = child_details(usage=usage, model="acme/fast-1")
+    details["reasoningEffort"] = "xhigh"
+    result = single_result(details)
+
+    expanded = render_task_result(result, expanded=True)
+
+    assert expanded is not None
+    assert "acme/fast-1 (xhigh)" in expanded
+
+
 def test_parallel_aggregates_usage_into_total() -> None:
     usage = {"turns": 2, "input": 1000, "output": 2000, "cost": 0.0004}
     result = AgentToolResult(

@@ -6,12 +6,12 @@ This is a template for constructing the `task` string of the Tau `task` tool. Ca
 
 ```json
 {
-  "agent": "general-purpose",
+  "agent": "implementation",
   "task": "[FILLED PROMPT BELOW]"
 }
 ```
 
-Do not add `provider` or `model` unless the user explicitly requested or approved the override. The child has no controller conversation history, cannot converse mid-task, and is instructed not to invoke ambient user skills. Include all required file paths, command output, requirements, and workflow steps in the filled prompt.
+The `implementation` agent is pinned to `local-gateway:qwen3.8-27b` at `xhigh` reasoning effort. Do not add `provider`, `model`, or `reasoningEffort` unless an approved fallback applies (see the SKILL's Provider and Model Selection: complex or long-context work, or repeated local-gateway transport failures, is re-dispatched on `openrouter:deepseek/deepseek-v4-flash-0731` with `reasoningEffort: high`). The child has no controller conversation history, cannot converse mid-task, and is instructed not to invoke ambient user skills. Include all required file paths, command output, requirements, and workflow steps in the filled prompt.
 
 ```markdown
     You are implementing Task N: [task name]
@@ -80,8 +80,9 @@ Do not add `provider` or `model` unless the user explicitly requested or approve
 
     **How to escalate:** Report back with status BLOCKED or NEEDS_CONTEXT. Describe
     specifically what you're stuck on, what you've tried, and what kind of help you need.
-    The controller can provide more context, seek user approval for a more capable model
-    override, or break the task into smaller pieces.
+    The controller can provide more context, re-dispatch you on the fallback model
+    (openrouter:deepseek/deepseek-v4-flash-0731) when the work is complex or the local
+    gateway is failing repeatedly, or break the task into smaller pieces.
 
     ## Before Reporting Back: Self-Review
 

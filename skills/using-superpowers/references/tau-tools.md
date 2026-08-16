@@ -77,18 +77,23 @@ These optional top-level fields work with every mode:
 | `confirmProjectAgents` | Require TUI approval for selected project agents (default `true`). Setting it to `false` explicitly approves them for this call. |
 | `provider` | Opaque Tau provider override. |
 | `model` | Opaque Tau model override. |
+| `reasoningEffort` | Thinking level for every child: `off`, `minimal`, `low`, `medium`, `high`, or `xhigh`. A call-level value overrides the selected agent definition's own `reasoningEffort`. Applied as the child's Tau thinking level at session start; if the level is unsupported for the effective provider/model, the child logs a `[superpowers-subagent] could not apply reasoning effort ...` diagnostic on its `stderr` (visible in `details.results[].stderr`) and runs at its ambient level. |
 | `timeoutSeconds` | Per-child timeout, greater than 0 and at most 3600; default 3600. |
 
 A relative `cwd` is resolved from the parent Tau session's working directory. In parallel and chain modes, put `cwd` on each item rather than at the top level.
 
 ## Bundled Agent Profiles
 
-| Agent | Tau tool policy | Use for |
-|---|---|---|
-| `general-purpose` | Normal built-in coding tools | Implementation, scouting, exploration, and tasks requiring commands or edits |
-| `read-only` | Only `read` is permitted | Code review, spec review, and inspection of known files |
+| Agent | Tau tool policy | Pinned model | Use for |
+|---|---|---|---|
+| `general-purpose` | Normal built-in coding tools | Tau's defaults | Implementation, scouting, exploration, and tasks requiring commands or edits |
+| `read-only` | Only `read` is permitted | Tau's defaults | Inspection of known files without a pinned review model |
+| `implementation` | Normal built-in coding tools | `local-gateway:qwen3.8-27b` at `xhigh` | Implementation tasks, TDD, running verification |
+| `code-review` | Only `read` is permitted | `openrouter:deepseek/deepseek-v4-flash-0731` at `xhigh` | Code quality review, spec compliance review, final review |
 
-The read-only child cannot run `git diff`, list or search for unknown paths, or call `bash`, `write`, `edit`, or other tools. The controller must provide command and search output in the task prompt and identify every file the reviewer should read. A public Tau `tool_call` hook enforces this tool policy, but it is **not** an OS, filesystem, network, credential, model, or provider sandbox.
+The read-only child (and the `code-review` agent) cannot run `git diff`, list or search for unknown paths, or call `bash`, `write`, `edit`, or other tools. The controller must provide command and search output in the task prompt and identify every file the reviewer should read. A public Tau `tool_call` hook enforces this tool policy, but it is **not** an OS, filesystem, network, credential, model, or provider sandbox.
+
+Agent definitions may pin `provider`, `model`, and `reasoningEffort` in their frontmatter. **Do not override pinned values** unless a skill or the user explicitly prescribes the override: the `implementation` agent normally stays on the local gateway, and the fallback for complex, long-context, or repeatedly failing gateway work is `provider: "openrouter"`, `model: "deepseek/deepseek-v4-flash-0731"`, `reasoningEffort: "high"`.
 
 ## Custom Agents, Scope, and Approval
 
@@ -112,10 +117,9 @@ The fields are independent and map directly to Tau's separate provider and model
 
 ```json
 {
-  "agent": "general-purpose",
+  "agent": "implementation",
   "task": "Complete the delegated task.",
-  "provider": "openai-codex",
-  "model": "gpt-5.3-codex"
+  "reasoningEffort": "high"
 }
 ```
 
@@ -131,7 +135,7 @@ Children run with discovered extensions and project resources disabled. Tau cann
 
 Parent-model `content` stays summary-sized:
 
-- successful single mode returns the final `## Summary` section, or the complete final output if no exact summary heading exists; failed single mode returns a concise failure message;
+- when final output contains an exact `## Code Review` heading followed by an exact `## Summary` heading, successful single mode returns both sections (all actionable points plus the summary) instead of only the summary; otherwise it returns the final `## Summary` section, or the complete final output if no exact summary heading exists; failed single mode returns a concise failure message;
 - parallel mode returns a success count and one ordered summary/fallback section per child;
 - successful chain mode returns the final child's summary/fallback; a failed chain returns a concise stop message.
 
@@ -147,7 +151,7 @@ Structured `details` uses this versioned shape (fields marked `?` are optional):
   results: [{
     agent, agentSource, task, cwd, exitCode, messages, stderr,
     usage: { input, output, cacheRead, cacheWrite, cost, contextTokens, turns },
-    provider?, model?, stopReason?, errorMessage?, status, step?,
+    provider?, model?, reasoningEffort?, stopReason?, errorMessage?, status, step?,
     timedOut, cancelled, malformedJsonLines
   }]
 }
@@ -166,7 +170,7 @@ Semantic status is distinct from process success. Check the result's failure tex
 
 ## Read-Only Reviews That Need Diffs
 
-The controller must obtain the diff before dispatching a read-only reviewer:
+The controller must obtain the diff before dispatching the `code-review` reviewer (its read-only profile cannot run `git diff`):
 
 ```bash
 BASE_SHA=$(git rev-parse HEAD~1)
@@ -174,12 +178,12 @@ HEAD_SHA=$(git rev-parse HEAD)
 git diff "$BASE_SHA".."$HEAD_SHA"
 ```
 
-Then call `task` with the complete output embedded in `task`:
+Then call `task` with the complete output embedded in `task`. The result relays the reviewer's `## Code Review` section (verdict and actionable points) together with its `## Summary`:
 
 ```json
 {
-  "agent": "read-only",
-  "task": "Review the named modified files for code quality. The controller-provided git diff follows.\n\n## Git Diff\n[PASTE COMPLETE DIFF HERE]\n\n## Requirements\n[PASTE REQUIREMENTS HERE]"
+  "agent": "code-review",
+  "task": "Review the named modified files for code quality. The controller-provided git diff follows.\n\n## Git Diff\n[PASTE COMPLETE DIFF HERE]\n\n## Requirements\n[PASTE REQUIREMENTS HERE]\n\nReturn the strict two-section format: exact `## Code Review` heading (verdict, strengths, Critical/Important/Minor points), then exact `## Summary` heading, ending with the status line."
 }
 ```
 

@@ -52,6 +52,7 @@ class FakeRunner:
             exit_code=0,
             provider=kwargs["provider_override"] or agent.provider,
             model=kwargs["model_override"] or agent.model,
+            reasoning_effort=kwargs["reasoning_effort_override"] or agent.reasoning_effort,
             step=kwargs["step"],
         )
         if task == "fail":
@@ -62,6 +63,19 @@ class FakeRunner:
             result.timed_out = True
             result.stop_reason = "error"
             result.error_message = "planned timeout"
+        elif task == "review":
+            text = (
+                "analysis\n"
+                "## Code Review\n"
+                "**Verdict:** Approved with fixes\n- point\n"
+                "## Summary\n"
+                "summary for review\n**Status: DONE**"
+            )
+            result.messages.append(
+                AssistantMessage(content=[TextContent(text=text)], stop_reason="stop")
+            )
+            result.stop_reason = "stop"
+            result.status = parse_status(text, failed=False)
         else:
             status = "BLOCKED" if task == "semantic-blocked" else "DONE"
             text = f"full output for {task}\n## Summary\nsummary for {task}\n**Status: {status}**"
@@ -87,7 +101,7 @@ def make_discovery(tmp_path: Path, *, source: str = "bundled") -> DiscoveryResul
             provider="agent-provider" if name == "general-purpose" else None,
             model="agent-model" if name == "general-purpose" else None,
         )
-        for name in ("general-purpose", "read-only")
+        for name in ("general-purpose", "read-only", "implementation", "code-review")
     )
     project_dir = tmp_path / ".tau" / "agents" if source == "project" else None
     return DiscoveryResult(
@@ -132,6 +146,9 @@ def make_dispatcher(
         {"agent": "a", "task": "x", "agentScope": "invalid"},
         {"agent": "a", "task": "x", "confirmProjectAgents": 1},
         {"agent": "a", "task": "x", "provider": ""},
+        {"agent": "a", "task": "x", "reasoningEffort": "max"},
+        {"agent": "a", "task": "x", "reasoningEffort": ""},
+        {"agent": "a", "task": "x", "reasoningEffort": 5},
         {"agent": "a", "task": "x", "timeoutSeconds": 0},
         {"agent": "a", "task": "x", "timeoutSeconds": 3601},
         {"agent": "a", "task": "x", "extra": True},
@@ -150,6 +167,7 @@ def test_validation_accepts_single_and_independent_overrides() -> None:
             "cwd": "src",
             "provider": "provider",
             "model": "org/model",
+            "reasoningEffort": " XHIGH ",
             "timeoutSeconds": 2.5,
         }
     )
@@ -158,6 +176,7 @@ def test_validation_accepts_single_and_independent_overrides() -> None:
     assert request.items[0].cwd == "src"
     assert request.provider == "provider"
     assert request.model == "org/model"
+    assert request.reasoning_effort == "xhigh"
     assert request.timeout_seconds == 2.5
 
 
@@ -182,6 +201,7 @@ async def test_single_returns_summary_content_and_complete_wire_messages(tmp_pat
             "agent": "general-purpose",
             "task": "implement",
             "model": "call/model",
+            "reasoningEffort": "medium",
         },
         on_update=updates.append,
     )
@@ -193,6 +213,8 @@ async def test_single_returns_summary_content_and_complete_wire_messages(tmp_pat
     assert details["results"][0]["messages"][0]["role"] == "assistant"
     assert details["results"][0]["provider"] == "agent-provider"
     assert details["results"][0]["model"] == "call/model"
+    assert details["results"][0]["reasoningEffort"] == "medium"
+    assert runner.calls[0]["reasoning_effort_override"] == "medium"
     assert len(updates) == 2
 
 
@@ -230,6 +252,24 @@ async def test_parallel_timeout_stops_queued_work_and_retains_ordered_slots(tmp_
         "queued",
     ]
     assert "not started" in result.details["results"][-1]["errorMessage"].lower()
+
+
+@pytest.mark.asyncio
+async def test_single_content_includes_review_section_with_summary(tmp_path: Path) -> None:
+    runner = FakeRunner()
+    result = await make_dispatcher(tmp_path, runner).execute(
+        {"agent": "code-review", "task": "review"}
+    )
+
+    assert result.text == (
+        "## Code Review\n"
+        "**Verdict:** Approved with fixes\n- point\n"
+        "## Summary\n"
+        "summary for review\n**Status: DONE**"
+    )
+    assert "analysis" not in result.text
+    child = result.details["results"][0]
+    assert child["messages"][0]["content"][0]["text"].startswith("analysis")
 
 
 @pytest.mark.asyncio

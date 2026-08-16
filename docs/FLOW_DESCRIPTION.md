@@ -45,7 +45,7 @@ BRAINSTORMING
   2. Explore context and clarify one question at a time.
   3. Compare 2-3 approaches and get design approval.
   4. Write proposal and behavioral feature spec.
-  5. task(read-only): review the spec from named files and supplied context.
+  5. task(read-only): review the spec from named files and supplied context. (Document reviews stay on the unpinned `read-only` agent; only code reviews use the pinned `code-review` agent.)
   6. Fix and re-dispatch until the reviewer reports DONE.
   7. Get user approval for both artifacts.
 
@@ -57,7 +57,7 @@ WRITING PLANS
   2. Derive the delta before implementation tasks.
   3. Map file responsibilities and write TDD-sized tasks.
   4. Self-review feature -> delta -> plan coverage.
-  5. task(read-only): review the plan, full delta, named files, and supplied output.
+  5. task(read-only): review the plan, full delta, named files, and supplied output. (Plan/document reviews stay on the unpinned `read-only` agent; only code reviews use the pinned `code-review` agent.)
   6. Fix and re-dispatch until the reviewer reports DONE.
   7. Ask the user to choose subagent-driven or inline executing-plans execution.
                                   |
@@ -66,16 +66,16 @@ IMPLEMENTATION
   1. Work in an isolated Git worktree, never directly on main/master.
   2. For each task, use red -> green -> refactor and run named checks.
   3. If subagent-driven development was selected:
-       a. task(general-purpose): implement one complete task.
+       a. task(implementation): implement one complete task (local gateway, xhigh; complex/long-context or repeated gateway failures fall back to openrouter deepseek at high).
        b. Inspect summary, process fields, semantic status, tests, and commit.
-       c. task(read-only): spec-compliance review against the full delta.
+       c. task(code-review): spec-compliance review against the full delta.
        d. Fix and re-review until DONE.
-       e. task(read-only): code-quality review with controller-supplied diff/output.
+       e. task(code-review): code-quality review with controller-supplied diff/output.
        f. Fix and re-review until DONE.
   4. If inline executing-plans was selected:
        a. Execute each plan task directly in order and run its named checks.
        b. Track each checklist item and stop for blockers or failed verification.
-       c. Request read-only review at the plan's review checkpoints.
+       c. Request code-review at the plan's review checkpoints.
   5. Run a final whole-change review.
                                   |
                                   v
@@ -95,18 +95,20 @@ FINISHING
 
 ## `task` Dispatch in the Flow
 
-The full argument and result contract is in the [Tau `task` tool reference](../skills/using-superpowers/references/tau-tools.md). Workflow dispatches use two bundled profiles:
+The full argument and result contract is in the [Tau `task` tool reference](../skills/using-superpowers/references/tau-tools.md). Workflow dispatches use four bundled agents:
 
-| Profile | Tool access | Workflow use |
-| --- | --- | --- |
-| `general-purpose` | Tau's normal built-in coding tools | One implementation task at a time |
-| `read-only` | Only the `read` tool, enforced by a public hook | Spec, plan, compliance, and quality review of named files |
+| Agent | Tool access | Pinned model | Workflow use |
+| --- | --- | --- | --- |
+| `implementation` | Tau's normal built-in coding tools | `local-gateway:qwen3.8-27b`, `xhigh` | One implementation task at a time; complex or long-context work falls back to `openrouter:deepseek/deepseek-v4-flash-0731` |
+| `code-review` | Only the `read` tool, enforced by a public hook | `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh` | Spec-compliance, code-quality, and final review of named files; returns strict `## Code Review` + `## Summary` sections |
+| `general-purpose` | Tau's normal built-in coding tools | Tau's defaults | Unpinned implementation or scouting work |
+| `read-only` | Only the `read` tool, enforced by a public hook | Tau's defaults | Unpinned document inspection |
 
 A typical reviewer call supplies every readable path and embeds any information the reviewer cannot obtain with `read`:
 
 ```json
 {
-  "agent": "read-only",
+  "agent": "code-review",
   "task": "Review the named spec against the supplied requirements. Read docs/design/2026-08-14-example-spec.md.\n\n## Required context\n[COMPLETE REQUIREMENTS AND RELEVANT COMMAND OUTPUT]"
 }
 ```
@@ -119,7 +121,8 @@ The controller, not a read-only child, must run searches, produce `git diff`, an
 child Tau JSONL
     -> accepted message_end messages stored in details.results[*].messages
     -> final assistant text parsed for last exact ## Summary
-    -> summary/fallback returned in parent-model content
+    -> with an exact ## Code Review heading before the summary, both sections are
+       relayed; otherwise summary/fallback is returned in parent-model content
     -> last supported status marker recorded independently
     -> controller checks semantic status AND process/error fields
 ```

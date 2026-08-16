@@ -90,6 +90,7 @@ print("warning", file=sys.stderr)
         cwd_override=None,
         provider_override=None,
         model_override="call/model",
+        reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
         on_message=lambda current: updates.append(len(current.messages)),
@@ -164,12 +165,116 @@ print(json.dumps({"type": "message_end", "message": {
         cwd_override=None,
         provider_override=None,
         model_override=None,
+        reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
     )
 
     argv = json.loads(record_path.read_text())
     assert result.succeeded
+    assert "-e" not in argv
+    assert "--provider" not in argv
+    assert "--model" not in argv
+
+
+@pytest.mark.asyncio
+async def test_runner_writes_thinking_policy_with_effective_level_and_cleans_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    record_path = tmp_path / "record.json"
+    monkeypatch.setenv("FAKE_TAU_RECORD", str(record_path))
+    fake_tau = write_fake_tau(
+        tmp_path,
+        r"""
+import json
+import os
+import sys
+from pathlib import Path
+args = sys.argv[1:]
+extension_paths = []
+while "-e" in args:
+    index = args.index("-e")
+    extension_paths.append(args[index + 1])
+    args = args[:index] + args[index + 2 :]
+Path(os.environ["FAKE_TAU_RECORD"]).write_text(json.dumps({
+    "paths": extension_paths,
+    "contents": [Path(path).read_text() for path in extension_paths],
+}))
+print(json.dumps({"type": "message_end", "message": {
+    "role": "assistant", "content": [{"type": "text", "text": "done"}]
+}}))
+""",
+    )
+    agent = make_agent(tmp_path, profile="read-only")
+
+    result = await TauChildRunner(str(fake_tau)).run(
+        default_cwd=tmp_path,
+        agent=agent,
+        task="task",
+        cwd_override=None,
+        provider_override=None,
+        model_override=None,
+        reasoning_effort_override="high",
+        timeout_seconds=2,
+        signal=None,
+    )
+
+    assert result.succeeded
+    assert result.reasoning_effort == "high"
+    record = json.loads(record_path.read_text())
+    assert len(record["paths"]) == 2
+    thinking_path = Path(record["paths"][-1])
+    assert thinking_path.name == "thinking_policy.py"
+    assert "read-only policy" in record["contents"][0]
+    assert 'level = "high"' in record["contents"][1]
+    assert "set_thinking_level" in record["contents"][1]
+    assert not thinking_path.exists()
+    assert not Path(record["paths"][0]).exists()
+
+
+@pytest.mark.asyncio
+async def test_runner_omits_thinking_policy_without_effective_level(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    record_path = tmp_path / "record.json"
+    monkeypatch.setenv("FAKE_TAU_RECORD", str(record_path))
+    fake_tau = write_fake_tau(
+        tmp_path,
+        r"""
+import json
+import os
+import sys
+from pathlib import Path
+Path(os.environ["FAKE_TAU_RECORD"]).write_text(json.dumps(sys.argv[1:]))
+print(json.dumps({"type": "message_end", "message": {
+    "role": "assistant", "content": [{"type": "text", "text": "done"}]
+}}))
+""",
+    )
+    agent = make_agent(tmp_path)
+    agent = AgentConfig(
+        name=agent.name,
+        description=agent.description,
+        system_prompt=agent.system_prompt,
+        source=agent.source,
+        file_path=agent.file_path,
+        profile=agent.profile,
+    )
+
+    result = await TauChildRunner(str(fake_tau)).run(
+        default_cwd=tmp_path,
+        agent=agent,
+        task="task",
+        cwd_override=None,
+        provider_override=None,
+        model_override=None,
+        reasoning_effort_override=None,
+        timeout_seconds=2,
+        signal=None,
+    )
+
+    argv = json.loads(record_path.read_text())
+    assert result.reasoning_effort is None
     assert "-e" not in argv
     assert "--provider" not in argv
     assert "--model" not in argv
@@ -189,6 +294,7 @@ async def test_runner_marks_zero_exit_without_assistant_as_protocol_failure(tmp_
         cwd_override=None,
         provider_override=None,
         model_override=None,
+        reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
     )
@@ -209,6 +315,7 @@ async def test_runner_times_out_and_terminates_child(tmp_path: Path) -> None:
         cwd_override=None,
         provider_override=None,
         model_override=None,
+        reasoning_effort_override=None,
         timeout_seconds=0.05,
         signal=None,
     )
@@ -233,6 +340,7 @@ async def test_runner_observes_cancellation_before_and_during_spawn(tmp_path: Pa
         cwd_override=None,
         provider_override=None,
         model_override=None,
+        reasoning_effort_override=None,
         timeout_seconds=2,
         signal=token,
     )
@@ -248,6 +356,7 @@ async def test_runner_observes_cancellation_before_and_during_spawn(tmp_path: Pa
             cwd_override=None,
             provider_override=None,
             model_override=None,
+            reasoning_effort_override=None,
             timeout_seconds=2,
             signal=token,
         )

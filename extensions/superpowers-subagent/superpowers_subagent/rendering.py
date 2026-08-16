@@ -177,7 +177,7 @@ def _collapsed_single(child: Mapping[str, object]) -> str:
             lines.append(f"[red]{escape(error)}[/red]")
         else:
             lines.append("[dim](no output)[/dim]")
-    usage = _usage_line(child.get("usage"), child.get("model"))
+    usage = _usage_line(child.get("usage"), child.get("model"), child.get("reasoningEffort"))
     if usage:
         lines.append(usage)
     if truncated:
@@ -204,7 +204,7 @@ def _collapsed_multi(headline: str, children: Sequence[Mapping[str, object]]) ->
                 lines.append(f"[red]{escape(error)}[/red]")
             else:
                 lines.append("[dim](no output)[/dim]")
-        usage = _usage_line(child.get("usage"), child.get("model"))
+        usage = _usage_line(child.get("usage"), child.get("model"), child.get("reasoningEffort"))
         if usage:
             lines.append(usage)
     total = _aggregate_usage(children)
@@ -240,7 +240,7 @@ def _expanded_single(child: Mapping[str, object]) -> str:
         lines.append(body)
     else:
         lines.append("[dim](no output)[/dim]")
-    usage = _usage_line(child.get("usage"), child.get("model"))
+    usage = _usage_line(child.get("usage"), child.get("model"), child.get("reasoningEffort"))
     if usage:
         lines.append(usage)
     return "\n".join(lines)
@@ -265,7 +265,7 @@ def _expanded_multi(headline: str, children: Sequence[Mapping[str, object]]) -> 
             parts.append(body)
         else:
             parts.append("[dim](no output)[/dim]")
-        usage = _usage_line(child.get("usage"), child.get("model"))
+        usage = _usage_line(child.get("usage"), child.get("model"), child.get("reasoningEffort"))
         if usage:
             parts.append(usage)
         sections.append("\n".join(parts))
@@ -497,7 +497,7 @@ def _preview(value: str, limit: int) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _usage_line(usage: object, model: object) -> str:
+def _usage_line(usage: object, model: object, reasoning_effort: object = None) -> str:
     if not isinstance(usage, dict):
         return ""
     parts: list[str] = []
@@ -515,7 +515,10 @@ def _usage_line(usage: object, model: object) -> str:
     if context > 0:
         parts.append(f"ctx:{_format_tokens(context)}")
     if isinstance(model, str) and model and model != "unknown":
-        parts.append(escape(model))
+        if isinstance(reasoning_effort, str) and reasoning_effort:
+            parts.append(escape(f"{model} ({reasoning_effort})"))
+        else:
+            parts.append(escape(model))
     return " ".join(parts)
 
 

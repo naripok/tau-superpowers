@@ -5,7 +5,9 @@ from tau_agent.messages import AssistantMessage, TextContent, ThinkingContent, T
 from superpowers_subagent.models import AgentConfig
 from superpowers_subagent.utils import (
     build_tau_argv,
+    content_section,
     effective_provider_model,
+    effective_reasoning_effort,
     final_output,
     parse_status,
     summary_section,
@@ -50,6 +52,44 @@ def test_summary_section_accepts_crlf_heading_lines() -> None:
     assert summary_section("analysis\r\n## Summary\r\ndone") == "## Summary\r\ndone"
 
 
+def test_content_section_includes_review_section_with_following_summary() -> None:
+    output = (
+        "analysis\n"
+        "## Code Review\n"
+        "**Verdict:** Needs fixes\n- point\n"
+        "## Summary\n"
+        "short summary\n**Status: DONE**"
+    )
+
+    assert content_section(output) == output[len("analysis\n") :]
+
+
+def test_content_section_uses_last_review_heading_and_ignores_inline_lookalikes() -> None:
+    output = (
+        "## Code Review details\nnot a heading\n"
+        "## Code Review\n"
+        "second review\n"
+        "## Summary\n"
+        "summary\n"
+    )
+
+    assert content_section(output) == "## Code Review\nsecond review\n## Summary\nsummary\n"
+
+
+def test_content_section_falls_back_to_summary_or_full_output() -> None:
+    # Summary without a code-review heading: summary wins.
+    assert content_section("work\n## Summary\nfinal") == "## Summary\nfinal"
+    # Neither heading: complete output is the fallback.
+    assert content_section("plain output") == "plain output"
+    assert content_section("") == ""
+
+
+def test_content_section_ignores_review_heading_after_the_summary() -> None:
+    # A stray review heading after the summary keeps the summary rule dominant.
+    output = "## Summary\nsummary text\n## Code Review\nlate review\n"
+    assert content_section(output) == output
+
+
 def test_parse_status_uses_last_case_insensitive_bold_or_plain_marker() -> None:
     output = "**Status: BLOCKED**\nwork continued\nstatus: done_with_concerns"
     assert parse_status(output, failed=False) == "DONE_WITH_CONCERNS"
@@ -69,12 +109,37 @@ def test_provider_and_model_overrides_are_independent_and_opaque(tmp_path: Path)
         file_path=tmp_path / "worker.md",
         provider="configured-provider",
         model="configured/model",
+        reasoning_effort="xhigh",
     )
 
     assert effective_provider_model(agent, None, "call/provider/model") == (
         "configured-provider",
         "call/provider/model",
     )
+
+
+def test_effective_reasoning_effort_prefers_call_then_agent(tmp_path: Path) -> None:
+    agent = AgentConfig(
+        name="worker",
+        description="Worker",
+        system_prompt="",
+        source="user",
+        file_path=tmp_path / "worker.md",
+        reasoning_effort="xhigh",
+    )
+
+    assert effective_reasoning_effort(agent, None) == "xhigh"
+    assert effective_reasoning_effort(agent, "medium") == "medium"
+
+    plain = AgentConfig(
+        name="plain",
+        description="Plain",
+        system_prompt="",
+        source="user",
+        file_path=tmp_path / "plain.md",
+    )
+    assert effective_reasoning_effort(plain, None) is None
+    assert effective_reasoning_effort(plain, "low") == "low"
 
 
 def test_build_tau_argv_uses_supported_flags_and_positional_task(tmp_path: Path) -> None:
@@ -86,6 +151,7 @@ def test_build_tau_argv_uses_supported_flags_and_positional_task(tmp_path: Path)
         provider="provider-a",
         model="namespace/model-a",
         policy_path=tmp_path / "policy.py",
+        thinking_policy_path=tmp_path / "thinking_policy.py",
     )
 
     assert argv == [
@@ -100,6 +166,8 @@ def test_build_tau_argv_uses_supported_flags_and_positional_task(tmp_path: Path)
         str(tmp_path / "prompt.md"),
         "-e",
         str(tmp_path / "policy.py"),
+        "-e",
+        str(tmp_path / "thinking_policy.py"),
         "--provider",
         "provider-a",
         "--model",

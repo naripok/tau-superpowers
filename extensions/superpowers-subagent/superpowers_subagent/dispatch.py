@@ -18,6 +18,7 @@ from tau_agent.types import JSONValue
 
 from .discovery import discover_agents
 from .models import (
+    THINKING_LEVELS,
     AgentConfig,
     AgentScope,
     ChildResult,
@@ -27,7 +28,7 @@ from .models import (
     details_dict,
 )
 from .runner import TauChildRunner
-from .utils import final_output, parse_status, resolve_child_cwd, summary_section
+from .utils import content_section, final_output, parse_status, resolve_child_cwd
 
 MAX_PARALLEL_TASKS = 8
 MAX_CONCURRENCY = 4
@@ -55,6 +56,7 @@ class ParsedRequest:
     confirm_project_agents: bool
     provider: str | None
     model: str | None
+    reasoning_effort: str | None
     timeout_seconds: float
 
 
@@ -343,6 +345,7 @@ class TaskDispatcher:
             cwd_override=item.cwd,
             provider_override=request.provider,
             model_override=request.model,
+            reasoning_effort_override=request.reasoning_effort,
             timeout_seconds=request.timeout_seconds,
             signal=signal,
             step=step,
@@ -364,6 +367,7 @@ def validate_arguments(arguments: Mapping[str, JSONValue]) -> ParsedRequest:
         "confirmProjectAgents",
         "provider",
         "model",
+        "reasoningEffort",
         "timeoutSeconds",
     }
     unknown = sorted(set(arguments) - allowed)
@@ -381,6 +385,7 @@ def validate_arguments(arguments: Mapping[str, JSONValue]) -> ParsedRequest:
         raise ValidationFailure("confirmProjectAgents must be a boolean")
     provider = _optional_string(arguments, "provider", nonempty=True)
     model = _optional_string(arguments, "model", nonempty=True)
+    reasoning_effort = _optional_thinking_level(arguments, "reasoningEffort")
     timeout_value = arguments.get("timeoutSeconds", DEFAULT_TIMEOUT_SECONDS)
     if (
         isinstance(timeout_value, bool)
@@ -430,6 +435,7 @@ def validate_arguments(arguments: Mapping[str, JSONValue]) -> ParsedRequest:
         confirm_project_agents=confirm,
         provider=provider,
         model=model,
+        reasoning_effort=reasoning_effort,
         timeout_seconds=timeout,
     )
 
@@ -469,6 +475,19 @@ def _optional_string(arguments: Mapping[str, JSONValue], key: str, *, nonempty: 
     if nonempty and not value.strip():
         raise ValidationFailure(f"{key} must be a non-empty string")
     return value
+
+
+def _optional_thinking_level(arguments: Mapping[str, JSONValue], key: str) -> str | None:
+    if key not in arguments:
+        return None
+    value = arguments[key]
+    if not isinstance(value, str):
+        raise ValidationFailure(f"{key} must be a string")
+    normalized = value.strip().lower()
+    if normalized not in THINKING_LEVELS:
+        allowed = ", ".join(THINKING_LEVELS)
+        raise ValidationFailure(f"{key} must be one of: {allowed}")
+    return normalized
 
 
 def _scope_for_discovery(arguments: Mapping[str, JSONValue]) -> AgentScope:
@@ -549,14 +568,14 @@ def _final_result(
 def _single_content(result: ChildResult, *, running: bool = False) -> str:
     output = final_output(result.messages)
     if running:
-        return summary_section(output) if output else "(running...)"
+        return content_section(output) if output else "(running...)"
     if not result.succeeded:
         return f"Agent {result.agent} failed: {result.error_message or 'see details'}"
-    return summary_section(output) or "(no output)"
+    return content_section(output) or "(no output)"
 
 
 def _summary_or_fallback(result: ChildResult) -> str:
-    return summary_section(final_output(result.messages)) or "(no output)"
+    return content_section(final_output(result.messages)) or "(no output)"
 
 
 def _emit_update(

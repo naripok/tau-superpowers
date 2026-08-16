@@ -92,9 +92,27 @@ digraph process {
 
 ## Provider and Model Selection
 
-Omit `provider` and `model` by default so each child uses Tau's configured defaults or its agent definition. Do not set overrides merely to optimize cost or speed. If the user explicitly requests or approves an override, pass `provider` and `model` as separate opaque `task` fields; never infer one from the other or split a slash-containing model identifier.
+The bundled agents pin their model and reasoning effort, so omit `provider`, `model`, and `reasoningEffort` by default:
 
-When an approved choice exists, match capability to role: mechanical tasks can use a faster model, integration work needs stronger cross-file reasoning, and architecture or review work needs the most capable approved option. If no approved identifier is known, recommend a capability level rather than inventing a provider or model value.
+- **`implementation`** — runs `local-gateway:qwen3.8-27b` at `xhigh` reasoning effort.
+- **`code-review`** — runs `openrouter:deepseek/deepseek-v4-flash-0731` at `xhigh` reasoning effort. It returns a strict `## Code Review` section followed by a `## Summary`; the `task` result relays both to you.
+- `general-purpose` and `read-only` — Tau's defaults; use them when a child must not be pinned (scouting, document inspection).
+
+Do not set overrides merely to optimize cost or speed. If the user explicitly requests or approves an override, pass `provider`, `model`, and optionally `reasoningEffort` as separate opaque `task` fields; never infer one from the other or split a slash-containing model identifier.
+
+**Implementation fallback:** Re-dispatch an implementer on `openrouter:deepseek/deepseek-v4-flash-0731` with `reasoningEffort: high` when the work is complex, needs long context, or the local gateway repeatedly fails with transport or other transient issues (check each child's process fields and `stderr` in `details.results`). This fallback is pre-approved; no new user approval is needed to use it.
+
+```json
+{
+  "agent": "implementation",
+  "task": "[SAME SELF-CONTAINED PROMPT]",
+  "provider": "openrouter",
+  "model": "deepseek/deepseek-v4-flash-0731",
+  "reasoningEffort": "high"
+}
+```
+
+Match capability to role: mechanical tasks can stay on the local gateway, while architecture and review work uses the most capable approved option.
 
 ## Handling Implementer Status
 
@@ -107,8 +125,8 @@ Implementer subagents report one of four semantic statuses in the `task` result.
 **NEEDS_CONTEXT:** The implementer needs information that wasn't provided. Provide the missing context and re-dispatch.
 
 **BLOCKED:** The implementer cannot complete the task. Assess the blocker:
-1. If it's a context problem, provide more context and re-dispatch with the configured/default model
-2. If the task requires more reasoning, recommend a more capable model and obtain user approval before passing a `provider` or `model` override
+1. If it's a context problem, provide more context and re-dispatch on the implementation agent
+2. If the task requires more reasoning or the local gateway is failing repeatedly, re-dispatch on the pre-approved fallback (`openrouter:deepseek/deepseek-v4-flash-0731`, `reasoningEffort: high`) — see Provider and Model Selection
 3. If the task is too large, break it into smaller pieces
 4. If the plan itself is wrong, escalate to the human
 
@@ -154,7 +172,7 @@ You: I'm using Subagent-Driven Development to execute this plan.
 Task 1: Hook installation script
 
 [Get Task 1 text and context (already extracted)]
-[Dispatch task with agent: 'general-purpose' and the implementer prompt as the task]
+[Dispatch task with agent: 'implementation' and the implementer prompt as the task]
 
 Implementer: `NEEDS_CONTEXT` — "Should the hook be installed at user or system level?"
 
@@ -168,18 +186,18 @@ Implementer: "Got it. Implementing now..."
   - Self-review: Found I missed --force flag, added it
   - Committed
 
-[Dispatch task with agent: 'read-only' and the spec reviewer prompt as the task]
-Spec reviewer: ✅ Spec compliant - all requirements met, nothing extra
+[Dispatch task with agent: 'code-review' and the spec reviewer prompt as the task]
+Spec reviewer: `## Code Review` section with verdict + points, then `## Summary` — spec compliant, nothing extra
 
-[Get git SHAs, dispatch task with agent: 'read-only' and the code quality reviewer prompt as the task]
-Code reviewer: Strengths: Good test coverage, clean. Issues: None. Approved.
+[Get git SHAs, dispatch task with agent: 'code-review' and the code quality reviewer prompt as the task]
+Code reviewer: `## Code Review` section: Strengths, no issues, Approved; `## Summary`.
 
 [Mark Task 1 complete in task tracking list]
 
 Task 2: Recovery modes
 
 [Get Task 2 text and context (already extracted)]
-[Dispatch task with agent: 'general-purpose' and the implementer prompt as the task]
+[Dispatch task with agent: 'implementation' and the implementer prompt as the task]
 
 Implementer: [Returns `DONE` with its implementation report]
 Implementer:
@@ -188,32 +206,32 @@ Implementer:
   - Self-review: All good
   - Committed
 
-[Dispatch task with agent: 'read-only' and the spec reviewer prompt as the task]
-Spec reviewer: ❌ Issues:
+[Dispatch task with agent: 'code-review' and the spec reviewer prompt as the task]
+Spec reviewer: `## Code Review` issues:
   - Missing: Progress reporting (spec says "report every 100 items")
   - Extra: Added --json flag (not requested)
 
 [Re-dispatch implementer with the original task, full context, and review findings]
 Implementer: Removed --json flag, added progress reporting
 
-[Spec reviewer reviews again — dispatch task with agent: 'read-only' again]
-Spec reviewer: ✅ Spec compliant now
+[Spec reviewer reviews again — dispatch task with agent: 'code-review' again]
+Spec reviewer: `## Code Review` verdict: compliant — nothing extra
 
-[Dispatch task with agent: 'read-only' and the code quality reviewer prompt as the task]
-Code reviewer: Strengths: Solid. Issues (Important): Magic number (100)
+[Dispatch task with agent: 'code-review' and the code quality reviewer prompt as the task]
+Code reviewer: `## Code Review` section: Strengths, Important issue (magic number 100); `## Summary`
 
 [Re-dispatch implementer with the original task, full context, and review findings]
 Implementer: Extracted PROGRESS_INTERVAL constant
 
-[Code reviewer reviews again — dispatch task with agent: 'read-only' again]
-Code reviewer: ✅ Approved
+[Code reviewer reviews again — dispatch task with agent: 'code-review' again]
+Code reviewer: `## Code Review` verdict: Approved
 
 [Mark Task 2 complete in task tracking list]
 
 ...
 
 [After all tasks]
-[Dispatch task with agent: 'read-only' for final code review]
+[Dispatch task with agent: 'code-review' for final code review]
 Final reviewer: All requirements met, ready to merge
 
 Done!

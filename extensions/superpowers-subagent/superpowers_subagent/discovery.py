@@ -6,7 +6,14 @@ import json
 from pathlib import Path
 from typing import cast
 
-from .models import AgentConfig, AgentProfile, AgentScope, AgentSource, DiscoveryResult
+from .models import (
+    THINKING_LEVELS,
+    AgentConfig,
+    AgentProfile,
+    AgentScope,
+    AgentSource,
+    DiscoveryResult,
+)
 
 _VALID_PROFILES: frozenset[str] = frozenset({"general-purpose", "read-only"})
 
@@ -163,6 +170,7 @@ def _agent_from_metadata(
     profile = cast(AgentProfile, raw_profile)
     provider = _optional_nonempty(metadata, "provider")
     model = _optional_nonempty(metadata, "model")
+    reasoning_effort = _optional_thinking_level(metadata, "reasoningEffort")
     return AgentConfig(
         name=name,
         description=description,
@@ -172,6 +180,7 @@ def _agent_from_metadata(
         profile=profile,
         provider=provider,
         model=model,
+        reasoning_effort=reasoning_effort,
     )
 
 
@@ -181,4 +190,14 @@ def _optional_nonempty(metadata: dict[str, str], key: str) -> str | None:
     value = metadata[key].strip()
     if not value:
         raise ValueError(f"`{key}` must be a non-empty string when provided")
+    return value
+
+
+def _optional_thinking_level(metadata: dict[str, str], key: str) -> str | None:
+    if key not in metadata:
+        return None
+    value = metadata[key].strip().lower()
+    if value not in THINKING_LEVELS:
+        allowed = ", ".join(THINKING_LEVELS)
+        raise ValueError(f"`{key}` must be one of: {allowed}")
     return value

@@ -107,12 +107,27 @@ def test_nearest_project_agents_directory_wins(tmp_path: Path) -> None:
     assert find_nearest_project_agents_dir(cwd) == inner
 
 
-def test_default_discovery_finds_bundled_fixed_profiles(tmp_path: Path) -> None:
+def test_default_discovery_finds_bundled_agents_with_pinned_config(tmp_path: Path) -> None:
     result = discover_agents(tmp_path, "user", user_dir=tmp_path / "none")
 
-    assert set(result.by_name()) == {"general-purpose", "read-only"}
+    assert set(result.by_name()) == {
+        "general-purpose",
+        "read-only",
+        "implementation",
+        "code-review",
+    }
     assert result.by_name()["general-purpose"].profile == "general-purpose"
     assert result.by_name()["read-only"].profile == "read-only"
+    implementation = result.by_name()["implementation"]
+    assert implementation.profile == "general-purpose"
+    assert implementation.provider == "local-gateway"
+    assert implementation.model == "qwen3.8-27b"
+    assert implementation.reasoning_effort == "xhigh"
+    code_review = result.by_name()["code-review"]
+    assert code_review.profile == "read-only"
+    assert code_review.provider == "openrouter"
+    assert code_review.model == "deepseek/deepseek-v4-flash-0731"
+    assert code_review.reasoning_effort == "xhigh"
 
 
 def test_invalid_agent_files_are_skipped_with_diagnostics(tmp_path: Path) -> None:
@@ -121,11 +136,18 @@ def test_invalid_agent_files_are_skipped_with_diagnostics(tmp_path: Path) -> Non
     (bundled / "broken.md").write_text("---\nname: broken\n", encoding="utf-8")
     write_agent(bundled, "profile.md", name="bad-profile", extra="profile: root\n")
     write_agent(bundled, "provider.md", name="bad-provider", extra="provider:\n")
+    write_agent(bundled, "effort.md", name="bad-effort", extra="reasoningEffort: turbo\n")
     write_agent(
         bundled,
         "valid.md",
         name="valid",
-        extra="profile: read-only\nprovider: local\nmodel: org/model\nunknown: ignored\n",
+        extra=(
+            "profile: read-only\n"
+            "provider: local\n"
+            "model: org/model\n"
+            "reasoningEffort: XHIGH\n"
+            "unknown: ignored\n"
+        ),
     )
 
     result = discover_agents(tmp_path, "user", bundled_dir=bundled, user_dir=tmp_path / "none")
@@ -134,5 +156,6 @@ def test_invalid_agent_files_are_skipped_with_diagnostics(tmp_path: Path) -> Non
     assert result.agents[0].profile == "read-only"
     assert result.agents[0].provider == "local"
     assert result.agents[0].model == "org/model"
-    assert len(result.diagnostics) == 3
+    assert result.agents[0].reasoning_effort == "xhigh"
+    assert len(result.diagnostics) == 4
     assert all("Skipped agent definition" in diagnostic for diagnostic in result.diagnostics)
