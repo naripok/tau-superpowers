@@ -115,6 +115,7 @@ def test_default_discovery_finds_bundled_agents_with_pinned_config(tmp_path: Pat
         "read-only",
         "implementation",
         "code-review",
+        "document-review",
     }
     assert result.by_name()["general-purpose"].profile == "general-purpose"
     assert result.by_name()["read-only"].profile == "read-only"
@@ -128,6 +129,11 @@ def test_default_discovery_finds_bundled_agents_with_pinned_config(tmp_path: Pat
     assert code_review.provider == "openrouter"
     assert code_review.model == "deepseek/deepseek-v4-flash-0731"
     assert code_review.reasoning_effort == "xhigh"
+    document_review = result.by_name()["document-review"]
+    assert document_review.profile == "read-only"
+    assert document_review.provider == "openrouter"
+    assert document_review.model == "deepseek/deepseek-v4-flash-0731"
+    assert document_review.reasoning_effort == "xhigh"
 
 
 def test_invalid_agent_files_are_skipped_with_diagnostics(tmp_path: Path) -> None:

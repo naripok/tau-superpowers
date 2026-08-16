@@ -196,7 +196,7 @@ No requirements added, modified, or removed.
 
 ### Dispatch Spec Reviewer
 
-After writing the feature spec, dispatch a read-only subagent using `spec-document-reviewer-prompt.md` to verify the spec is complete and truly behavioral.
+After writing the feature spec, dispatch a `document-review` subagent using `spec-document-reviewer-prompt.md` to verify the spec is complete and truly behavioral. The agent is pinned to `openrouter:deepseek/deepseek-v4-flash-0731` at `xhigh` reasoning effort and returns a strict `## Document Review` section (verdict + findings) followed by a `## Summary`; the `task` result relays both to you.
 
 **If the reviewer finds issues:** Fix the spec, then re-dispatch the reviewer. Loop until the reviewer approves.
 

@@ -84,6 +84,18 @@ def test_content_section_falls_back_to_summary_or_full_output() -> None:
     assert content_section("") == ""
 
 
+def test_content_section_includes_document_review_section_with_summary() -> None:
+    output = (
+        "analysis\n"
+        "## Document Review\n"
+        "**Verdict:** Approved with fixes\n- gap\n"
+        "## Summary\n"
+        "short summary\n**Status: DONE**"
+    )
+
+    assert content_section(output) == output[len("analysis\n") :]
+
+
 def test_content_section_ignores_review_heading_after_the_summary() -> None:
     # A stray review heading after the summary keeps the summary rule dominant.
     output = "## Summary\nsummary text\n## Code Review\nlate review\n"

@@ -90,8 +90,11 @@ A relative `cwd` is resolved from the parent Tau session's working directory. In
 | `read-only` | Only `read` is permitted | Tau's defaults | Inspection of known files without a pinned review model |
 | `implementation` | Normal built-in coding tools | `local-gateway:qwen3.8-27b` at `xhigh` | Implementation tasks, TDD, running verification |
 | `code-review` | Only `read` is permitted | `openrouter:deepseek/deepseek-v4-flash-0731` at `xhigh` | Code quality review, spec compliance review, final review |
+| `document-review` | Only `read` is permitted | `openrouter:deepseek/deepseek-v4-flash-0731` at `xhigh` | Feature-spec review and plan review at the design workflow gates |
 
-The read-only child (and the `code-review` agent) cannot run `git diff`, list or search for unknown paths, or call `bash`, `write`, `edit`, or other tools. The controller must provide command and search output in the task prompt and identify every file the reviewer should read. A public Tau `tool_call` hook enforces this tool policy, but it is **not** an OS, filesystem, network, credential, model, or provider sandbox.
+The read-only children (`read-only`, `code-review`, `document-review`) cannot run `git diff`, list or search for unknown paths, or call `bash`, `write`, `edit`, or other tools. The controller must provide command and search output in the task prompt and identify every file the reviewer should read. A public Tau `tool_call` hook enforces this tool policy, but it is **not** an OS, filesystem, network, credential, model, or provider sandbox.
+
+`code-review` returns a strict `## Code Review` section followed by a `## Summary`; `document-review` returns a strict `## Document Review` section followed by a `## Summary`. The `task` result relays both sections to the controller.
 
 Agent definitions may pin `provider`, `model`, and `reasoningEffort` in their frontmatter. **Do not override pinned values** unless a skill or the user explicitly prescribes the override: the `implementation` agent normally stays on the local gateway, and the fallback for complex, long-context, or repeatedly failing gateway work is `provider: "openrouter"`, `model: "deepseek/deepseek-v4-flash-0731"`, `reasoningEffort: "high"`.
 
@@ -135,7 +138,7 @@ Children run with discovered extensions and project resources disabled. Tau cann
 
 Parent-model `content` stays summary-sized:
 
-- when final output contains an exact `## Code Review` heading followed by an exact `## Summary` heading, successful single mode returns both sections (all actionable points plus the summary) instead of only the summary; otherwise it returns the final `## Summary` section, or the complete final output if no exact summary heading exists; failed single mode returns a concise failure message;
+- when final output contains an exact review heading (`## Code Review` or `## Document Review`) followed by an exact `## Summary` heading, successful single mode returns both sections (all actionable points plus the summary) instead of only the summary; otherwise it returns the final `## Summary` section, or the complete final output if no exact summary heading exists; failed single mode returns a concise failure message;
 - parallel mode returns a success count and one ordered summary/fallback section per child;
 - successful chain mode returns the final child's summary/fallback; a failed chain returns a concise stop message.
 

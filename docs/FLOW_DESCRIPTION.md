@@ -45,7 +45,7 @@ BRAINSTORMING
   2. Explore context and clarify one question at a time.
   3. Compare 2-3 approaches and get design approval.
   4. Write proposal and behavioral feature spec.
-  5. task(read-only): review the spec from named files and supplied context. (Document reviews stay on the unpinned `read-only` agent; only code reviews use the pinned `code-review` agent.)
+  5. task(document-review): review the spec from named files and supplied context; result carries a strict `## Document Review` + `## Summary`.
   6. Fix and re-dispatch until the reviewer reports DONE.
   7. Get user approval for both artifacts.
 
@@ -57,7 +57,7 @@ WRITING PLANS
   2. Derive the delta before implementation tasks.
   3. Map file responsibilities and write TDD-sized tasks.
   4. Self-review feature -> delta -> plan coverage.
-  5. task(read-only): review the plan, full delta, named files, and supplied output. (Plan/document reviews stay on the unpinned `read-only` agent; only code reviews use the pinned `code-review` agent.)
+  5. task(document-review): review the plan, full delta, named files, and supplied output; result carries a strict `## Document Review` + `## Summary`.
   6. Fix and re-dispatch until the reviewer reports DONE.
   7. Ask the user to choose subagent-driven or inline executing-plans execution.
                                   |
@@ -95,14 +95,15 @@ FINISHING
 
 ## `task` Dispatch in the Flow
 
-The full argument and result contract is in the [Tau `task` tool reference](../skills/using-superpowers/references/tau-tools.md). Workflow dispatches use four bundled agents:
+The full argument and result contract is in the [Tau `task` tool reference](../skills/using-superpowers/references/tau-tools.md). Workflow dispatches use five bundled agents:
 
 | Agent | Tool access | Pinned model | Workflow use |
 | --- | --- | --- | --- |
 | `implementation` | Tau's normal built-in coding tools | `local-gateway:qwen3.8-27b`, `xhigh` | One implementation task at a time; complex or long-context work falls back to `openrouter:deepseek/deepseek-v4-flash-0731` |
 | `code-review` | Only the `read` tool, enforced by a public hook | `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh` | Spec-compliance, code-quality, and final review of named files; returns strict `## Code Review` + `## Summary` sections |
+| `document-review` | Only the `read` tool, enforced by a public hook | `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh` | Feature-spec and plan review at the design gates; returns strict `## Document Review` + `## Summary` sections |
 | `general-purpose` | Tau's normal built-in coding tools | Tau's defaults | Unpinned implementation or scouting work |
-| `read-only` | Only the `read` tool, enforced by a public hook | Tau's defaults | Unpinned document inspection |
+| `read-only` | Only the `read` tool, enforced by a public hook | Tau's defaults | Unpinned inspection of known files |
 
 A typical reviewer call supplies every readable path and embeds any information the reviewer cannot obtain with `read`:
 
@@ -121,8 +122,9 @@ The controller, not a read-only child, must run searches, produce `git diff`, an
 child Tau JSONL
     -> accepted message_end messages stored in details.results[*].messages
     -> final assistant text parsed for last exact ## Summary
-    -> with an exact ## Code Review heading before the summary, both sections are
-       relayed; otherwise summary/fallback is returned in parent-model content
+    -> with an exact review heading (## Code Review or ## Document Review)
+       before the summary, both sections are relayed; otherwise
+       summary/fallback is returned in parent-model content
     -> last supported status marker recorded independently
     -> controller checks semantic status AND process/error fields
 ```

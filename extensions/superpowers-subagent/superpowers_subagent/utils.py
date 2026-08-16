@@ -11,7 +11,16 @@ from tau_agent.messages import AgentMessage, AssistantMessage, TextContent
 from .models import AgentConfig, SubagentStatus
 
 _SUMMARY_HEADING = re.compile(r"^[\t ]*## Summary[\t ]*\r?$", re.MULTILINE)
-_REVIEW_HEADING = re.compile(r"^[\t ]*## Code Review[\t ]*\r?$", re.MULTILINE)
+#: Exact review-section headings that, when followed by an exact `## Summary`,
+#: are relayed to the parent together with it. Kept as a set so future review
+#: kinds only extend this list.
+_REVIEW_HEADINGS: frozenset[str] = frozenset({"## Code Review", "## Document Review"})
+_REVIEW_HEADING = re.compile(
+    r"^[\t ]*(?:"
+    + "|".join(re.escape(heading) for heading in sorted(_REVIEW_HEADINGS))
+    + r")[\t ]*\r?$",
+    re.MULTILINE,
+)
 _STATUS_MARKER = re.compile(
     r"(?:\*\*)?Status:\s*"
     r"(DONE_WITH_CONCERNS|NEEDS_CONTEXT|BLOCKED|DONE)"
@@ -43,11 +52,12 @@ def summary_section(text: str) -> str:
 def content_section(text: str) -> str:
     """Return the parent-facing content for one child's final output.
 
-    Reviewers return actionable points under an exact `## Code Review` heading
-    followed by an exact `## Summary` heading; those sections are both needed
-    by the controller, so when both headings exist with the summary at or
-    after the review, content starts at the last `## Code Review` heading.
-    Otherwise the regular summary-or-fallback rule applies.
+    Reviewers return actionable points under an exact review heading (e.g.
+    `## Code Review` or `## Document Review`) followed by an exact
+    `## Summary` heading; both sections are needed by the controller, so when
+    both headings exist with the summary at or after the review, content
+    starts at the last review heading. Otherwise the regular
+    summary-or-fallback rule applies.
     """
 
     review_matches = list(_REVIEW_HEADING.finditer(text))

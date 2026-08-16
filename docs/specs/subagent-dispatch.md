@@ -92,7 +92,7 @@ The extension SHALL discover Markdown agent definitions in three increasing-prec
 
 Definitions SHALL contain scalar YAML frontmatter with non-empty string `name` and `description` values. They MAY contain `profile` (`general-purpose` or `read-only`), `provider`, `model`, and `reasoningEffort` (one of `off`, `minimal`, `low`, `medium`, `high`, `xhigh`); profile SHALL default to `general-purpose`. Unknown metadata SHALL be ignored. Malformed, unreadable, incomplete, empty optional, unknown-profile, or unknown-reasoning-effort definitions SHALL be skipped with diagnostics that do not expose the body.
 
-The bundled definitions are `general-purpose`, `read-only`, `implementation` (general-purpose profile, `local-gateway:qwen3.8-27b`, `xhigh`), and `code-review` (read-only profile, `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh`, strict `## Code Review` plus `## Summary` report format).
+The bundled definitions are `general-purpose`, `read-only`, `implementation` (general-purpose profile, `local-gateway:qwen3.8-27b`, `xhigh`), `code-review` (read-only profile, `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh`, strict `## Code Review` plus `## Summary` report format), and `document-review` (read-only profile, `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh`, strict `## Document Review` plus `## Summary` report format).
 
 #### Scenario: Same-name override
 
@@ -282,7 +282,7 @@ Final assistant output SHALL concatenate every text block in the last accepted a
 
 The appended response instructions SHALL tell every child to end with an exact `## Summary` heading and one of four status markers: `DONE`, `DONE_WITH_CONCERNS`, `BLOCKED`, or `NEEDS_CONTEXT`. The bundled `code-review` definition additionally mandates an exact `## Code Review` heading directly before the summary so its actionable points are relayed with the summary.
 
-Summary extraction SHALL recognize only a full line whose horizontal-whitespace-trimmed value is exactly `## Summary`, use the last matching line, and return from that heading through output end unchanged. Content extraction SHALL prefer the last exact `## Code Review` heading when an exact `## Summary` heading appears at or after it, returning from the review heading through output end so both sections reach the parent; otherwise it SHALL use the summary rule. Without a matching heading, the complete final assistant output SHALL be the fallback.
+Summary extraction SHALL recognize only a full line whose horizontal-whitespace-trimmed value is exactly `## Summary`, use the last matching line, and return from that heading through output end unchanged. Content extraction SHALL prefer the last exact review heading (`## Code Review` or `## Document Review`) when an exact `## Summary` heading appears at or after it, returning from the review heading through output end so both sections reach the parent; otherwise it SHALL use the summary rule. Without a matching heading, the complete final assistant output SHALL be the fallback.
 
 Status parsing SHALL independently use the last recognized case-insensitive bold or plain supported marker in final assistant output. If no marker exists, a successful child SHALL default to `DONE`; a failed, cancelled, timed-out, or protocol-invalid child SHALL default to `BLOCKED`.
 
@@ -295,9 +295,9 @@ Status parsing SHALL independently use the last recognized case-insensitive bold
 
 #### Scenario: Review plus summary
 
-- GIVEN final output contains an exact `## Code Review` heading followed by an exact `## Summary` heading
+- GIVEN final output contains an exact review heading (`## Code Review` or `## Document Review`) followed by an exact `## Summary` heading
 - WHEN content is constructed
-- THEN content starts at the `## Code Review` heading
+- THEN content starts at the review heading
 - AND both the actionable points and the summary reach the parent
 
 #### Scenario: Missing summary

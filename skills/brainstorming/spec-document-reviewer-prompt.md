@@ -10,12 +10,12 @@ This is a template for constructing the `task` string of the Tau `task` tool. Ca
 
 ```json
 {
-  "agent": "read-only",
+  "agent": "document-review",
   "task": "[FILLED PROMPT BELOW]"
 }
 ```
 
-The child has no controller conversation history. Name the spec and proposal paths explicitly and include any required command or search output. The enforced read-only profile permits only Tau's `read` tool; it is not an OS, filesystem, network, credential, model, or provider sandbox. Do not add `provider` or `model` unless the user explicitly requested or approved the override.
+The child has no controller conversation history. Name the spec and proposal paths explicitly and include any required command or search output. The `document-review` agent uses the enforced read-only profile, which permits only Tau's `read` tool; it is not an OS, filesystem, network, credential, model, or provider sandbox. Do not add `provider`, `model`, or `reasoningEffort` unless the user explicitly requested or approved the override; the agent is already pinned to `openrouter:deepseek/deepseek-v4-flash-0731` at `xhigh`, and its result carries a strict `## Document Review` section plus a `## Summary` that the `task` result relays to the controller.
 
 ```markdown
     You are reviewing whether a feature spec is complete, truly behavioral, and ready for implementation planning.
@@ -57,15 +57,28 @@ The child has no controller conversation history. Name the spec and proposal pat
 
     ## Output Format
 
-    ## Spec Review
+    Return exactly two sections with the exact headings `## Document Review` and
+    `## Summary`, in that order, so the controller can relay both to the parent.
 
-    **Status:** Approved | Issues Found
+    ## Document Review
 
-    **Issues (if any):**
-    - [Section X]: [specific issue] - [why it matters for planning]
+    **Verdict:** Approved | Approved with fixes | Needs fixes
 
-    **Recommendations (advisory, do not block approval):**
+    **Strengths:**
+    - [what's good, with section references]
+
+    **Critical (must fix):**
+    - [Section X]: [specific issue] - [why it blocks planning]
+
+    **Important (should fix):**
+    - [Section X]: [specific issue] - [why it matters]
+
+    **Minor (nice to have):**
     - [suggestions for improvement]
+
+    ## Summary
+
+    [One short paragraph: what was reviewed, key findings, verdict. Self-contained because it is relayed to the parent session.]
 ```
 
-**Reviewer returns:** Status, Issues (if any), Recommendations
+**Reviewer returns:** `## Document Review` (verdict, strengths, findings by severity) plus `## Summary` — both relayed to the controller.
