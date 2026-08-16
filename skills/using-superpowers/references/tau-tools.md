@@ -88,7 +88,7 @@ A relative `cwd` is resolved from the parent Tau session's working directory. In
 |---|---|---|---|
 | `general-purpose` | Normal built-in coding tools | Tau's defaults | Implementation, scouting, exploration, and tasks requiring commands or edits |
 | `read-only` | Only `read` is permitted | Tau's defaults | Inspection of known files without a pinned review model |
-| `implementation` | Normal built-in coding tools | `local-gateway:qwen3.8-27b` at `xhigh` | Implementation tasks, TDD, running verification |
+| `implementation` | Normal built-in coding tools | `openrouter:deepseek/deepseek-v4-flash-0731` at `high` | Implementation tasks, TDD, running verification |
 | `code-review` | `read` + read-only `bash` | `openrouter:deepseek/deepseek-v4-flash-0731` at `xhigh` | Code quality review, spec compliance review, final review |
 | `document-review` | `read` + read-only `bash` | `openrouter:deepseek/deepseek-v4-flash-0731` at `xhigh` | Feature-spec review and plan review at the design workflow gates |
 
@@ -98,7 +98,7 @@ The plain `read-only` agent remains stricter: only `read` is permitted, no `bash
 
 `code-review` returns a strict `## Code Review` section followed by a `## Summary`; `document-review` returns a strict `## Document Review` section followed by a `## Summary`. The `task` result relays both sections to the controller.
 
-Agent definitions may pin `provider`, `model`, and `reasoningEffort` in their frontmatter. **Do not override pinned values** unless a skill or the user explicitly prescribes the override: the `implementation` agent normally stays on the local gateway, and the fallback for complex, long-context, or repeatedly failing gateway work is `provider: "openrouter"`, `model: "deepseek/deepseek-v4-flash-0731"`, `reasoningEffort: "high"`.
+Agent definitions may pin `provider`, `model`, and `reasoningEffort` in their frontmatter. **Do not override pinned values** unless a skill or the user explicitly prescribes the override: `implementation` is pinned to `provider: "openrouter"`, `model: "deepseek/deepseek-v4-flash-0731"`, `reasoningEffort: "high"`, and `code-review`/`document-review` to the same model at `reasoningEffort: "xhigh"`.
 
 ## Custom Agents, Scope, and Approval
 

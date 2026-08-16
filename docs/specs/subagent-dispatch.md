@@ -92,7 +92,7 @@ The extension SHALL discover Markdown agent definitions in three increasing-prec
 
 Definitions SHALL contain scalar YAML frontmatter with non-empty string `name` and `description` values. They MAY contain `profile` (`general-purpose`, `read-only`, or `review`), `provider`, `model`, and `reasoningEffort` (one of `off`, `minimal`, `low`, `medium`, `high`, `xhigh`); profile SHALL default to `general-purpose`. Unknown metadata SHALL be ignored. Malformed, unreadable, incomplete, empty optional, unknown-profile, or unknown-reasoning-effort definitions SHALL be skipped with diagnostics that do not expose the body.
 
-The bundled definitions are `general-purpose`, `read-only`, `implementation` (general-purpose profile, `local-gateway:qwen3.8-27b`, `xhigh`), `code-review` (review profile, `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh`, strict `## Code Review` plus `## Summary` report format), and `document-review` (review profile, `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh`, strict `## Document Review` plus `## Summary` report format).
+The bundled definitions are `general-purpose`, `read-only`, `implementation` (general-purpose profile, `openrouter:deepseek/deepseek-v4-flash-0731`, `high`), `code-review` (review profile, `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh`, strict `## Code Review` plus `## Summary` report format), and `document-review` (review profile, `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh`, strict `## Document Review` plus `## Summary` report format).
 
 #### Scenario: Same-name override
 

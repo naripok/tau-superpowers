@@ -121,9 +121,9 @@ def test_default_discovery_finds_bundled_agents_with_pinned_config(tmp_path: Pat
     assert result.by_name()["read-only"].profile == "read-only"
     implementation = result.by_name()["implementation"]
     assert implementation.profile == "general-purpose"
-    assert implementation.provider == "local-gateway"
-    assert implementation.model == "qwen3.8-27b"
-    assert implementation.reasoning_effort == "xhigh"
+    assert implementation.provider == "openrouter"
+    assert implementation.model == "deepseek/deepseek-v4-flash-0731"
+    assert implementation.reasoning_effort == "high"
     code_review = result.by_name()["code-review"]
     assert code_review.profile == "review"
     assert code_review.provider == "openrouter"

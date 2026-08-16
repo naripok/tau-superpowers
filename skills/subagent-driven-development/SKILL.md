@@ -94,25 +94,13 @@ digraph process {
 
 The bundled agents pin their model and reasoning effort, so omit `provider`, `model`, and `reasoningEffort` by default:
 
-- **`implementation`** — runs `local-gateway:qwen3.8-27b` at `xhigh` reasoning effort.
+- **`implementation`** — runs `openrouter:deepseek/deepseek-v4-flash-0731` at `high` reasoning effort.
 - **`code-review`** — runs `openrouter:deepseek/deepseek-v4-flash-0731` at `xhigh` reasoning effort. It returns a strict `## Code Review` section followed by a `## Summary`; the `task` result relays both to you.
 - `general-purpose` and `read-only` — Tau's defaults; use them when a child must not be pinned (scouting, document inspection).
 
 Do not set overrides merely to optimize cost or speed. If the user explicitly requests or approves an override, pass `provider`, `model`, and optionally `reasoningEffort` as separate opaque `task` fields; never infer one from the other or split a slash-containing model identifier.
 
-**Implementation fallback:** Re-dispatch an implementer on `openrouter:deepseek/deepseek-v4-flash-0731` with `reasoningEffort: high` when the work is complex, needs long context, or the local gateway repeatedly fails with transport or other transient issues (check each child's process fields and `stderr` in `details.results`). This fallback is pre-approved; no new user approval is needed to use it.
-
-```json
-{
-  "agent": "implementation",
-  "task": "[SAME SELF-CONTAINED PROMPT]",
-  "provider": "openrouter",
-  "model": "deepseek/deepseek-v4-flash-0731",
-  "reasoningEffort": "high"
-}
-```
-
-Match capability to role: mechanical tasks can stay on the local gateway, while architecture and review work uses the most capable approved option.
+Match capability to role: implementation stays on its pinned model at `high` reasoning effort, while review work uses the review-profile agents at `xhigh`.
 
 ## Handling Implementer Status
 
@@ -126,9 +114,8 @@ Implementer subagents report one of four semantic statuses in the `task` result.
 
 **BLOCKED:** The implementer cannot complete the task. Assess the blocker:
 1. If it's a context problem, provide more context and re-dispatch on the implementation agent
-2. If the task requires more reasoning or the local gateway is failing repeatedly, re-dispatch on the pre-approved fallback (`openrouter:deepseek/deepseek-v4-flash-0731`, `reasoningEffort: high`) — see Provider and Model Selection
-3. If the task is too large, break it into smaller pieces
-4. If the plan itself is wrong, escalate to the human
+2. If the task is too large, break it into smaller pieces
+3. If the plan itself is wrong, escalate to the human
 
 **Never** ignore an escalation or force the same model to retry without changes. If the implementer said it's stuck, something needs to change.
 

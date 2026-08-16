@@ -66,7 +66,7 @@ IMPLEMENTATION
   1. Work in an isolated Git worktree, never directly on main/master.
   2. For each task, use red -> green -> refactor and run named checks.
   3. If subagent-driven development was selected:
-       a. task(implementation): implement one complete task (local gateway, xhigh; complex/long-context or repeated gateway failures fall back to openrouter deepseek at high).
+       a. task(implementation): implement one complete task (openrouter deepseek v4 flash at high).
        b. Inspect summary, process fields, semantic status, tests, and commit.
        c. task(code-review): spec-compliance review against the full delta.
        d. Fix and re-review until DONE.
@@ -99,7 +99,7 @@ The full argument and result contract is in the [Tau `task` tool reference](../s
 
 | Agent | Tool access | Pinned model | Workflow use |
 | --- | --- | --- | --- |
-| `implementation` | Tau's normal built-in coding tools | `local-gateway:qwen3.8-27b`, `xhigh` | One implementation task at a time; complex or long-context work falls back to `openrouter:deepseek/deepseek-v4-flash-0731` |
+| `implementation` | Tau's normal built-in coding tools | `openrouter:deepseek/deepseek-v4-flash-0731`, `high` | One implementation task at a time |
 | `code-review` | `read` + read-only `bash`, enforced by a public hook | `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh` | Spec-compliance, code-quality, and final review of named files; returns strict `## Code Review` + `## Summary` sections |
 | `document-review` | `read` + read-only `bash`, enforced by a public hook | `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh` | Feature-spec and plan review at the design gates; returns strict `## Document Review` + `## Summary` sections |
 | `general-purpose` | Tau's normal built-in coding tools | Tau's defaults | Unpinned implementation or scouting work |
