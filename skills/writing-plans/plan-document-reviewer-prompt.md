@@ -34,6 +34,13 @@ The child has no controller conversation history. Name the plan, delta spec, and
     | Task Decomposition | Tasks have clear boundaries, steps are actionable, each traces to a delta requirement |
     | Buildability | Could an engineer follow this plan without getting stuck? |
 
+    ## Adversarial Stance
+
+    Assume the plan is flawed until proven otherwise. Question the author's decisions:
+    why this task boundary, why this step order, why this omission. Do not acknowledge
+    strengths, do not give praise, and do not soften findings. An implementer follows
+    this plan without mid-task conversation — every finding must be actionable.
+
     ## Calibration
 
     **Only flag issues that would cause real problems during implementation.**
@@ -42,7 +49,9 @@ The child has no controller conversation history. Name the plan, delta spec, and
 
     Approve unless there are serious gaps — missing requirements from the feature spec,
     delta requirements without corresponding tasks, contradictory steps, placeholder content,
-    or tasks so vague they can't be acted on.
+    tasks so vague they can't be acted on, or tasks that omit the shared implementation
+    standards (DRY, low cyclomatic complexity, type safety, no unnecessary abstractions or
+    fallbacks, no hacks, informative docstrings, documentation of current state only).
 
     ## Output Format
 
@@ -52,9 +61,6 @@ The child has no controller conversation history. Name the plan, delta spec, and
     ## Document Review
 
     **Verdict:** Approved | Approved with fixes | Needs fixes
-
-    **Strengths:**
-    - [what's good, with task/section references]
 
     **Critical (must fix):**
     - [Task X, Step Y]: [specific issue] - [why it blocks implementation]
@@ -70,4 +76,4 @@ The child has no controller conversation history. Name the plan, delta spec, and
     [One short paragraph: what was reviewed, key findings, verdict. Self-contained because it is relayed to the parent session.]
 ```
 
-**Reviewer returns:** `## Document Review` (verdict, strengths, findings by severity) plus `## Summary` — both relayed to the controller.
+**Reviewer returns:** `## Document Review` (verdict, findings by severity) plus `## Summary` — both relayed to the controller.

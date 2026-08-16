@@ -156,6 +156,8 @@ Write bite-sized tasks that implement the delta spec. Every task must trace to a
 
 **Tech Stack:** [Key technologies/libraries]
 
+**Standards:** Apply the shared code standards in every task: DRY, low cyclomatic complexity, type safety, no unnecessary abstractions or fallbacks, no hacks or workarounds, informative docstrings, documentation of current state only.
+
 **Feature spec:** `docs/design/YYYY-MM-DD-<topic>-spec.md`
 
 **Delta spec:** `docs/design/YYYY-MM-DD-<topic>-delta.md`
@@ -225,6 +227,19 @@ Every step must contain the actual content an engineer needs. These are **plan f
 - DRY, YAGNI, TDD, frequent commits
 - Every task traces to a delta spec requirement
 
+## Implementation Standards (Include in Every Plan)
+
+Every plan embeds the shared code standards so implementers and reviewers apply them consistently. They appear in the plan header and must hold for every task's code and tests:
+
+- **DRY** — duplicated logic and repeated test patterns exist once.
+- **Low cyclomatic complexity** — code should encode a single valid path whenever possible; keep branches shallow and conditionals honest.
+- **Type safety** — invalid system states should not be representable by the type system; use precise types rather than untyped escapes or stringly-typed states.
+- **No unnecessary abstractions** — prefer simple, direct solutions; add indirection only when a real caller needs it.
+- **No unnecessary fallbacks** — prefer explicit error handling; silent defaults that mask failures are bugs.
+- **No hacks or workarounds** — implement the correct, complete solution by design; never a "fix later" workaround.
+- **Informative docstrings** — application code: what the code does and why, not how; tests: what behavior the test proves and why the test is needed.
+- **Documentation of current state only** — docs describe the current implemented behavior and why it is that way; never old system states or removed behavior.
+
 ## Step 5: Self-Review
 
 After writing the complete plan and delta spec, look at everything with fresh eyes. This is a checklist you run yourself — not a subagent dispatch.
@@ -238,6 +253,8 @@ After writing the complete plan and delta spec, look at everything with fresh ey
 **4. Placeholder scan:** Search your plan for red flags — any of the patterns from the "No Placeholders" section above. Fix them.
 
 **5. Type consistency:** Do the types, method signatures, and property names you used in later tasks match what you defined in earlier tasks? A function called `clearLayers()` in Task 3 but `clearFullLayers()` in Task 7 is a bug.
+
+**6. Standards coverage:** Does every task's code and test snippets follow the Implementation Standards (DRY, low complexity, type safety, no unnecessary abstractions/fallbacks/hacks, informative docstrings, current-state-only documentation)? A task that bakes in a workaround, a silent fallback, or a docstring that explains the old behavior is a plan failure.
 
 If you find issues, fix them inline. No need to re-review — just fix and move on. If you find a spec requirement with no task, add the task. If you find a delta requirement with no test, add the test step.
 

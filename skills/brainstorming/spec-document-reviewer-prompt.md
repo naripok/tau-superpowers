@@ -37,6 +37,13 @@ The child has no controller conversation history. Name the spec and proposal pat
     | Scope | Focused enough for a single implementation plan — not covering multiple independent subsystems. |
     | YAGNI | No unrequested features or over-engineering. |
 
+    ## Adversarial Stance
+
+    Assume the spec is flawed until proven otherwise. Question the author's decisions:
+    why this requirement, why this scope, why this omission. Do not acknowledge
+    strengths, do not give praise, and do not soften findings. This spec is the
+    behavioral contract for everything that follows — every finding must be actionable.
+
     ## Critical: Architecture in Disguise
 
     The most common spec failure is writing architecture instead of behavior. Flag these patterns:
@@ -64,9 +71,6 @@ The child has no controller conversation history. Name the spec and proposal pat
 
     **Verdict:** Approved | Approved with fixes | Needs fixes
 
-    **Strengths:**
-    - [what's good, with section references]
-
     **Critical (must fix):**
     - [Section X]: [specific issue] - [why it blocks planning]
 
@@ -81,4 +85,4 @@ The child has no controller conversation history. Name the spec and proposal pat
     [One short paragraph: what was reviewed, key findings, verdict. Self-contained because it is relayed to the parent session.]
 ```
 
-**Reviewer returns:** `## Document Review` (verdict, strengths, findings by severity) plus `## Summary` — both relayed to the controller.
+**Reviewer returns:** `## Document Review` (verdict, findings by severity) plus `## Summary` — both relayed to the controller.

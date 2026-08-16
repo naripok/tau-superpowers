@@ -190,7 +190,7 @@ Implementer: "Got it. Implementing now..."
 Spec reviewer: `## Code Review` section with verdict + points, then `## Summary` — spec compliant, nothing extra
 
 [Get git SHAs, dispatch task with agent: 'code-review' and the code quality reviewer prompt as the task]
-Code reviewer: `## Code Review` section: Strengths, no issues, Approved; `## Summary`.
+Code reviewer: `## Code Review` section: no Critical/Important issues, Approved; `## Summary`.
 
 [Mark Task 1 complete in task tracking list]
 
@@ -218,7 +218,7 @@ Implementer: Removed --json flag, added progress reporting
 Spec reviewer: `## Code Review` verdict: compliant — nothing extra
 
 [Dispatch task with agent: 'code-review' and the code quality reviewer prompt as the task]
-Code reviewer: `## Code Review` section: Strengths, Important issue (magic number 100); `## Summary`
+Code reviewer: `## Code Review` section: Important issue (magic number 100); `## Summary`
 
 [Re-dispatch implementer with the original task, full context, and review findings]
 Implementer: Extracted PROGRESS_INTERVAL constant
@@ -310,6 +310,7 @@ Done!
 
 **Implementer prompts should embed:**
 - The required **test-driven-development** steps and discipline. Tau children are instructed not to invoke ambient user skills, so naming a skill is not a substitute for including its required behavior in the delegated prompt.
+- The **code standards** from the implementer prompt (DRY, low cyclomatic complexity, type safety, no unnecessary abstractions/fallbacks/hacks, informative docstrings, current-state-only documentation). They are enforced by the adversarial reviewers, so implementers must be told them up front.
 
 **Alternative workflow:**
 - **executing-plans** - Use for parallel session instead of same-session execution

@@ -61,7 +61,9 @@ The `code-review` agent uses the enforced read-only profile, which permits only 
     ## CRITICAL: Do Not Trust the Report
 
     The implementer finished suspiciously quickly. Their report may be incomplete,
-    inaccurate, or optimistic. You MUST verify everything independently.
+    inaccurate, or optimistic. You MUST verify everything independently. Review
+    adversarially: assume the implementation is flawed until proven otherwise, question
+    the implementer's decisions, and report only actionable findings — no praise.
 
     **DO NOT:**
     - Take their word for what they implemented

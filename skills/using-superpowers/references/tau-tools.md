@@ -186,7 +186,7 @@ Then call `task` with the complete output embedded in `task`. The result relays 
 ```json
 {
   "agent": "code-review",
-  "task": "Review the named modified files for code quality. The controller-provided git diff follows.\n\n## Git Diff\n[PASTE COMPLETE DIFF HERE]\n\n## Requirements\n[PASTE REQUIREMENTS HERE]\n\nReturn the strict two-section format: exact `## Code Review` heading (verdict, strengths, Critical/Important/Minor points), then exact `## Summary` heading, ending with the status line."
+  "task": "Review the named modified files for code quality. The controller-provided git diff follows.\n\n## Git Diff\n[PASTE COMPLETE DIFF HERE]\n\n## Requirements\n[PASTE REQUIREMENTS HERE]\n\nReturn the strict two-section format: exact `## Code Review` heading (verdict, Critical/Important/Minor points — review adversarially, no praise), then exact `## Summary` heading, ending with the status line."
 }
 ```
 

@@ -75,13 +75,12 @@ DIFF_OUTPUT=$(git diff "$BASE_SHA".."$HEAD_SHA")
 [Subagent returns]:
   ## Code Review
   Verdict: Approved with fixes
-  Strengths: Clean architecture, real tests
   Issues:
     Important: Missing progress indicators
     Minor: Magic number (100) for reporting interval
 
   ## Summary
-  Reviewed verifyIndex()/repairIndex(); solid implementation, fix the two issues before merge.
+  Reviewed verifyIndex()/repairIndex(); core logic works, but the reporting loop is unmonitored and the interval is a magic number. Fix before merge.
 
 [You receive BOTH sections in the task result and act on the issues]
 

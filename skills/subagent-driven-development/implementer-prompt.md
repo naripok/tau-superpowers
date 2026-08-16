@@ -66,6 +66,22 @@ The `implementation` agent is pinned to `local-gateway:qwen3.8-27b` at `xhigh` r
     - In existing codebases, follow established patterns. Improve code you're touching
       the way a good developer would, but don't restructure things outside your task.
 
+    ## Code Standards
+
+    Apply these standards to everything you write; the code reviewers enforce them:
+    - Keep cyclomatic complexity low — code should encode a single valid path whenever possible
+    - Make invalid system states unrepresentable by the type system — no untyped escapes or
+      stringly-typed states where a precise type fits
+    - Prefer simple, direct solutions — no unnecessary abstractions
+    - Prefer explicit error handling — no unnecessary fallbacks that silently mask failures
+    - Implement the correct, complete solution by design — never hacks, workarounds, or
+      "fix later" code
+    - Keep it DRY — duplicated logic and repeated test patterns exist once
+    - Docstrings: application code says what it does and why, not how; tests say what behavior
+      they prove and why they are needed
+    - Document only the current state and behavior — never old system states, removed
+      behavior, or "previously" references
+
     ## When You're in Over Your Head
 
     It is always OK to stop and say "this is too hard for me." Bad work is worse than
@@ -97,6 +113,10 @@ The `implementation` agent is pinned to `local-gateway:qwen3.8-27b` at `xhigh` r
     - Is this my best work?
     - Are names clear and accurate (match what things do, not how they work)?
     - Is the code clean and maintainable?
+    - Is cyclomatic complexity low, with a single valid path per function?
+    - Did I avoid unnecessary abstractions, unnecessary fallbacks, and hacks or workarounds?
+    - Do my docstrings and documentation describe only what and why (not how), and only the
+      current state and behavior?
 
     **Discipline:**
     - Did I avoid overbuilding (YAGNI)?

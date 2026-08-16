@@ -36,15 +36,23 @@ This is a template for constructing the `task` string of the Tau `task` tool. Ca
 
     ## What to Check
 
-    Read the named modified files for full context, then review. If required evidence or
-    a file path is missing, report NEEDS_CONTEXT and request that exact input. Check:
+    Review adversarially: assume the work is flawed until proven otherwise, and question
+    the implementer's decisions. Do not acknowledge strengths or give praise — only
+    actionable findings. Read the named modified files for full context, then review. If
+    required evidence or a file path is missing, report NEEDS_CONTEXT and request that
+    exact input. Check:
     - Does each file have one clear responsibility with a well-defined interface?
     - Are units decomposed so they can be understood and tested independently?
     - Is the implementation following the file structure from the plan?
     - Did this implementation create new files that are already large, or significantly grow existing files?
-    - Are tests comprehensive and do they verify actual behavior?
+    - Are tests comprehensive, do they verify actual behavior, and do their docstrings explain what behavior they prove and why they are needed?
     - Is the code clean, maintainable, and well-named?
     - Are there security or performance concerns?
+    - Is cyclomatic complexity low — code should encode a single valid path whenever possible?
+    - Are invalid system states unrepresentable by the type system (no untyped escapes, stringly-typed states where a precise variant exists)?
+    - Are there unnecessary abstractions (prefer simple, direct solutions), unnecessary fallbacks (prefer explicit error handling), or hacks/workarounds (prefer correct, complete solutions by design)?
+    - Do application-code docstrings say what the code does and why, not how?
+    - Does documentation describe only the current implemented behavior, with no references to old system states or removed behavior?
 
     ## Output Format
 
@@ -54,9 +62,6 @@ This is a template for constructing the `task` string of the Tau `task` tool. Ca
     ## Code Review
 
     **Verdict:** Approved | Approved with fixes | Needs fixes
-
-    **Strengths:**
-    - [what's good, with file:line]
 
     **Critical (must fix):**
     - [file:line] what's wrong, why it matters, how to fix
