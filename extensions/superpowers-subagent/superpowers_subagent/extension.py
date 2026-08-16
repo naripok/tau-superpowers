@@ -135,9 +135,9 @@ def setup(tau: ExtensionAPI) -> None:
                 "Dispatch complete tasks to isolated Tau subagents. Use agent + task for "
                 "single mode, tasks for ordered parallel mode (max eight, four active), "
                 "or chain for sequential work with {previous}. Bundled agents include "
-                "general-purpose, implementation, code-review, and the enforced "
-                "read-only profile. Project-controlled "
-                "agent prompts require explicit approval."
+                "general-purpose, implementation, code-review and document-review "
+                "(read plus read-only bash), and the enforced read-only profile. "
+                "Project-controlled agent prompts require explicit approval."
             ),
             parameters=_TASK_PARAMETERS,
             execute_fn=execute_task,

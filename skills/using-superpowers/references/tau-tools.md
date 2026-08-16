@@ -89,10 +89,12 @@ A relative `cwd` is resolved from the parent Tau session's working directory. In
 | `general-purpose` | Normal built-in coding tools | Tau's defaults | Implementation, scouting, exploration, and tasks requiring commands or edits |
 | `read-only` | Only `read` is permitted | Tau's defaults | Inspection of known files without a pinned review model |
 | `implementation` | Normal built-in coding tools | `local-gateway:qwen3.8-27b` at `xhigh` | Implementation tasks, TDD, running verification |
-| `code-review` | Only `read` is permitted | `openrouter:deepseek/deepseek-v4-flash-0731` at `xhigh` | Code quality review, spec compliance review, final review |
-| `document-review` | Only `read` is permitted | `openrouter:deepseek/deepseek-v4-flash-0731` at `xhigh` | Feature-spec review and plan review at the design workflow gates |
+| `code-review` | `read` + read-only `bash` | `openrouter:deepseek/deepseek-v4-flash-0731` at `xhigh` | Code quality review, spec compliance review, final review |
+| `document-review` | `read` + read-only `bash` | `openrouter:deepseek/deepseek-v4-flash-0731` at `xhigh` | Feature-spec review and plan review at the design workflow gates |
 
-The read-only children (`read-only`, `code-review`, `document-review`) cannot run `git diff`, list or search for unknown paths, or call `bash`, `write`, `edit`, or other tools. The controller must provide command and search output in the task prompt and identify every file the reviewer should read. A public Tau `tool_call` hook enforces this tool policy, but it is **not** an OS, filesystem, network, credential, model, or provider sandbox.
+Review-profile agents (`code-review`, `document-review`) may call `read` and `bash`. Their instructions restrict `bash` strictly to read-only operations — `git diff`/`log`/`show`/`status`, `grep`/`rg`/`find` searches, and reading files with unknown exact paths — and forbid changing repo or environment state (no git writes, no file creation/deletion, no installs, no test or build runs, no background processes). They still cannot call `write`, `edit`, or other state-changing Tau tools: a public Tau `tool_call` hook blocks everything outside the allowed set. This hook is **not** an OS, filesystem, network, credential, model, or provider sandbox, and it cannot parse bash command semantics — read-only bash usage is instruction-governed.
+
+The plain `read-only` agent remains stricter: only `read` is permitted, no `bash` at all. Its controller must provide command and search output in the task prompt and identify every file it should read.
 
 `code-review` returns a strict `## Code Review` section followed by a `## Summary`; `document-review` returns a strict `## Document Review` section followed by a `## Summary`. The `task` result relays both sections to the controller.
 
@@ -108,7 +110,7 @@ Agent definitions are Markdown files discovered with increasing precedence:
 
 `agentScope: "user"` includes bundled and user definitions, `"project"` includes bundled and project definitions, and `"both"` includes all three layers. A higher-precedence definition replaces the same agent name.
 
-Definitions require non-empty `name` and `description` frontmatter. They may set `profile: general-purpose` or `profile: read-only` and optional independent `provider` and `model` strings. Their Markdown body becomes child instructions. Tau does not support an arbitrary per-agent `tools` list in this extension.
+Definitions require non-empty `name` and `description` frontmatter. They may set `profile: general-purpose`, `profile: read-only` (only `read`), or `profile: review` (`read` + read-only `bash`) and optional independent `provider`, `model`, and `reasoningEffort` strings. Their Markdown body becomes child instructions. Tau does not support an arbitrary per-agent `tools` list in this extension.
 
 If a requested name resolves to a project definition, `confirmProjectAgents: true` asks for confirmation in Tau's TUI and fails closed in headless mode. After inspecting the definition, set `confirmProjectAgents: false` to approve it explicitly for that call. Tau project trust and project-extension approval are separate and do not approve project agent prompts.
 
@@ -171,22 +173,16 @@ Supported semantic statuses are:
 
 Semantic status is distinct from process success. Check the result's failure text and structured process fields rather than assuming `BLOCKED` means the subprocess itself failed.
 
-## Read-Only Reviews That Need Diffs
+## Reviews That Can Run Read-Only bash
 
-The controller must obtain the diff before dispatching the `code-review` reviewer (its read-only profile cannot run `git diff`):
+The `code-review` and `document-review` agents can obtain diffs and run searches themselves with read-only `bash` (`git diff`, `git log`, `git show`, `git status`, `grep`/`rg`/`find`). They must never change repo state — instruct them explicitly if the task itself might tempt a write. Supplying the diff, verification output, and requirements in the task prompt is still recommended: it keeps reviewers fast and their context focused.
 
-```bash
-BASE_SHA=$(git rev-parse HEAD~1)
-HEAD_SHA=$(git rev-parse HEAD)
-git diff "$BASE_SHA".."$HEAD_SHA"
-```
-
-Then call `task` with the complete output embedded in `task`. The result relays the reviewer's `## Code Review` section (verdict and actionable points) together with its `## Summary`:
+A typical review call embeds the controller-provided diff while letting the reviewer verify with read-only bash:
 
 ```json
 {
   "agent": "code-review",
-  "task": "Review the named modified files for code quality. The controller-provided git diff follows.\n\n## Git Diff\n[PASTE COMPLETE DIFF HERE]\n\n## Requirements\n[PASTE REQUIREMENTS HERE]\n\nReturn the strict two-section format: exact `## Code Review` heading (verdict, Critical/Important/Minor points — review adversarially, no praise), then exact `## Summary` heading, ending with the status line."
+  "task": "Review the named modified files for code quality. The controller-provided git diff follows; you may run read-only bash (git diff/log/status, grep/rg/find) to verify, but never change the repository state.\n\n## Git Diff\n[PASTE COMPLETE DIFF HERE]\n\n## Requirements\n[PASTE REQUIREMENTS HERE]\n\nReturn the strict two-section format: exact `## Code Review` heading (verdict, Critical/Important/Minor points — review adversarially, no praise), then exact `## Summary` heading, ending with the status line."
 }
 ```
 

@@ -100,8 +100,8 @@ The full argument and result contract is in the [Tau `task` tool reference](../s
 | Agent | Tool access | Pinned model | Workflow use |
 | --- | --- | --- | --- |
 | `implementation` | Tau's normal built-in coding tools | `local-gateway:qwen3.8-27b`, `xhigh` | One implementation task at a time; complex or long-context work falls back to `openrouter:deepseek/deepseek-v4-flash-0731` |
-| `code-review` | Only the `read` tool, enforced by a public hook | `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh` | Spec-compliance, code-quality, and final review of named files; returns strict `## Code Review` + `## Summary` sections |
-| `document-review` | Only the `read` tool, enforced by a public hook | `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh` | Feature-spec and plan review at the design gates; returns strict `## Document Review` + `## Summary` sections |
+| `code-review` | `read` + read-only `bash`, enforced by a public hook | `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh` | Spec-compliance, code-quality, and final review of named files; returns strict `## Code Review` + `## Summary` sections |
+| `document-review` | `read` + read-only `bash`, enforced by a public hook | `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh` | Feature-spec and plan review at the design gates; returns strict `## Document Review` + `## Summary` sections |
 | `general-purpose` | Tau's normal built-in coding tools | Tau's defaults | Unpinned implementation or scouting work |
 | `read-only` | Only the `read` tool, enforced by a public hook | Tau's defaults | Unpinned inspection of known files |
 
@@ -114,7 +114,7 @@ A typical reviewer call supplies every readable path and embeds any information 
 }
 ```
 
-The controller, not a read-only child, must run searches, produce `git diff`, and identify files. Use parallel mode only for independent work and chain mode only for unconditional pipelines; conditional implement/review/fix loops require separate calls so the controller can inspect each result.
+Review agents may run read-only `bash` themselves (`git diff`/`log`/`status`, `grep`/`rg`/`find`) but must never change repository or environment state; the plain `read-only` agent cannot run commands at all, so searches, `git diff`, and file identification for it come from the controller. Use parallel mode only for independent work and chain mode only for unconditional pipelines; conditional implement/review/fix loops require separate calls so the controller can inspect each result.
 
 ### Result and Status Flow
 
@@ -182,4 +182,4 @@ The feature spec expresses desired behavior. The delta expresses only the change
 
 ## Isolation Boundaries
 
-`task` isolates conversation context and disables discovered child extensions and protected project resources. It is not an operating-system, filesystem, network, credential, provider, or model sandbox. The read-only profile enforces Tau tool calls only, and the instruction not to invoke ambient user skills is prompt guidance only. Complete child messages remain in structured details; parent content uses the extracted summary when present and complete final output as fallback when absent.
+`task` isolates conversation context and disables discovered child extensions and protected project resources. It is not an operating-system, filesystem, network, credential, provider, or model sandbox. The read-only and review profiles enforce Tau tool calls only (read-only: `read`; review: `read` plus instruction-governed read-only `bash`), and the instruction not to invoke ambient user skills is prompt guidance only. Complete child messages remain in structured details; parent content uses the extracted summary when present and complete final output as fallback when absent.

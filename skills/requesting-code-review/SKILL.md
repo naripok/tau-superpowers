@@ -25,13 +25,15 @@ See the [Tau `task` tool reference](../using-superpowers/references/tau-tools.md
 
 ## How to Request
 
-**1. Get the git diff (the read-only agent cannot run commands):**
+**1. Get the git diff (recommended context — the reviewer can also run read-only bash itself):**
 
 ```bash
 BASE_SHA=$(git rev-parse HEAD~1)  # or origin/main
 HEAD_SHA=$(git rev-parse HEAD)
 DIFF_OUTPUT=$(git diff "$BASE_SHA".."$HEAD_SHA")
 ```
+
+Supplying the diff keeps the reviewer fast and focused. The `code-review` agent can additionally run read-only `bash` (`git diff`/`log`/`status`, `grep`/`rg`/`find`) to verify and search on its own, but must never change repo state.
 
 **2. Dispatch the code reviewer:**
 
@@ -46,7 +48,7 @@ Read `code-reviewer.md`, fill its placeholders, and embed the complete diff, ver
 }
 ```
 
-Replace every bracketed placeholder before dispatch. Do not ask the child to run commands or discover paths: the enforced read-only profile permits only Tau's `read` tool. The policy blocks state-changing Tau tools but is not an OS, filesystem, network, credential, model, or provider sandbox.
+Replace every bracketed placeholder before dispatch. The child may verify with read-only `bash` (git read commands, grep/rg/find) but must never change the state of the repo; `write`, `edit`, and other state-changing Tau tools are blocked by the tool policy. The policy is not an OS, filesystem, network, credential, model, or provider sandbox.
 
 **The result contains the `## Code Review` section (actionable points) plus the `## Summary`. Act on the points; treat the summary as the digest.**
 

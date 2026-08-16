@@ -15,7 +15,7 @@ from .models import (
     DiscoveryResult,
 )
 
-_VALID_PROFILES: frozenset[str] = frozenset({"general-purpose", "read-only"})
+_VALID_PROFILES: frozenset[str] = frozenset({"general-purpose", "read-only", "review"})
 
 
 class FrontmatterError(ValueError):
@@ -166,7 +166,7 @@ def _agent_from_metadata(
 
     raw_profile = metadata.get("profile", "general-purpose").strip()
     if raw_profile not in _VALID_PROFILES:
-        raise ValueError("`profile` must be `general-purpose` or `read-only`")
+        raise ValueError("`profile` must be `general-purpose`, `read-only`, or `review`")
     profile = cast(AgentProfile, raw_profile)
     provider = _optional_nonempty(metadata, "provider")
     model = _optional_nonempty(metadata, "model")

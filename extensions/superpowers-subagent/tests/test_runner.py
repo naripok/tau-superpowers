@@ -124,7 +124,9 @@ print("warning", file=sys.stderr)
     assert record["args"][record["args"].index("--model") + 1] == "call/model"
     assert "-e" in record["args"]
     assert "ToolCallHookResult" in record["policy"]
-    assert 'event.tool_name != "read"' in record["policy"]
+    assert 'event.tool_name not in _ALLOWED_TOOLS' in record["policy"]
+    assert '"read"' in record["policy"]
+    assert '"bash"' not in record["policy"]
     assert record["prompt"].startswith("Original body without trailing newline")
     assert "Do not invoke ambient user\nskills" in record["prompt"]
     assert "Enforced Read-Only Profile" in record["prompt"]
@@ -225,7 +227,8 @@ print(json.dumps({"type": "message_end", "message": {
     assert len(record["paths"]) == 2
     thinking_path = Path(record["paths"][-1])
     assert thinking_path.name == "thinking_policy.py"
-    assert "read-only policy" in record["contents"][0]
+    assert "Generated tool policy" in record["contents"][0]
+    assert "tool_policy.py" in record["paths"][0]
     assert 'level = "high"' in record["contents"][1]
     assert "set_thinking_level" in record["contents"][1]
     assert not thinking_path.exists()
@@ -368,8 +371,8 @@ async def test_runner_observes_cancellation_before_and_during_spawn(tmp_path: Pa
     assert during.status == "BLOCKED"
 
 
-def test_generated_read_only_policy_blocks_every_tool_except_read() -> None:
-    from superpowers_subagent.runner import _POLICY_EXTENSION
+def _policy_handler(allowed_tools: tuple[str, ...]):
+    from superpowers_subagent.runner import _profile_policy_extension
 
     handlers = []
 
@@ -384,15 +387,35 @@ def test_generated_read_only_policy_blocks_every_tool_except_read() -> None:
             return register
 
     namespace = {}
-    exec(_POLICY_EXTENSION, namespace)
+    exec(_profile_policy_extension(allowed_tools), namespace)
     namespace["setup"](PolicyTau())
+    return handlers[0]
 
-    read = handlers[0](ToolCallHookEvent(tool_name="read", arguments={}), object())
-    write = handlers[0](ToolCallHookEvent(tool_name="write", arguments={}), object())
-    bash = handlers[0](ToolCallHookEvent(tool_name="bash", arguments={}), object())
+
+def test_generated_read_only_policy_blocks_every_tool_except_read() -> None:
+    handler = _policy_handler(("read",))
+
+    read = handler(ToolCallHookEvent(tool_name="read", arguments={}), object())
+    write = handler(ToolCallHookEvent(tool_name="write", arguments={}), object())
+    edit = handler(ToolCallHookEvent(tool_name="edit", arguments={}), object())
+    bash = handler(ToolCallHookEvent(tool_name="bash", arguments={}), object())
     assert read is None
-    assert write.block and "only the read tool" in write.reason
+    assert write.block and "permits only: read" in write.reason
+    assert edit.block
     assert bash.block
+
+
+def test_generated_review_policy_permits_read_and_bash_only() -> None:
+    handler = _policy_handler(("read", "bash"))
+
+    read = handler(ToolCallHookEvent(tool_name="read", arguments={}), object())
+    bash = handler(ToolCallHookEvent(tool_name="bash", arguments={}), object())
+    write = handler(ToolCallHookEvent(tool_name="write", arguments={}), object())
+    edit = handler(ToolCallHookEvent(tool_name="edit", arguments={}), object())
+    assert read is None
+    assert bash is None
+    assert write.block and "permits only: bash, read" in write.reason
+    assert edit.block
 
 
 def test_compose_prompt_preserves_agent_body_as_prefix(tmp_path: Path) -> None:
@@ -401,3 +424,15 @@ def test_compose_prompt_preserves_agent_body_as_prefix(tmp_path: Path) -> None:
     assert prompt.startswith(agent.system_prompt)
     assert "## Response Format" in prompt
     assert "Enforced Read-Only Profile" not in prompt
+    assert "Review Profile Tool Usage" not in prompt
+
+
+def test_compose_prompt_injects_profile_specific_tool_instructions(tmp_path: Path) -> None:
+    read_only = compose_child_prompt(make_agent(tmp_path, profile="read-only"))
+    assert "Enforced Read-Only Profile" in read_only
+    assert "Review Profile Tool Usage" not in read_only
+
+    review = compose_child_prompt(make_agent(tmp_path, profile="review"))
+    assert "Review Profile Tool Usage" in review
+    assert "NEVER change the state of the repository" in review
+    assert "Enforced Read-Only Profile" not in review

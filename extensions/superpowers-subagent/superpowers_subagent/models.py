@@ -11,7 +11,7 @@ from tau_agent.types import JSONValue
 
 AgentScope = Literal["user", "project", "both"]
 AgentSource = Literal["bundled", "user", "project", "unknown"]
-AgentProfile = Literal["general-purpose", "read-only"]
+AgentProfile = Literal["general-purpose", "read-only", "review"]
 DispatchMode = Literal["single", "parallel", "chain"]
 SubagentStatus = Literal["DONE", "DONE_WITH_CONCERNS", "BLOCKED", "NEEDS_CONTEXT"]
 

@@ -90,9 +90,9 @@ The extension SHALL discover Markdown agent definitions in three increasing-prec
 
 `agentScope: user` SHALL be the default and include bundled plus user definitions. `project` SHALL include bundled plus project definitions. `both` SHALL include all layers. A higher layer SHALL replace an agent with the same name, and final ordering SHALL be lexical.
 
-Definitions SHALL contain scalar YAML frontmatter with non-empty string `name` and `description` values. They MAY contain `profile` (`general-purpose` or `read-only`), `provider`, `model`, and `reasoningEffort` (one of `off`, `minimal`, `low`, `medium`, `high`, `xhigh`); profile SHALL default to `general-purpose`. Unknown metadata SHALL be ignored. Malformed, unreadable, incomplete, empty optional, unknown-profile, or unknown-reasoning-effort definitions SHALL be skipped with diagnostics that do not expose the body.
+Definitions SHALL contain scalar YAML frontmatter with non-empty string `name` and `description` values. They MAY contain `profile` (`general-purpose`, `read-only`, or `review`), `provider`, `model`, and `reasoningEffort` (one of `off`, `minimal`, `low`, `medium`, `high`, `xhigh`); profile SHALL default to `general-purpose`. Unknown metadata SHALL be ignored. Malformed, unreadable, incomplete, empty optional, unknown-profile, or unknown-reasoning-effort definitions SHALL be skipped with diagnostics that do not expose the body.
 
-The bundled definitions are `general-purpose`, `read-only`, `implementation` (general-purpose profile, `local-gateway:qwen3.8-27b`, `xhigh`), `code-review` (read-only profile, `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh`, strict `## Code Review` plus `## Summary` report format), and `document-review` (read-only profile, `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh`, strict `## Document Review` plus `## Summary` report format).
+The bundled definitions are `general-purpose`, `read-only`, `implementation` (general-purpose profile, `local-gateway:qwen3.8-27b`, `xhigh`), `code-review` (review profile, `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh`, strict `## Code Review` plus `## Summary` report format), and `document-review` (review profile, `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh`, strict `## Document Review` plus `## Summary` report format).
 
 #### Scenario: Same-name override
 
@@ -159,7 +159,7 @@ Requested definitions that resolve to the project layer SHALL require separate a
 
 ### Requirement: Isolated Tau child invocation
 
-Each child SHALL run as a separate Tau JSON-mode process with safe argv and no shell. The process SHALL use its effective working directory and receive `--no-extensions`, `--no-approve`, `--cwd`, and a temporary `--append-system-prompt` file before the positional delegated task. Discovered child extensions and protected project resources SHALL be disabled, and a recursion guard SHALL prevent `task` registration if the extension is explicitly loaded in a child. Read-only children SHALL additionally load a temporary policy extension blocking every tool call except `read`, and children with an effective reasoning effort SHALL additionally load a temporary extension that applies that level to the child session before its first turn.
+Each child SHALL run as a separate Tau JSON-mode process with safe argv and no shell. The process SHALL use its effective working directory and receive `--no-extensions`, `--no-approve`, `--cwd`, and a temporary `--append-system-prompt` file before the positional delegated task. Discovered child extensions and protected project resources SHALL be disabled, and a recursion guard SHALL prevent `task` registration if the extension is explicitly loaded in a child. Read-only and review children SHALL additionally load a temporary profile policy extension permitting exactly their profile's tools (`read` only, or `read` plus `bash` for read-only use), and children with an effective reasoning effort SHALL additionally load a temporary extension that applies that level to the child session before its first turn.
 
 Tau 0.3 exposes no CLI flag or extension-hook seam for a child's startup thinking level, so the generated extension calls the child session's own `set_thinking_level` API at `session_start`, reaching the bound session through the extension runtime view. The level is validated against the effective provider/model catalog; when it is unavailable, the child SHALL print a `[superpowers-subagent] could not apply reasoning effort ...` diagnostic to `stderr` and continue at its ambient level.
 
@@ -167,7 +167,7 @@ The appended prompt SHALL preserve the selected agent body and state that the ch
 
 #### Scenario: Safe default arguments
 
-- GIVEN no provider, model, or read-only profile override
+- GIVEN no provider, model, or profile override
 - WHEN child argv is built
 - THEN neither a shell nor unsupported legacy flags are used
 - AND neither `--provider`, `--model`, nor a policy extension is present
@@ -230,9 +230,9 @@ The appended prompt SHALL preserve the selected agent body and state that the ch
 
 ### Requirement: Child tool profiles
 
-A `general-purpose` definition SHALL use Tau's normal built-in coding tools. A `read-only` definition SHALL receive matching instructions and explicitly load a temporary public Tau policy extension that blocks every tool call except `read` before the built-in tool executes.
+A `general-purpose` definition SHALL use Tau's normal built-in coding tools. A `read-only` definition SHALL receive matching instructions and explicitly load a temporary public Tau policy extension that blocks every tool call except `read` before the built-in tool executes. A `review` definition SHALL receive matching instructions and explicitly load a temporary public Tau policy extension that permits only `read` and `bash`; its instructions SHALL restrict `bash` strictly to read-only operations — git read commands, `grep`/`rg`/`find` searches, and reading files with unknown exact paths — and SHALL forbid changing repository or environment state (no git commands that write, no file or directory mutation, no installs, no test or build runs, no background processes), reporting what is needed when a review requires a state change.
 
-The read-only profile SHALL be documented as a Tau tool-call policy, not an operating-system sandbox. It does not constrain filesystem readability through allowed tools, subprocess account privileges, credentials, network access, model or provider behavior, prompt injection, or vulnerabilities.
+The profiles SHALL be documented as a Tau tool-call policy, not an operating-system sandbox. They do not constrain filesystem readability through allowed tools, subprocess account privileges, credentials, network access, model or provider behavior, prompt injection, or vulnerabilities. The policy hook cannot parse bash command semantics, so read-only bash usage is instruction-governed: a review-profile child that disobeys its instructions can still change state through `bash`, and the profile is defense in depth at the tool layer only.
 
 #### Scenario: Read-only file access
 
@@ -246,11 +246,24 @@ The read-only profile SHALL be documented as a Tau tool-call policy, not an oper
 - WHEN the policy hook handles the request
 - THEN the call is blocked before the built-in tool executes
 
+#### Scenario: Review bash permitted
+
+- GIVEN a review-profile child requests `bash` or `read`
+- WHEN the policy hook handles the request
+- THEN the request is permitted
+- AND the child's instructions confine bash to read-only operations
+
+#### Scenario: Review state-changing Tau tool
+
+- GIVEN a review-profile child requests `write`, `edit`, or any other tool outside `read`/`bash`
+- WHEN the policy hook handles the request
+- THEN the call is blocked before the built-in tool executes
+
 #### Scenario: General-purpose child
 
 - GIVEN an agent has the general-purpose profile
 - WHEN child argv is built
-- THEN no read-only policy extension is loaded
+- THEN no profile policy extension is loaded
 
 ### Requirement: Tau JSON collection
 
@@ -357,7 +370,7 @@ Details SHALL be JSON with `schemaVersion: 1`, mode, scope, project agent direct
 
 The extension SHALL emit portable partial results after each accepted assistant or tool-result message and after child completion. Single and chain updates SHALL retain accumulated results; parallel updates SHALL use deterministic input-order slots and progress counts.
 
-Each child SHALL default to a 3600-second timeout and accept a positive call override no greater than 3600. Cancellation or timeout SHALL terminate the process, wait no more than five seconds, kill it if necessary, preserve partial messages and stderr, and prevent queued parallel or later chain work from starting. Every temporary prompt, read-only policy file, and thinking-policy file SHALL be removed on success and all failure paths.
+Each child SHALL default to a 3600-second timeout and accept a positive call override no greater than 3600. Cancellation or timeout SHALL terminate the process, wait no more than five seconds, kill it if necessary, preserve partial messages and stderr, and prevent queued parallel or later chain work from starting. Every temporary prompt, profile policy file, and thinking-policy file SHALL be removed on success and all failure paths.
 
 #### Scenario: Partial message update
 
@@ -433,7 +446,7 @@ The current Tau implementation uses the lowercase `task` tool name and preserves
 | --- | --- |
 | Combined provider/model setting | Separate opaque `provider` and `model` values |
 | Per-agent reasoning level | `reasoningEffort` at call and definition levels, applied by a generated child extension because Tau 0.3 has no thinking-level CLI flag |
-| Arbitrary per-agent tool lists | Fixed `general-purpose` and `read-only` profiles |
+| Arbitrary per-agent tool lists | Fixed `general-purpose`, `read-only`, and `review` profiles |
 | Complete skill suppression in children | Project resources and extensions are disabled; ambient user skills are discouraged by prompt only |
 | Framework-specific component rendering | Public string renderers with generic fallback |
 | Error-only result flag | Normal Tau result with explicit process/error fields |
@@ -443,7 +456,7 @@ The current Tau implementation uses the lowercase `task` tool name and preserves
 
 - Child processes isolate conversation context; they do not isolate the operating-system account, filesystem, network, credentials, provider, or model.
 - `--no-approve` and `--no-extensions` disable protected project resources and discovered extensions for children. They are not a process sandbox.
-- The read-only profile blocks Tau tool calls except `read`; it is defense in depth at the tool layer only.
+- The read-only profile blocks Tau tool calls except `read`, and the review profile permits only `read` and `bash` with instruction-governed read-only bash usage; both are defense in depth at the tool layer only.
 - Ambient user skills can remain visible to children. The instruction not to invoke them is not enforcement.
 - Project-agent approval protects against silently consuming repository-controlled prompt files. It is separate from Tau project trust and extension-code trust.
 - Summary extraction is a context-management feature, not redaction. Complete final output is returned when the exact heading is absent, and complete accepted messages always remain in `details` and may appear in expanded rendering.

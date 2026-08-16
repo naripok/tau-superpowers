@@ -8,7 +8,7 @@ The project combines ideas and material from [obra/superpowers](https://github.c
 
 - 14 Tau-discoverable Agent Skills covering the full design-to-delivery workflow.
 - A `task` tool for single, parallel, and chained Tau subprocesses.
-- Bundled child agents: `general-purpose`, tool-enforced `read-only`, `implementation` (local gateway, `xhigh` reasoning), `code-review` (OpenRouter DeepSeek, `xhigh` reasoning, strict `## Code Review` + `## Summary` reports), and `document-review` (OpenRouter DeepSeek, `xhigh` reasoning, strict `## Document Review` + `## Summary` reports).
+- Bundled child agents: `general-purpose`, tool-enforced `read-only`, `implementation` (local gateway, `xhigh` reasoning), `code-review` and `document-review` (OpenRouter DeepSeek, `xhigh` reasoning, `read` + read-only `bash`, strict `## Code Review`/`## Document Review` + `## Summary` reports).
 - User and project agent definitions with deterministic precedence and explicit project-agent approval.
 - Per-child `reasoningEffort` at call or definition level, applied as the child's Tau thinking level.
 - Summary-sized parent context with complete child messages retained in structured result details; code-review children relay both the `## Code Review` section and the `## Summary`.
@@ -178,13 +178,13 @@ model: gpt-5.3-codex
 Review only the named files and return findings by severity.
 ```
 
-`name` and `description` are required. `profile` is `general-purpose` (default) or `read-only`; `provider` and `model` are optional independent strings.
+`name` and `description` are required. `profile` is `general-purpose` (default), `read-only`, or `review`; `provider`, `model`, and `reasoningEffort` are optional independent strings.
 
 `agentScope: "user"` includes bundled and user agents. `"project"` includes bundled and project agents. `"both"` includes all layers. Precedence is bundled, then user, then nearest project.
 
 When a selected definition resolves to project-controlled Markdown, the extension asks in the TUI by default and fails closed in headless mode. After inspecting it, `"confirmProjectAgents": false` explicitly approves that definition for one call. Tau's project trust decision does not approve these extension-managed agent prompts.
 
-The `read-only` profile loads a temporary public Tau hook that blocks every Tau tool except `read`. It cannot run commands, search unknown paths, or produce its own `git diff`; provide those inputs in the delegated prompt. This is a tool-layer policy, **not** an OS, filesystem, network, credential, model, provider, or prompt-injection sandbox.
+The `read-only` profile loads a temporary public Tau hook that blocks every Tau tool except `read`. It cannot run commands, search unknown paths, or produce its own `git diff`; provide those inputs in the delegated prompt. The `review` profile (used by `code-review` and `document-review`) permits `read` plus `bash` for read-only operations — git read commands, grep/rg/find searches — and instructs the child to never change the state of the repository or environment. The hook cannot parse bash command semantics, so read-only bash usage is instruction-governed. Both profiles are tool-layer policies, **not** an OS, filesystem, network, credential, model, provider, or prompt-injection sandbox.
 
 ## Provider and Model Selection
 

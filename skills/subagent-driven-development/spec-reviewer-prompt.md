@@ -15,7 +15,7 @@ This is a template for constructing the `task` string of the Tau `task` tool. Ca
 
 **IMPORTANT:** The delta spec is a REQUIRED input. If the controller did not include the delta spec's full text, report `NEEDS_CONTEXT` and request it. You cannot review spec compliance without the behavioral contract.
 
-The `code-review` agent uses the enforced read-only profile, which permits only Tau's `read` tool. The controller must name every implementation file and embed any required diff, search, or test output. The policy is not an OS, filesystem, network, credential, model, or provider sandbox. Do not add `provider`, `model`, or `reasoningEffort` unless the user explicitly requested or approved the override; the agent is already pinned to `openrouter:deepseek/deepseek-v4-flash-0731` at `xhigh`, and its result carries a strict `## Code Review` section plus a `## Summary` that the `task` result relays to the controller.
+The `code-review` agent may run read-only `bash` (git diff/log/status, grep/rg/find) in addition to `read`, but must never change the repository or environment state — no git writes, no file creation or deletion, no installs, no test or build runs, no background processes. The controller should still name every implementation file and embed any required diff, search, or test output for speed and focus. `write`, `edit`, and other state-changing Tau tools are blocked by the tool policy. This tool policy is not an OS, filesystem, network, credential, model, or provider sandbox. Do not add `provider`, `model`, or `reasoningEffort` unless the user explicitly requested or approved the override; the agent is already pinned to `openrouter:deepseek/deepseek-v4-flash-0731` at `xhigh`, and its result carries a strict `## Code Review` section plus a `## Summary` that the `task` result relays to the controller.
 
 ```markdown
     You are reviewing whether an implementation matches its specification.
@@ -55,8 +55,10 @@ The `code-review` agent uses the enforced read-only profile, which permits only 
 
     [PASTE THE COMPLETE RELEVANT DIFF AND TEST/CHECK OUTPUT]
 
-    You cannot run commands or discover unknown paths. If required evidence or a path is
-    missing, report NEEDS_CONTEXT and identify exactly what the controller must provide.
+    You may run read-only bash (git diff/log/status, grep/rg/find) to verify, but you
+    must NEVER change the state of the repository or environment. If required evidence
+    or a path is missing, report NEEDS_CONTEXT and identify exactly what the controller
+    must provide.
 
     ## CRITICAL: Do Not Trust the Report
 

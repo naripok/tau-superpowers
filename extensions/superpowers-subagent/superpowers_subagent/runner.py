@@ -53,18 +53,48 @@ missing command output from the controller. A Tau tool-call hook enforces this p
 but it is not an OS, filesystem, network, credential, model, or provider sandbox.
 """
 
-_POLICY_EXTENSION = '''"""Generated read-only policy for one delegated Tau child."""
+_REVIEW_INSTRUCTIONS = """## Review Profile Tool Usage
+
+You have Tau's `read` tool and the `bash` tool. Use `bash` strictly for read-only
+operations that aid the review: `git diff`, `git log`, `git show`, `git status`,
+`grep`/`rg`/`find` searches, and listing or reading files whose exact paths you do
+not know. NEVER change the state of the repository or your environment: no git
+commands that write (commit, push, checkout, stash, reset, rebase, apply, clean), no
+file or directory creation, modification, deletion, or moving, no package installs,
+no test or build runs (they write caches and artifacts), and no background or
+long-running processes. If completing the review requires a state change, report
+exactly what is needed and let the controller perform it. `write`, `edit`, and all
+other state-changing Tau tools remain blocked by the tool policy. This policy is a
+Tau tool-call hook, not an OS, filesystem, network, credential, model, or provider
+sandbox.
+"""
+
+
+_ALLOWED_TOOLS_BY_PROFILE: dict[str, tuple[str, ...]] = {
+    "read-only": ("read",),
+    "review": ("read", "bash"),
+}
+
+
+def _profile_policy_extension(allowed_tools: tuple[str, ...]) -> str:
+    """Generate a tool policy extension permitting exactly ``allowed_tools``."""
+
+    quoted = ", ".join(f'"{tool}"' for tool in sorted(allowed_tools))
+    plain = ", ".join(sorted(allowed_tools))
+    return f'''"""Generated tool policy for one delegated Tau child."""
 
 from tau_coding.extensions import ExtensionAPI, ToolCallHookEvent, ToolCallHookResult
+
+_ALLOWED_TOOLS: frozenset[str] = frozenset({{{quoted}}})
 
 
 def setup(tau: ExtensionAPI) -> None:
     @tau.on("tool_call")
-    def permit_read_only(event: object, _context: object) -> ToolCallHookResult | None:
-        if isinstance(event, ToolCallHookEvent) and event.tool_name != "read":
+    def permit_profile_tools(event: object, _context: object) -> ToolCallHookResult | None:
+        if isinstance(event, ToolCallHookEvent) and event.tool_name not in _ALLOWED_TOOLS:
             return ToolCallHookResult(
                 block=True,
-                reason="read-only subagent profile permits only the read tool",
+                reason="subagent profile permits only: {plain}",
             )
         return None
 '''
@@ -161,9 +191,12 @@ class TauChildRunner:
             prompt_path.write_text(prompt, encoding="utf-8")
             prompt_path.chmod(0o600)
             policy_path: Path | None = None
-            if agent.profile == "read-only":
-                policy_path = temp_dir / "read_only_policy.py"
-                policy_path.write_text(_POLICY_EXTENSION, encoding="utf-8")
+            if agent.profile in _ALLOWED_TOOLS_BY_PROFILE:
+                policy_path = temp_dir / "tool_policy.py"
+                policy_path.write_text(
+                    _profile_policy_extension(_ALLOWED_TOOLS_BY_PROFILE[agent.profile]),
+                    encoding="utf-8",
+                )
                 policy_path.chmod(0o600)
             thinking_policy_path: Path | None = None
             if reasoning_effort is not None:
@@ -255,7 +288,9 @@ def compose_child_prompt(agent: AgentConfig) -> str:
     """Preserve the agent body, then append fixed isolation/profile instructions."""
 
     sections = [_SHARED_INSTRUCTIONS]
-    if agent.profile == "read-only":
+    if agent.profile == "review":
+        sections.insert(0, _REVIEW_INSTRUCTIONS)
+    elif agent.profile == "read-only":
         sections.insert(0, _READ_ONLY_INSTRUCTIONS)
     suffix = "\n\n".join(section.rstrip() for section in sections) + "\n"
     if not agent.system_prompt:

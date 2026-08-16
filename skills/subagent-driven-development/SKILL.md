@@ -138,7 +138,7 @@ Implementer subagents report one of four semantic statuses in the `task` result.
 - `./spec-reviewer-prompt.md` - Dispatch spec compliance reviewer subagent
 - `./code-quality-reviewer-prompt.md` - Dispatch code quality reviewer subagent
 
-All templates use the Tau `task` argument schema documented in [`../using-superpowers/references/tau-tools.md`](../using-superpowers/references/tau-tools.md). Reviewer prompts must include every readable file path plus any required diff, search, or command output because the enforced read-only profile permits only Tau's `read` tool.
+All templates use the Tau `task` argument schema documented in [`../using-superpowers/references/tau-tools.md`](../using-superpowers/references/tau-tools.md). Reviewer prompts should still include every readable file path plus any required diff, search, or command output; reviewers can additionally verify with read-only `bash` (git diff/log/status, grep/rg/find) but must never change the state of the repository.
 
 ## Spec Compliance Review References
 
