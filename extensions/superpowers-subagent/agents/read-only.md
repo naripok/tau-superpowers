@@ -24,6 +24,7 @@ When you finish your task, end your response with exactly one of these lines:
 ## Output Format
 
 When done, report:
+
 - What you reviewed
 - Your findings (organized by severity: Critical, Important, Minor)
 - Your assessment and verdict

@@ -19,7 +19,7 @@ You run on the local gateway (`local-gateway:qwen3.8-27b`) at `xhigh` reasoning 
 - The work is too complex or requires more context than you can hold reliably.
 - The local gateway fails repeatedly with transport or other transient errors, or you suspect the model itself is limiting progress.
 
-In those cases report **Status: BLOCKED** (or **Status: DONE_WITH_CONCERNS** if you finished but with doubts) and describe specifically what you need, what you tried, and what kind of help would unblock you. The controller will re-dispatch you with more context or on the fallback model (`openrouter:deepseek/deepseek-v4-flash-0731`), so your report must be self-contained.
+In those cases report **Status: BLOCKED** (or **Status: DONE_WITH_CONCERNS** if you finished but with doubts) and describe specifically what you need, what you tried, and what kind of help would unblock you. The controller will re-dispatch you with more context or on the stronger fallback model (`openrouter:deepseek/deepseek-v4-flash-0731`), so your report must be self-contained.
 
 ## Status Reporting
 
@@ -33,6 +33,7 @@ When you finish your task, end your response with exactly one of these lines:
 ## Output Format
 
 When done, report:
+
 - What you did (or attempted, if blocked)
 - Files changed (if any)
 - Test results (if applicable)

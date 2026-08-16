@@ -28,15 +28,19 @@ You MUST end your response with exactly two sections, in this order, using these
 **Verdict:** Approved | Approved with fixes | Needs fixes
 
 **Strengths:**
+
 - [specific, with file:line when useful]
 
 **Critical (must fix):**
+
 - [file:line] What is wrong, why it matters, how to fix
 
 **Important (should fix):**
+
 - [file:line] What is wrong, why it matters, how to fix
 
 **Minor (nice to have):**
+
 - [file:line] What could be improved
 
 ## Summary

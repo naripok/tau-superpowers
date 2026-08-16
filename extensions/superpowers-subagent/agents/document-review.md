@@ -33,15 +33,19 @@ You MUST end your response with exactly two sections, in this order, using these
 **Verdict:** Approved | Approved with fixes | Needs fixes
 
 **Strengths:**
+
 - [specific, with section reference when useful]
 
 **Critical (must fix):**
+
 - [Section/requirement] What is wrong, why it blocks the next gate, how to fix
 
 **Important (should fix):**
+
 - [Section/requirement] What is wrong, why it matters, how to fix
 
 **Minor (nice to have):**
+
 - [Section/requirement] What could be improved
 
 ## Summary

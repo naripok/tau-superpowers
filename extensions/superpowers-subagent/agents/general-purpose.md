@@ -22,6 +22,7 @@ When you finish your task, end your response with exactly one of these lines:
 ## Output Format
 
 When done, report:
+
 - What you did (or attempted, if blocked)
 - Files changed (if any)
 - Test results (if applicable)
