@@ -171,6 +171,44 @@ def test_effective_provider_model_prefers_agent_and_call_over_parent(tmp_path: P
     ) == ("call-provider", "call/model")
 
 
+def test_effective_provider_model_falls_back_per_side_when_agent_pins_one_side(
+    tmp_path: Path,
+) -> None:
+    model_pinned = AgentConfig(
+        name="model-pinned",
+        description="Model pinned",
+        system_prompt="",
+        source="user",
+        file_path=tmp_path / "model-pinned.md",
+        model="agent/model",
+    )
+    provider_pinned = AgentConfig(
+        name="provider-pinned",
+        description="Provider pinned",
+        system_prompt="",
+        source="user",
+        file_path=tmp_path / "provider-pinned.md",
+        provider="agent-provider",
+    )
+    plain = AgentConfig(
+        name="plain",
+        description="Plain",
+        system_prompt="",
+        source="user",
+        file_path=tmp_path / "plain.md",
+    )
+
+    assert effective_provider_model(
+        model_pinned, None, None, parent_provider="openai", parent_model="gpt-5.6-sol"
+    ) == ("openai", "agent/model")
+    assert effective_provider_model(
+        provider_pinned, None, None, parent_provider="openai", parent_model="gpt-5.6-sol"
+    ) == ("agent-provider", "gpt-5.6-sol")
+    assert effective_provider_model(
+        plain, "call-provider", None, parent_provider="openai", parent_model="gpt-5.6-sol"
+    ) == ("call-provider", "gpt-5.6-sol")
+
+
 def test_effective_reasoning_effort_prefers_call_then_agent(tmp_path: Path) -> None:
     agent = AgentConfig(
         name="worker",
