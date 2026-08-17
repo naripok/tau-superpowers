@@ -8,7 +8,7 @@ The project combines ideas and material from [obra/superpowers](https://github.c
 
 - 14 Tau-discoverable Agent Skills covering the full design-to-delivery workflow.
 - A `task` tool for single, parallel, and chained Tau subprocesses.
-- Bundled child agents: `general-purpose`, tool-enforced `read-only`, `implementation` (OpenRouter DeepSeek, `high` reasoning), `code-review` and `document-review` (OpenRouter DeepSeek, `xhigh` reasoning, `read` + read-only `bash`, strict `## Code Review`/`## Document Review` + `## Summary` reports). Children whose agent definition pins neither provider nor model inherit the parent session's active provider and model.
+- Bundled child agents: `general-purpose`, tool-enforced `read-only`, `implementation` (OpenRouter DeepSeek, `high` reasoning), `code-review` and `document-review` (OpenRouter DeepSeek, `xhigh` reasoning, `read` + read-only `bash`, strict `## Code Review`/`## Document Review` + `## Summary` reports). Children whose agent definition pins neither provider nor model inherit the parent session's active provider and model, after call-level and agent-definition values.
 - User and project agent definitions with deterministic precedence and explicit project-agent approval.
 - Per-child `reasoningEffort` at call or definition level, applied as the child's Tau thinking level.
 - Summary-sized parent context with complete child messages retained in structured result details; code-review children relay both the `## Code Review` section and the `## Summary`.
@@ -188,7 +188,7 @@ The `read-only` profile loads a temporary public Tau hook that blocks every Tau 
 
 ## Provider and Model Selection
 
-Normally omit `provider` and `model`. Child processes then use Tau's configured defaults or optional values from the selected agent definition. Configure durable Tau defaults with `/login` and `/model`.
+Normally omit `provider` and `model`. Children then inherit the parent session's active provider and model unless the agent definition or call pins one. Configure durable Tau defaults with `/login` and `/model`.
 
 Per-call overrides are separate and map directly to Tau's separate CLI settings:
 

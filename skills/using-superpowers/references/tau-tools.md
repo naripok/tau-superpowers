@@ -86,8 +86,8 @@ A relative `cwd` is resolved from the parent Tau session's working directory. In
 
 | Agent | Tau tool policy | Pinned model | Use for |
 |---|---|---|---|
-| `general-purpose` | Normal built-in coding tools | Tau's defaults | Implementation, scouting, exploration, and tasks requiring commands or edits |
-| `read-only` | Only `read` is permitted | Tau's defaults | Inspection of known files without a pinned review model |
+| `general-purpose` | Normal built-in coding tools | Parent session's active provider/model | Implementation, scouting, exploration, and tasks requiring commands or edits |
+| `read-only` | Only `read` is permitted | Parent session's active provider/model | Inspection of known files without a pinned review model |
 | `implementation` | Normal built-in coding tools | `openrouter:deepseek/deepseek-v4-flash-0731` at `high` | Implementation tasks, TDD, running verification |
 | `code-review` | `read` + read-only `bash` | `openrouter:deepseek/deepseek-v4-flash-0731` at `xhigh` | Code quality review, spec compliance review, final review |
 | `document-review` | `read` + read-only `bash` | `openrouter:deepseek/deepseek-v4-flash-0731` at `xhigh` | Feature-spec review and plan review at the design workflow gates |

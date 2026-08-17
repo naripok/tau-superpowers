@@ -102,8 +102,8 @@ The full argument and result contract is in the [Tau `task` tool reference](../s
 | `implementation` | Tau's normal built-in coding tools | `openrouter:deepseek/deepseek-v4-flash-0731`, `high` | One implementation task at a time |
 | `code-review` | `read` + read-only `bash`, enforced by a public hook | `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh` | Spec-compliance, code-quality, and final review of named files; returns strict `## Code Review` + `## Summary` sections |
 | `document-review` | `read` + read-only `bash`, enforced by a public hook | `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh` | Feature-spec and plan review at the design gates; returns strict `## Document Review` + `## Summary` sections |
-| `general-purpose` | Tau's normal built-in coding tools | Tau's defaults | Unpinned implementation or scouting work |
-| `read-only` | Only the `read` tool, enforced by a public hook | Tau's defaults | Unpinned inspection of known files |
+| `general-purpose` | Tau's normal built-in coding tools | Parent session's active provider/model | Unpinned implementation or scouting work |
+| `read-only` | Only the `read` tool, enforced by a public hook | Parent session's active provider/model | Unpinned inspection of known files |
 
 Agents without a pinned provider or model inherit the parent session's active provider and model at dispatch time.
 

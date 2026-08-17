@@ -200,10 +200,11 @@ The appended prompt SHALL preserve the selected agent body and state that the ch
 
 #### Scenario: Omitted overrides
 
-- GIVEN neither the call nor agent defines provider or model
+- GIVEN neither the call nor the agent defines provider or model
+- AND the parent session exposes no provider or model values
 - WHEN child argv is built
 - THEN both flags are absent
-- AND the child uses Tau's configured defaults
+- AND no default provider or model flags are passed
 
 #### Scenario: Opaque model identifier
 
