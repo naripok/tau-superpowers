@@ -105,6 +105,8 @@ The full argument and result contract is in the [Tau `task` tool reference](../s
 | `general-purpose` | Tau's normal built-in coding tools | Tau's defaults | Unpinned implementation or scouting work |
 | `read-only` | Only the `read` tool, enforced by a public hook | Tau's defaults | Unpinned inspection of known files |
 
+Agents without a pinned provider or model inherit the parent session's active provider and model at dispatch time.
+
 A typical reviewer call supplies every readable path and embeds any information the reviewer cannot obtain with `read`:
 
 ```json

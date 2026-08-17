@@ -183,6 +183,8 @@ print(json.dumps({"type": "message_end", "message": {
 async def test_runner_passes_parent_provider_and_model_when_agent_is_unpinned(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Prove an unpinned child argv carries the parent session's provider and model."""
+
     record_path = tmp_path / "record.json"
     monkeypatch.setenv("FAKE_TAU_RECORD", str(record_path))
     fake_tau = write_fake_tau(

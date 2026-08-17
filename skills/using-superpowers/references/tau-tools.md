@@ -116,7 +116,7 @@ If a requested name resolves to a project definition, `confirmProjectAgents: tru
 
 ## Provider and Model Selection
 
-By default, omit both `provider` and `model`; the child uses Tau's configured defaults or the selected agent definition's optional values. Do not override either without explicit user direction or approval.
+By default, omit both `provider` and `model`; the child inherits the parent session's active provider and model, or the selected agent definition's optional values when present. Precedence is call-level override, then agent definition, then parent session. Do not override either without explicit user direction or approval.
 
 The fields are independent and map directly to Tau's separate provider and model settings:
 

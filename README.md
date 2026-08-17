@@ -8,7 +8,7 @@ The project combines ideas and material from [obra/superpowers](https://github.c
 
 - 14 Tau-discoverable Agent Skills covering the full design-to-delivery workflow.
 - A `task` tool for single, parallel, and chained Tau subprocesses.
-- Bundled child agents: `general-purpose`, tool-enforced `read-only`, `implementation` (OpenRouter DeepSeek, `high` reasoning), `code-review` and `document-review` (OpenRouter DeepSeek, `xhigh` reasoning, `read` + read-only `bash`, strict `## Code Review`/`## Document Review` + `## Summary` reports).
+- Bundled child agents: `general-purpose`, tool-enforced `read-only`, `implementation` (OpenRouter DeepSeek, `high` reasoning), `code-review` and `document-review` (OpenRouter DeepSeek, `xhigh` reasoning, `read` + read-only `bash`, strict `## Code Review`/`## Document Review` + `## Summary` reports). Children whose agent definition pins neither provider nor model inherit the parent session's active provider and model.
 - User and project agent definitions with deterministic precedence and explicit project-agent approval.
 - Per-child `reasoningEffort` at call or definition level, applied as the child's Tau thinking level.
 - Summary-sized parent context with complete child messages retained in structured result details; code-review children relay both the `## Code Review` section and the `## Summary`.
@@ -201,7 +201,7 @@ Per-call overrides are separate and map directly to Tau's separate CLI settings:
 }
 ```
 
-A call value overrides only the corresponding agent value. The extension never splits combined strings or infers a provider from a slash in a model identifier. An unpersisted model selected only in the parent process is not guaranteed to carry into children.
+A call value overrides only the corresponding agent value. The extension never splits combined strings or infers a provider from a slash in a model identifier. An unpersisted model selected only in the parent process is carried into children as the parent-session fallback for agent definitions that pin neither provider nor model.
 
 ## Isolation and Security Boundaries
 

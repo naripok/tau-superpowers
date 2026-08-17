@@ -36,6 +36,8 @@ class FakeRunner:
 
     async def run(self, **kwargs: Any) -> ChildResult:
         self.calls.append(kwargs)
+        # Effective values mirror utils.effective_provider_model (call, agent,
+        # then parent-session precedence); keep both in sync.
         self.active += 1
         self.max_active = max(self.max_active, self.active)
         task = kwargs["task"]
@@ -366,6 +368,8 @@ async def test_project_agents_use_ui_confirmation(tmp_path: Path) -> None:
 async def test_single_uses_parent_provider_and_model_when_agent_is_unpinned(
     tmp_path: Path,
 ) -> None:
+    """Prove dispatch forwards parent values for an unpinned agent."""
+
     runner = FakeRunner()
     dispatcher = make_dispatcher(
         tmp_path, runner, parent_provider="openai", parent_model="gpt-5.6-sol"

@@ -131,6 +131,8 @@ def test_provider_and_model_overrides_are_independent_and_opaque(tmp_path: Path)
 
 
 def test_effective_provider_model_falls_back_to_parent_session(tmp_path: Path) -> None:
+    """Prove unpinned children inherit the parent session's provider and model."""
+
     plain = AgentConfig(
         name="plain",
         description="Plain",
@@ -145,6 +147,8 @@ def test_effective_provider_model_falls_back_to_parent_session(tmp_path: Path) -
 
 
 def test_effective_provider_model_prefers_agent_and_call_over_parent(tmp_path: Path) -> None:
+    """Prove agent pins and call overrides always beat parent-session values."""
+
     pinned = AgentConfig(
         name="pinned",
         description="Pinned",
@@ -174,6 +178,8 @@ def test_effective_provider_model_prefers_agent_and_call_over_parent(tmp_path: P
 def test_effective_provider_model_falls_back_per_side_when_agent_pins_one_side(
     tmp_path: Path,
 ) -> None:
+    """Prove provider and model fall back independently when an agent pins one side."""
+
     model_pinned = AgentConfig(
         name="model-pinned",
         description="Model pinned",
