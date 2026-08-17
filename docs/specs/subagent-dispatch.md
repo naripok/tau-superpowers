@@ -168,6 +168,7 @@ The appended prompt SHALL preserve the selected agent body and state that the ch
 #### Scenario: Safe default arguments
 
 - GIVEN no provider, model, or profile override
+- AND the parent session exposes no provider or model values
 - WHEN child argv is built
 - THEN neither a shell nor unsupported legacy flags are used
 - AND neither `--provider`, `--model`, nor a policy extension is present
@@ -187,7 +188,7 @@ The appended prompt SHALL preserve the selected agent body and state that the ch
 
 ### Requirement: Provider, model, and reasoning-effort overrides
 
-`provider` and `model` SHALL be independent opaque strings at call and agent-definition levels. A call-level value SHALL override only the corresponding agent value. Effective values SHALL map directly to Tau's separate `--provider` and `--model` flags; absent values SHALL omit their flags. The extension SHALL NOT split combined values or infer a provider from a slash-containing model identifier.
+`provider` and `model` SHALL be independent opaque strings at call and agent-definition levels. A call-level value SHALL override only the corresponding agent value; values absent at call and agent levels SHALL fall back to the parent session's active provider and model, when the parent exposes them. Effective values SHALL map directly to Tau's separate `--provider` and `--model` flags; values absent at every level SHALL omit their flags. The extension SHALL NOT split combined values or infer a provider from a slash-containing model identifier.
 
 `reasoningEffort` SHALL be an optional call-level thinking level resolved at call then agent precedence, mapped to the generated child extension described under child invocation, and recorded as `reasoningEffort` on the child result. Invalid or empty call values SHALL be rejected before child startup; invalid agent-definition values SHALL skip that definition with a diagnostic.
 

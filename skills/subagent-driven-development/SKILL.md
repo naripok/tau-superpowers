@@ -96,7 +96,7 @@ The bundled agents pin their model and reasoning effort, so omit `provider`, `mo
 
 - **`implementation`** — runs `openrouter:deepseek/deepseek-v4-flash-0731` at `high` reasoning effort.
 - **`code-review`** — runs `openrouter:deepseek/deepseek-v4-flash-0731` at `xhigh` reasoning effort. It returns a strict `## Code Review` section followed by a `## Summary`; the `task` result relays both to you.
-- `general-purpose` and `read-only` — Tau's defaults; use them when a child must not be pinned (scouting, document inspection).
+- `general-purpose` and `read-only` — inherit the parent session's active provider/model; use them when a child must not be pinned (scouting, document inspection).
 
 Do not set overrides merely to optimize cost or speed. If the user explicitly requests or approves an override, pass `provider`, `model`, and optionally `reasoningEffort` as separate opaque `task` fields; never infer one from the other or split a slash-containing model identifier.
 

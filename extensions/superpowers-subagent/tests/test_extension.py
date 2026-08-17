@@ -88,3 +88,12 @@ async def test_execute_task_passes_parent_session_provider_and_model(
     assert captured["parent_provider"] == "openai"
     assert captured["parent_model"] == "gpt-5.6-sol"
     assert captured["default_cwd"] == Path.cwd()
+
+    tau.context.provider_name = ""
+    tau.context.model = ""
+    await tau.tools[0].execute_fn(  # type: ignore[attr-defined]
+        "call-2", {"agent": "general-purpose", "task": "work"}, None, None
+    )
+
+    assert captured["parent_provider"] is None
+    assert captured["parent_model"] is None
