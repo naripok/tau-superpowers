@@ -130,6 +130,47 @@ def test_provider_and_model_overrides_are_independent_and_opaque(tmp_path: Path)
     )
 
 
+def test_effective_provider_model_falls_back_to_parent_session(tmp_path: Path) -> None:
+    plain = AgentConfig(
+        name="plain",
+        description="Plain",
+        system_prompt="",
+        source="user",
+        file_path=tmp_path / "plain.md",
+    )
+
+    assert effective_provider_model(
+        plain, None, None, parent_provider="openai", parent_model="gpt-5.6-sol"
+    ) == ("openai", "gpt-5.6-sol")
+
+
+def test_effective_provider_model_prefers_agent_and_call_over_parent(tmp_path: Path) -> None:
+    pinned = AgentConfig(
+        name="pinned",
+        description="Pinned",
+        system_prompt="",
+        source="user",
+        file_path=tmp_path / "pinned.md",
+        provider="agent-provider",
+        model="agent/model",
+    )
+    plain = AgentConfig(
+        name="plain",
+        description="Plain",
+        system_prompt="",
+        source="user",
+        file_path=tmp_path / "plain.md",
+    )
+
+    assert effective_provider_model(
+        pinned, None, None, parent_provider="openai", parent_model="gpt-5.6-sol"
+    ) == ("agent-provider", "agent/model")
+    assert effective_provider_model(
+        plain, "call-provider", "call/model",
+        parent_provider="openai", parent_model="gpt-5.6-sol",
+    ) == ("call-provider", "call/model")
+
+
 def test_effective_reasoning_effort_prefers_call_then_agent(tmp_path: Path) -> None:
     agent = AgentConfig(
         name="worker",

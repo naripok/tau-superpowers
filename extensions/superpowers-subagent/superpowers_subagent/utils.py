@@ -92,10 +92,16 @@ def effective_provider_model(
     agent: AgentConfig,
     provider_override: str | None,
     model_override: str | None,
+    *,
+    parent_provider: str | None = None,
+    parent_model: str | None = None,
 ) -> tuple[str | None, str | None]:
-    """Resolve provider and model independently at call then agent precedence."""
+    """Resolve provider and model at call, agent, then parent-session precedence."""
 
-    return provider_override or agent.provider, model_override or agent.model
+    return (
+        provider_override or agent.provider or parent_provider,
+        model_override or agent.model or parent_model,
+    )
 
 
 def effective_reasoning_effort(
