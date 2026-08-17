@@ -158,6 +158,8 @@ class TauChildRunner:
         provider_override: str | None,
         model_override: str | None,
         reasoning_effort_override: str | None,
+        parent_provider: str | None = None,
+        parent_model: str | None = None,
         timeout_seconds: float,
         signal: ToolCancellationToken | None,
         step: int | None = None,
@@ -166,7 +168,13 @@ class TauChildRunner:
         """Launch and collect one child, retaining partial state on every exit path."""
 
         cwd = resolve_child_cwd(default_cwd, cwd_override)
-        provider, model = effective_provider_model(agent, provider_override, model_override)
+        provider, model = effective_provider_model(
+            agent,
+            provider_override,
+            model_override,
+            parent_provider=parent_provider,
+            parent_model=parent_model,
+        )
         reasoning_effort = effective_reasoning_effort(agent, reasoning_effort_override)
         result = ChildResult(
             agent=agent.name,

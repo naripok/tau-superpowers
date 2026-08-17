@@ -180,6 +180,52 @@ print(json.dumps({"type": "message_end", "message": {
 
 
 @pytest.mark.asyncio
+async def test_runner_passes_parent_provider_and_model_when_agent_is_unpinned(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    record_path = tmp_path / "record.json"
+    monkeypatch.setenv("FAKE_TAU_RECORD", str(record_path))
+    fake_tau = write_fake_tau(
+        tmp_path,
+        r"""
+import json, os, pathlib, sys
+pathlib.Path(os.environ["FAKE_TAU_RECORD"]).write_text(json.dumps(sys.argv[1:]))
+print(json.dumps({"type": "message_end", "message": {
+    "role": "assistant", "content": [{"type": "text", "text": "done"}]
+}}))
+""",
+    )
+    agent = make_agent(tmp_path)
+    agent = AgentConfig(
+        name=agent.name,
+        description=agent.description,
+        system_prompt=agent.system_prompt,
+        source=agent.source,
+        file_path=agent.file_path,
+        profile=agent.profile,
+    )
+
+    result = await TauChildRunner(str(fake_tau)).run(
+        default_cwd=tmp_path,
+        agent=agent,
+        task="task",
+        cwd_override=None,
+        provider_override=None,
+        model_override=None,
+        reasoning_effort_override=None,
+        parent_provider="openai",
+        parent_model="gpt-5.6-sol",
+        timeout_seconds=2,
+        signal=None,
+    )
+
+    argv = json.loads(record_path.read_text())
+    assert result.succeeded
+    assert argv[argv.index("--provider") + 1] == "openai"
+    assert argv[argv.index("--model") + 1] == "gpt-5.6-sol"
+
+
+@pytest.mark.asyncio
 async def test_runner_writes_thinking_policy_with_effective_level_and_cleans_it(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
