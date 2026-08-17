@@ -77,11 +77,15 @@ class TaskDispatcher:
         ui: ConfirmationUi,
         runner: TauChildRunner | None = None,
         discovery_fn: DiscoveryFn = discover_agents,
+        parent_provider: str | None = None,
+        parent_model: str | None = None,
     ) -> None:
         self.default_cwd = default_cwd
         self.ui = ui
         self.runner = runner or TauChildRunner()
         self.discovery_fn = discovery_fn
+        self.parent_provider = parent_provider
+        self.parent_model = parent_model
 
     async def execute(
         self,
@@ -345,6 +349,8 @@ class TaskDispatcher:
             cwd_override=item.cwd,
             provider_override=request.provider,
             model_override=request.model,
+            parent_provider=self.parent_provider,
+            parent_model=self.parent_model,
             reasoning_effort_override=request.reasoning_effort,
             timeout_seconds=request.timeout_seconds,
             signal=signal,

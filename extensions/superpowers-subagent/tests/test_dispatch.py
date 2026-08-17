@@ -50,8 +50,8 @@ class FakeRunner:
             task=task,
             cwd=str(resolve_child_cwd(kwargs["default_cwd"], kwargs["cwd_override"])),
             exit_code=0,
-            provider=kwargs["provider_override"] or agent.provider,
-            model=kwargs["model_override"] or agent.model,
+            provider=kwargs["provider_override"] or agent.provider or kwargs.get("parent_provider"),
+            model=kwargs["model_override"] or agent.model or kwargs.get("parent_model"),
             reasoning_effort=kwargs["reasoning_effort_override"] or agent.reasoning_effort,
             step=kwargs["step"],
         )
@@ -117,6 +117,8 @@ def make_dispatcher(
     *,
     ui: FakeUi | None = None,
     source: str = "bundled",
+    parent_provider: str | None = None,
+    parent_model: str | None = None,
 ) -> TaskDispatcher:
     discovery = make_discovery(tmp_path, source=source)
     return TaskDispatcher(
@@ -124,6 +126,8 @@ def make_dispatcher(
         ui=ui or FakeUi(),
         runner=runner,  # type: ignore[arg-type]
         discovery_fn=lambda _cwd, _scope: discovery,
+        parent_provider=parent_provider,
+        parent_model=parent_model,
     )
 
 
@@ -356,6 +360,26 @@ async def test_project_agents_use_ui_confirmation(tmp_path: Path) -> None:
     ).execute({"agent": "general-purpose", "task": "work", "agentScope": "project"})
     assert allowed.text.startswith("## Summary")
     assert len(allowed_runner.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_single_uses_parent_provider_and_model_when_agent_is_unpinned(
+    tmp_path: Path,
+) -> None:
+    runner = FakeRunner()
+    dispatcher = make_dispatcher(
+        tmp_path, runner, parent_provider="openai", parent_model="gpt-5.6-sol"
+    )
+
+    result = await dispatcher.execute({"agent": "read-only", "task": "work"})
+
+    call = runner.calls[0]
+    assert call["parent_provider"] == "openai"
+    assert call["parent_model"] == "gpt-5.6-sol"
+    assert call["provider_override"] is None
+    assert call["model_override"] is None
+    assert result.details["results"][0]["provider"] == "openai"
+    assert result.details["results"][0]["model"] == "gpt-5.6-sol"
 
 
 @pytest.mark.asyncio
