@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-
 from tau_agent.tools import AgentToolResult
 
 from superpowers_subagent.extension import setup
@@ -57,7 +56,8 @@ def test_setup_refuses_recursive_registration(monkeypatch: Any) -> None:
 async def test_execute_task_passes_parent_session_provider_and_model(
     monkeypatch: Any,
 ) -> None:
-    """Prove the task tool binds the parent session's active provider and model to dispatch, so unpinned children inherit them without call or agent pins."""
+    """Prove the task tool binds the parent session's active provider and model to
+    dispatch, so unpinned children inherit them unless the call or agent pins them."""
 
     import superpowers_subagent.extension as extension_module
 
