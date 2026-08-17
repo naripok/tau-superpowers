@@ -124,6 +124,8 @@ def setup(tau: ExtensionAPI) -> None:
             default_cwd=tau.context.cwd,
             ui=tau.context.ui,
             runner=runner,
+            parent_provider=tau.context.provider_name,
+            parent_model=tau.context.model,
         )
         return await dispatcher.execute(arguments, signal=signal, on_update=on_update)
 
