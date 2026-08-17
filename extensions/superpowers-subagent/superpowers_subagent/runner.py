@@ -99,6 +99,7 @@ def setup(tau: ExtensionAPI) -> None:
         return None
 '''
 
+
 _THINKING_EXTENSION = '''"""Generated reasoning-effort setter for one delegated Tau child.
 
 Tau 0.3 has no CLI flag or public extension hook for the startup thinking

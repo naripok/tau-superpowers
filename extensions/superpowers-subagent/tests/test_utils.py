@@ -170,8 +170,11 @@ def test_effective_provider_model_prefers_agent_and_call_over_parent(tmp_path: P
         pinned, None, None, parent_provider="openai", parent_model="gpt-5.6-sol"
     ) == ("agent-provider", "agent/model")
     assert effective_provider_model(
-        plain, "call-provider", "call/model",
-        parent_provider="openai", parent_model="gpt-5.6-sol",
+        plain,
+        "call-provider",
+        "call/model",
+        parent_provider="openai",
+        parent_model="gpt-5.6-sol",
     ) == ("call-provider", "call/model")
 
 

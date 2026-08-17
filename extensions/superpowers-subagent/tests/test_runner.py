@@ -124,7 +124,7 @@ print("warning", file=sys.stderr)
     assert record["args"][record["args"].index("--model") + 1] == "call/model"
     assert "-e" in record["args"]
     assert "ToolCallHookResult" in record["policy"]
-    assert 'event.tool_name not in _ALLOWED_TOOLS' in record["policy"]
+    assert "event.tool_name not in _ALLOWED_TOOLS" in record["policy"]
     assert '"read"' in record["policy"]
     assert '"bash"' not in record["policy"]
     assert record["prompt"].startswith("Original body without trailing newline")
