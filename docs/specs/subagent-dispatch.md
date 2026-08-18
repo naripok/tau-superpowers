@@ -372,7 +372,7 @@ Details SHALL be JSON with `schemaVersion: 1`, mode, scope, project agent direct
 
 The extension SHALL emit portable partial results after each accepted assistant or tool-result message and after child completion. Single and chain updates SHALL retain accumulated results; parallel updates SHALL use deterministic input-order slots and progress counts.
 
-Each child SHALL default to a 3600-second timeout and accept a positive call override no greater than 3600. Cancellation or timeout SHALL terminate the process, wait no more than five seconds, kill it if necessary, preserve partial messages and stderr, and prevent queued parallel or later chain work from starting. Every temporary prompt, profile policy file, and thinking-policy file SHALL be removed on success and all failure paths.
+Each child SHALL default to a 3600-second timeout and accept a positive call override no greater than 3600. Cancellation or timeout SHALL terminate the process, wait no more than five seconds, kill it if necessary, preserve partial messages and stderr, and prevent queued parallel or later chain work from starting. A hard cancellation of the task executing the dispatch (for example a print-mode SIGINT) SHALL kill any running child process so no child outlives the dispatch. Every temporary prompt, profile policy file, and thinking-policy file SHALL be removed on success and all failure paths.
 
 #### Scenario: Partial message update
 
@@ -393,6 +393,12 @@ Each child SHALL default to a 3600-second timeout and accept a positive call ove
 - WHEN cancellation is observed
 - THEN active processes are terminated and eventually killed if necessary
 - AND queued children do not start
+
+#### Scenario: Hard cancellation of the dispatch task
+
+- GIVEN a child process is running and the task executing the dispatch is cancelled
+- WHEN the cancellation propagates to the runner
+- THEN the running child process is killed and does not outlive the dispatch
 
 #### Scenario: Timeout
 

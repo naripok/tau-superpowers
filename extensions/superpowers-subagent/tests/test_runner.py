@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from pathlib import Path
 
 import pytest
@@ -417,6 +418,69 @@ async def test_runner_observes_cancellation_before_and_during_spawn(tmp_path: Pa
     during = await running
     assert during.cancelled
     assert during.status == "BLOCKED"
+
+
+def _local_process_state(pid: int) -> str:
+    """Classify a local pid as 'dead', 'zombie', or 'running' via /proc (Linux)."""
+    try:
+        stat = Path(f"/proc/{pid}/stat").read_text()
+    except FileNotFoundError:
+        return "dead"
+    # comm may contain spaces or parentheses, so split after the last ')'.
+    state = stat.rsplit(")", 1)[1].split()[0]
+    return "zombie" if state == "Z" else "running"
+
+
+@pytest.mark.asyncio
+async def test_runner_task_cancellation_terminates_live_child(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Prove a hard cancellation of the run() task kills the live child process.
+
+    Needed because print-mode SIGINT cancels the dispatcher's task tree
+    instead of flipping the cancellation token; without cleanup the child
+    would be orphaned (keep running its task and consuming tokens) and its
+    prompt files would be deleted mid-startup.
+    """
+    pid_path = tmp_path / "child.pid"
+    monkeypatch.setenv("FAKE_TAU_PID", str(pid_path))
+    fake_tau = write_fake_tau(
+        tmp_path,
+        "import os, pathlib, time\n"
+        'pathlib.Path(os.environ["FAKE_TAU_PID"]).write_text(str(os.getpid()))\n'
+        "time.sleep(30)\n",
+    )
+    running = asyncio.create_task(
+        TauChildRunner(str(fake_tau)).run(
+            default_cwd=tmp_path,
+            agent=make_agent(tmp_path),
+            task="task",
+            cwd_override=None,
+            provider_override=None,
+            model_override=None,
+            reasoning_effort_override=None,
+            timeout_seconds=30,
+            signal=None,
+        )
+    )
+    deadline = time.monotonic() + 10.0
+    while not pid_path.exists():
+        if time.monotonic() > deadline:
+            pytest.fail("fake tau child never started")
+        await asyncio.sleep(0.02)
+    child_pid = int(pid_path.read_text())
+    await asyncio.sleep(0.1)
+
+    running.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await running
+
+    deadline = time.monotonic() + 5.0
+    state = _local_process_state(child_pid)
+    while state == "running" and time.monotonic() < deadline:
+        await asyncio.sleep(0.05)
+        state = _local_process_state(child_pid)
+    assert state in {"dead", "zombie"}
 
 
 def _policy_handler(allowed_tools: tuple[str, ...]):

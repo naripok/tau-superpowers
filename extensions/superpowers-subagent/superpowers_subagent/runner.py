@@ -7,6 +7,7 @@ import json
 import os
 import tempfile
 from collections.abc import Callable
+from contextlib import suppress
 from pathlib import Path
 from typing import cast
 
@@ -244,39 +245,58 @@ class TauChildRunner:
 
             assert process.stdout is not None
             assert process.stderr is not None
-            stdout_task = asyncio.create_task(_collect_stdout(process.stdout, result, on_message))
-            stderr_task = asyncio.create_task(process.stderr.read())
-            wait_task = asyncio.create_task(process.wait())
+            stdout_task: asyncio.Task[None] | None = None
+            stderr_task: asyncio.Task[bytes] | None = None
+            wait_task: asyncio.Task[int] | None = None
             cancellation_task: asyncio.Task[None] | None = None
-            if signal is not None:
-                cancellation_task = asyncio.create_task(_wait_for_cancellation(signal))
+            try:
+                stdout_task = asyncio.create_task(
+                    _collect_stdout(process.stdout, result, on_message)
+                )
+                stderr_task = asyncio.create_task(process.stderr.read())
+                wait_task = asyncio.create_task(process.wait())
+                if signal is not None:
+                    cancellation_task = asyncio.create_task(_wait_for_cancellation(signal))
 
-            controls: set[asyncio.Task[object]] = {cast("asyncio.Task[object]", wait_task)}
-            if cancellation_task is not None:
-                controls.add(cast("asyncio.Task[object]", cancellation_task))
-            done, _ = await asyncio.wait(
-                controls,
-                timeout=timeout_seconds,
-                return_when=asyncio.FIRST_COMPLETED,
-            )
-            if wait_task not in done:
-                if cancellation_task is not None and cancellation_task in done:
-                    result.cancelled = True
-                    result.stop_reason = "aborted"
-                    result.error_message = "Tau child was cancelled."
-                else:
-                    result.timed_out = True
-                    result.stop_reason = "error"
-                    result.error_message = f"Tau child timed out after {timeout_seconds:g} seconds."
-                await _terminate_process(process, wait_task)
-            if cancellation_task is not None:
-                cancellation_task.cancel()
-                await asyncio.gather(cancellation_task, return_exceptions=True)
+                controls: set[asyncio.Task[object]] = {cast("asyncio.Task[object]", wait_task)}
+                if cancellation_task is not None:
+                    controls.add(cast("asyncio.Task[object]", cancellation_task))
+                done, _ = await asyncio.wait(
+                    controls,
+                    timeout=timeout_seconds,
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                if wait_task not in done:
+                    if cancellation_task is not None and cancellation_task in done:
+                        result.cancelled = True
+                        result.stop_reason = "aborted"
+                        result.error_message = "Tau child was cancelled."
+                    else:
+                        result.timed_out = True
+                        result.stop_reason = "error"
+                        result.error_message = (
+                            f"Tau child timed out after {timeout_seconds:g} seconds."
+                        )
+                    await _terminate_process(process, wait_task)
+                if cancellation_task is not None:
+                    cancellation_task.cancel()
+                    await asyncio.gather(cancellation_task, return_exceptions=True)
 
-            await asyncio.gather(stdout_task, return_exceptions=False)
-            stderr_bytes = await stderr_task
-            result.stderr = stderr_bytes.decode("utf-8", errors="replace")
-            result.exit_code = process.returncode if process.returncode is not None else 1
+                await asyncio.gather(stdout_task, return_exceptions=False)
+                stderr_bytes = await stderr_task
+                result.stderr = stderr_bytes.decode("utf-8", errors="replace")
+                result.exit_code = process.returncode if process.returncode is not None else 1
+            finally:
+                # A hard cancellation of this task (for example a print-mode
+                # SIGINT) propagates CancelledError out of the awaits above;
+                # stop the helper tasks and kill the child so it cannot
+                # outlive its dispatcher.
+                for helper in (stdout_task, stderr_task, wait_task, cancellation_task):
+                    if helper is not None:
+                        helper.cancel()
+                if process.returncode is None:
+                    with suppress(ProcessLookupError):
+                        process.kill()
 
         has_assistant = any(isinstance(message, AssistantMessage) for message in result.messages)
         if (
