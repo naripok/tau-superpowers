@@ -16,6 +16,7 @@ from tau_agent.tools import (
 )
 from tau_agent.types import JSONValue
 
+from .config import AgentOverrides, SubagentConfig
 from .discovery import discover_agents
 from .models import (
     THINKING_LEVELS,
@@ -79,6 +80,8 @@ class TaskDispatcher:
         discovery_fn: DiscoveryFn = discover_agents,
         parent_provider: str | None = None,
         parent_model: str | None = None,
+        parent_reasoning_effort: str | None = None,
+        config: SubagentConfig | None = None,
     ) -> None:
         self.default_cwd = default_cwd
         self.ui = ui
@@ -86,6 +89,8 @@ class TaskDispatcher:
         self.discovery_fn = discovery_fn
         self.parent_provider = parent_provider
         self.parent_model = parent_model
+        self.parent_reasoning_effort = parent_reasoning_effort
+        self.config = config
 
     async def execute(
         self,
@@ -97,6 +102,7 @@ class TaskDispatcher:
 
         scope = _scope_for_discovery(arguments)
         discovery = self.discovery_fn(self.default_cwd, scope)
+        self._config_diagnostics = self._merged_config_diagnostics(discovery.by_name())
         try:
             request = validate_arguments(arguments)
         except ValidationFailure as exc:
@@ -107,6 +113,8 @@ class TaskDispatcher:
                 mode=mode,
                 scope=scope,
                 discovery=discovery,
+                config=self.config,
+                config_diagnostics=self._config_diagnostics,
                 results=[],
             )
 
@@ -128,6 +136,8 @@ class TaskDispatcher:
                     mode=request.mode,
                     scope=request.agent_scope,
                     discovery=discovery,
+                    config=self.config,
+                    config_diagnostics=self._config_diagnostics,
                     results=[],
                 )
             approved = await self.ui.confirm(
@@ -141,6 +151,8 @@ class TaskDispatcher:
                     mode=request.mode,
                     scope=request.agent_scope,
                     discovery=discovery,
+                    config=self.config,
+                    config_diagnostics=self._config_diagnostics,
                     results=[],
                 )
 
@@ -150,7 +162,35 @@ class TaskDispatcher:
             results = await self._run_parallel(request, discovery, agents, signal, on_update)
         else:
             results = await self._run_chain(request, discovery, agents, signal, on_update)
-        return _final_result(request, discovery, results, planned=len(request.items))
+        return _final_result(
+            request,
+            discovery,
+            results,
+            config=self.config,
+            config_diagnostics=self._config_diagnostics,
+            planned=len(request.items),
+        )
+
+    def _merged_config_diagnostics(self, agents: dict[str, AgentConfig]) -> tuple[str, ...]:
+        """Combine config-file diagnostics with per-call section-name checks.
+
+        A config section whose agent name exists in no bundled, user, or
+        project definition is almost always a typo; report it as a diagnostic
+        so it cannot silently no-op.
+        """
+
+        if self.config is None:
+            return ()
+        unmatched = [name for name, _overrides in self.config.agents if name not in agents]
+        if unmatched:
+            all_layers = self.discovery_fn(self.default_cwd, "both").by_name()
+            unmatched = [name for name in unmatched if name not in all_layers]
+        extras = tuple(
+            f"Subagent config: [agents.{name}] matches no bundled, user, or project "
+            "agent definition"
+            for name in sorted(unmatched)
+        )
+        return (*self.config.diagnostics, *extras)
 
     async def _run_single(
         self,
@@ -169,6 +209,8 @@ class TaskDispatcher:
                 request,
                 discovery,
                 [result],
+                config=self.config,
+                config_diagnostics=self._config_diagnostics,
             )
 
         result = await self._run_item(
@@ -184,6 +226,8 @@ class TaskDispatcher:
             request,
             discovery,
             [result],
+            config=self.config,
+            config_diagnostics=self._config_diagnostics,
         )
         return [result]
 
@@ -211,6 +255,8 @@ class TaskDispatcher:
                 request,
                 discovery,
                 results,
+                config=self.config,
+                config_diagnostics=self._config_diagnostics,
             )
 
         async def worker() -> None:
@@ -301,6 +347,8 @@ class TaskDispatcher:
                     request,
                     discovery,
                     [*results, result],
+                    config=self.config,
+                    config_diagnostics=self._config_diagnostics,
                 )
 
             result = await self._run_item(
@@ -318,6 +366,8 @@ class TaskDispatcher:
                 request,
                 discovery,
                 results,
+                config=self.config,
+                config_diagnostics=self._config_diagnostics,
             )
             if not result.succeeded:
                 break
@@ -342,6 +392,11 @@ class TaskDispatcher:
                 _available_agents_from_map(agents),
                 step=step,
             )
+        config_overrides: AgentOverrides | None = None
+        config_defaults: AgentOverrides | None = None
+        if self.config is not None:
+            config_overrides = self.config.overrides_for(item.agent)
+            config_defaults = self.config.defaults
         return await self.runner.run(
             default_cwd=self.default_cwd,
             agent=agent,
@@ -349,9 +404,12 @@ class TaskDispatcher:
             cwd_override=item.cwd,
             provider_override=request.provider,
             model_override=request.model,
+            reasoning_effort_override=request.reasoning_effort,
+            config_overrides=config_overrides,
+            config_defaults=config_defaults,
             parent_provider=self.parent_provider,
             parent_model=self.parent_model,
-            reasoning_effort_override=request.reasoning_effort,
+            parent_reasoning_effort=self.parent_reasoning_effort,
             timeout_seconds=request.timeout_seconds,
             signal=signal,
             step=step,
@@ -518,8 +576,12 @@ def _tool_result(
     scope: AgentScope,
     discovery: DiscoveryResult,
     results: list[ChildResult],
+    config: SubagentConfig | None = None,
+    config_diagnostics: tuple[str, ...] | None = None,
     planned: int | None = None,
 ) -> AgentToolResult:
+    if config_diagnostics is None:
+        config_diagnostics = config.diagnostics if config is not None else ()
     return AgentToolResult(
         content=[TextContent(text=content)],
         details=details_dict(
@@ -527,6 +589,8 @@ def _tool_result(
             agent_scope=scope,
             project_agents_dir=discovery.project_agents_dir,
             discovery_diagnostics=discovery.diagnostics,
+            config_paths=config.paths if config is not None else (),
+            config_diagnostics=config_diagnostics,
             results=results,
             planned=planned,
         ),
@@ -538,6 +602,8 @@ def _final_result(
     discovery: DiscoveryResult,
     results: list[ChildResult],
     *,
+    config: SubagentConfig | None = None,
+    config_diagnostics: tuple[str, ...] | None = None,
     planned: int,
 ) -> AgentToolResult:
     if request.mode == "single":
@@ -566,6 +632,8 @@ def _final_result(
         mode=request.mode,
         scope=request.agent_scope,
         discovery=discovery,
+        config=config,
+        config_diagnostics=config_diagnostics,
         results=results,
         planned=planned,
     )
@@ -590,6 +658,9 @@ def _emit_update(
     request: ParsedRequest,
     discovery: DiscoveryResult,
     results: list[ChildResult],
+    *,
+    config: SubagentConfig | None = None,
+    config_diagnostics: tuple[str, ...] | None = None,
 ) -> None:
     if callback is None:
         return
@@ -599,6 +670,8 @@ def _emit_update(
             mode=request.mode,
             scope=request.agent_scope,
             discovery=discovery,
+            config=config,
+            config_diagnostics=config_diagnostics,
             results=results,
             planned=len(request.items),
         )

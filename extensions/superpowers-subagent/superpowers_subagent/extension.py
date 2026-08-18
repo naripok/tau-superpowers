@@ -14,7 +14,9 @@ from tau_agent.tools import (
 from tau_agent.types import JSONValue
 from tau_coding.extensions import ExtensionAPI
 
+from .config import load_subagent_config
 from .dispatch import TaskDispatcher
+from .models import THINKING_LEVELS
 from .rendering import render_task_call, render_task_result
 from .runner import RECURSION_GUARD, TauChildRunner
 
@@ -89,7 +91,9 @@ _TASK_PARAMETERS: dict[str, JSONValue] = {
             "enum": ["off", "minimal", "low", "medium", "high", "xhigh"],
             "description": (
                 "Thinking level for every child; a call-level value overrides "
-                "the agent definition's reasoningEffort. Applied as the child's "
+                "the config file and the agent definition. Otherwise the level "
+                "falls back to the config file, then the agent definition, then "
+                "the parent session's thinking level. Applied as the child's "
                 "Tau thinking level at session start; an unsupported level is "
                 "reported on the child's stderr."
             ),
@@ -103,6 +107,29 @@ _TASK_PARAMETERS: dict[str, JSONValue] = {
         },
     },
 }
+
+
+def _parent_thinking_level(tau: ExtensionAPI) -> str | None:
+    """Return the active session thinking level, or None when unavailable.
+
+    Tau 0.3 exposes no public extension property for the session's thinking
+    level, so this mirrors the seam documented in ``runner.py``: the bound
+    session is reached through the extension runtime view
+    (``tau._runtime.session_view``). When any part of that seam is missing or
+    the level is not one of the known Tau thinking levels, the parent cannot
+    expose its level and unpinned children run at their ambient level.
+    """
+
+    runtime = getattr(tau, "_runtime", None)
+    if runtime is None:
+        return None
+    try:
+        level = getattr(runtime.session_view, "thinking_level", None)
+    except Exception:  # noqa: BLE001 - the seam must never break dispatch
+        return None
+    if not isinstance(level, str) or level not in THINKING_LEVELS:
+        return None
+    return level
 
 
 def setup(tau: ExtensionAPI) -> None:
@@ -126,6 +153,8 @@ def setup(tau: ExtensionAPI) -> None:
             runner=runner,
             parent_provider=tau.context.provider_name or None,
             parent_model=tau.context.model or None,
+            parent_reasoning_effort=_parent_thinking_level(tau),
+            config=load_subagent_config(tau.context.cwd),
         )
         return await dispatcher.execute(arguments, signal=signal, on_update=on_update)
 
@@ -149,7 +178,9 @@ def setup(tau: ExtensionAPI) -> None:
                 "Use implementation for implementation work, code-review for reviews, "
                 "and read-only for plain file inspection.",
                 "Do not set provider, model, or reasoningEffort unless the user "
-                "requests an override or a skill prescribes it.",
+                "requests an override or a skill prescribes it; subagents inherit "
+                "the parent session's model and thinking effort by default and can "
+                "be pinned per agent in a superpowers-subagent.toml config file.",
                 "Handle BLOCKED and NEEDS_CONTEXT reports explicitly.",
             ),
             render_call=render_task_call,

@@ -1,0 +1,49 @@
+# Tau Superpowers subagent dispatch configuration — current defaults.
+#
+# The `task` tool reads this file from two of the directories Tau reads its
+# other durable configs from:
+#
+#   1. user:     ~/.tau/superpowers-subagent.toml
+#   2. project:  <project>/.tau/superpowers-subagent.toml
+#                (the nearest ancestor .tau from the session working directory)
+#
+# A project file shadows the user file per key. Copy this file into your
+# dotfiles and link it as ~/.tau/superpowers-subagent.toml to pin today's
+# defaults: edit values here instead of at call sites, and extension updates
+# cannot silently change your subagent behavior.
+#
+# Effective provider/model/reasoningEffort resolve per field, highest first:
+#
+#   1. task call `provider` / `model` / `reasoningEffort`
+#   2. `[agents.<name>]` in this file
+#   3. the selected agent definition's frontmatter
+#   4. `[defaults]` in this file
+#   5. the parent session's active provider, model, and thinking level
+#
+# With this file absent or empty, every subagent that pins nothing inherits
+# the parent session's model and thinking effort by default.
+
+# Global fallback for agents that pin nothing and select no call override;
+# values not set here still fall through to the parent session.
+[defaults]
+# provider = "openai"
+# model = "gpt-5.6-sol"
+# reasoningEffort = "medium"   # off | minimal | low | medium | high | xhigh
+
+# Per-agent overrides that shadow the bundled agent definitions. The values
+# below mirror the bundled pins today, so installing this file changes nothing
+# until you edit them.
+[agents.implementation]
+provider = "openrouter"
+model = "deepseek/deepseek-v4-flash-0731"
+reasoningEffort = "high"
+
+[agents.code-review]
+provider = "openrouter"
+model = "deepseek/deepseek-v4-flash-0731"
+reasoningEffort = "xhigh"
+
+[agents.document-review]
+provider = "openrouter"
+model = "deepseek/deepseek-v4-flash-0731"
+reasoningEffort = "xhigh"

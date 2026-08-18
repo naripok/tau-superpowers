@@ -6,8 +6,10 @@ import time
 from pathlib import Path
 
 import pytest
-from tau_coding.extensions import ToolCallHookEvent
+from tau_coding.extensions import ExtensionRuntime, ToolCallHookEvent
+from tau_coding.resources import TauResourcePaths
 
+from superpowers_subagent.config import AgentOverrides
 from superpowers_subagent.models import AgentConfig
 from superpowers_subagent.runner import TauChildRunner, compose_child_prompt
 from superpowers_subagent.utils import final_output
@@ -226,6 +228,122 @@ print(json.dumps({"type": "message_end", "message": {
     assert result.succeeded
     assert argv[argv.index("--provider") + 1] == "openai"
     assert argv[argv.index("--model") + 1] == "gpt-5.6-sol"
+
+
+@pytest.mark.asyncio
+async def test_runner_inherits_parent_thinking_level_by_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Prove an unpinned child whose parent runs at a thinking level receives a
+    thinking policy with that level, applying parent inheritance by default."""
+
+    record_path = tmp_path / "record.json"
+    monkeypatch.setenv("FAKE_TAU_RECORD", str(record_path))
+    fake_tau = write_fake_tau(
+        tmp_path,
+        r"""
+import json
+import os
+import sys
+from pathlib import Path
+args = sys.argv[1:]
+extension_paths = []
+while "-e" in args:
+    index = args.index("-e")
+    extension_paths.append(args[index + 1])
+    args = args[:index] + args[index + 2 :]
+Path(os.environ["FAKE_TAU_RECORD"]).write_text(json.dumps({
+    "paths": extension_paths,
+    "contents": [Path(path).read_text() for path in extension_paths],
+}))
+print(json.dumps({"type": "message_end", "message": {
+    "role": "assistant", "content": [{"type": "text", "text": "done"}]
+}}))
+""",
+    )
+    agent = make_agent(tmp_path)
+    agent = AgentConfig(
+        name=agent.name,
+        description=agent.description,
+        system_prompt=agent.system_prompt,
+        source=agent.source,
+        file_path=agent.file_path,
+        profile=agent.profile,
+    )
+
+    result = await TauChildRunner(str(fake_tau)).run(
+        default_cwd=tmp_path,
+        agent=agent,
+        task="task",
+        cwd_override=None,
+        provider_override=None,
+        model_override=None,
+        reasoning_effort_override=None,
+        parent_reasoning_effort="medium",
+        parent_provider="openai",
+        parent_model="gpt-5.6-sol",
+        timeout_seconds=2,
+        signal=None,
+    )
+
+    assert result.succeeded
+    assert result.reasoning_effort == "medium"
+    record = json.loads(record_path.read_text())
+    assert len(record["paths"]) == 1
+    thinking_path = Path(record["paths"][0])
+    assert thinking_path.name == "thinking_policy.py"
+    assert 'level = "medium"' in record["contents"][0]
+    assert not thinking_path.exists()
+
+
+@pytest.mark.asyncio
+async def test_runner_prefers_config_overrides_over_agent_and_parent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Prove config-agent reasoning and model shadow the agent pin and the
+    parent-session values inside the runner."""
+
+    record_path = tmp_path / "record.json"
+    monkeypatch.setenv("FAKE_TAU_RECORD", str(record_path))
+    fake_tau = write_fake_tau(
+        tmp_path,
+        r"""
+import json
+import os
+import sys
+from pathlib import Path
+Path(os.environ["FAKE_TAU_RECORD"]).write_text(json.dumps(sys.argv[1:]))
+print(json.dumps({"type": "message_end", "message": {
+    "role": "assistant", "content": [{"type": "text", "text": "done"}]
+}}))
+""",
+    )
+    agent = make_agent(tmp_path, profile="read-only")
+
+    result = await TauChildRunner(str(fake_tau)).run(
+        default_cwd=tmp_path,
+        agent=agent,
+        task="task",
+        cwd_override=None,
+        provider_override=None,
+        model_override=None,
+        reasoning_effort_override=None,
+        config_overrides=AgentOverrides(model="config/model", reasoning_effort="high"),
+        parent_reasoning_effort="medium",
+        parent_provider="parent-provider",
+        parent_model="parent-model",
+        timeout_seconds=2,
+        signal=None,
+    )
+
+    # make_agent pins provider "agent-provider" and model "agent-model"; the
+    # config shadows model and reasoning while provider stays pinned.
+    assert result.provider == "agent-provider"
+    assert result.model == "config/model"
+    assert result.reasoning_effort == "high"
+    argv = json.loads(record_path.read_text())
+    assert argv[argv.index("--model") + 1] == "config/model"
+    assert argv[argv.index("--provider") + 1] == "agent-provider"
 
 
 @pytest.mark.asyncio
@@ -548,3 +666,67 @@ def test_compose_prompt_injects_profile_specific_tool_instructions(tmp_path: Pat
     assert "Review Profile Tool Usage" in review
     assert "NEVER change the state of the repository" in review
     assert "Enforced Read-Only Profile" not in review
+
+
+class ThinkingRecorderSession:
+    """Minimal bound session recording `set_thinking_level` calls."""
+
+    def __init__(self, thinking_level: str | None) -> None:
+        self.thinking_level = thinking_level
+        self.set_calls: list[str] = []
+
+    async def set_thinking_level(self, level: str) -> str:
+        self.set_calls.append(level)
+        return level
+
+
+async def _run_generated_thinking_policy(
+    tmp_path: Path,
+    level: str,
+    session: ThinkingRecorderSession,
+) -> list[str]:
+    from superpowers_subagent.runner import _THINKING_EXTENSION
+
+    policy_path = tmp_path / "thinking_policy.py"
+    policy_path.write_text(_THINKING_EXTENSION.format(level=level), encoding="utf-8")
+    runtime = ExtensionRuntime()
+    runtime.load(
+        TauResourcePaths(
+            root=tmp_path / "tau-home",
+            cwd=tmp_path,
+            agents_root=tmp_path / "agents-home",
+        ),
+        extra_paths=(policy_path,),
+        include_resource_dirs=False,
+    )
+    runtime.bind(session)  # type: ignore[arg-type]
+    await runtime.emit_session_start("startup")
+    assert runtime.extension_names == ("thinking_policy",)
+    return session.set_calls
+
+
+@pytest.mark.asyncio
+async def test_generated_thinking_policy_applies_level_at_session_start(
+    tmp_path: Path,
+) -> None:
+    """Prove the generated child extension really runs: loading it into a Tau
+    extension runtime and firing `session_start` calls `set_thinking_level`
+    with the inherited level before the first turn."""
+
+    calls = await _run_generated_thinking_policy(
+        tmp_path, "high", ThinkingRecorderSession(thinking_level="medium")
+    )
+    assert calls == ["high"]
+
+
+@pytest.mark.asyncio
+async def test_generated_thinking_policy_skips_set_when_level_matches(
+    tmp_path: Path,
+) -> None:
+    """Prove the generated extension no-ops when the child ambient level already
+    equals the requested level, so uninherited children add no session work."""
+
+    calls = await _run_generated_thinking_policy(
+        tmp_path, "high", ThinkingRecorderSession(thinking_level="high")
+    )
+    assert calls == []

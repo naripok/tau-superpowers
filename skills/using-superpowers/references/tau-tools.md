@@ -77,20 +77,22 @@ These optional top-level fields work with every mode:
 | `confirmProjectAgents` | Require TUI approval for selected project agents (default `true`). Setting it to `false` explicitly approves them for this call. |
 | `provider` | Opaque Tau provider override. |
 | `model` | Opaque Tau model override. |
-| `reasoningEffort` | Thinking level for every child: `off`, `minimal`, `low`, `medium`, `high`, or `xhigh`. A call-level value overrides the selected agent definition's own `reasoningEffort`. Applied as the child's Tau thinking level at session start; if the level is unsupported for the effective provider/model, the child logs a `[superpowers-subagent] could not apply reasoning effort ...` diagnostic on its `stderr` (visible in `details.results[].stderr`) and runs at its ambient level. |
+| `reasoningEffort` | Thinking level for every child: `off`, `minimal`, `low`, `medium`, `high`, or `xhigh`. A call-level value overrides the config file and the selected agent definition; otherwise the level falls back to the config file, then the agent definition, then the parent session's thinking level. Applied as the child's Tau thinking level at session start; if the level is unsupported for the effective provider/model, the child logs a `[superpowers-subagent] could not apply reasoning effort ...` diagnostic on its `stderr` (visible in `details.results[].stderr`) and runs at its ambient level. |
 | `timeoutSeconds` | Per-child timeout, greater than 0 and at most 3600; default 3600. |
 
 A relative `cwd` is resolved from the parent Tau session's working directory. In parallel and chain modes, put `cwd` on each item rather than at the top level.
 
 ## Bundled Agent Profiles
 
-| Agent | Tau tool policy | Pinned model | Use for |
+| Agent | Tau tool policy | Default provider/model/reasoning | Use for |
 |---|---|---|---|
-| `general-purpose` | Normal built-in coding tools | Parent session's active provider/model | Implementation, scouting, exploration, and tasks requiring commands or edits |
-| `read-only` | Only `read` is permitted | Parent session's active provider/model | Inspection of known files without a pinned review model |
+| `general-purpose` | Normal built-in coding tools | Parent session's active provider, model, and thinking effort | Implementation, scouting, exploration, and tasks requiring commands or edits |
+| `read-only` | Only `read` is permitted | Parent session's active provider, model, and thinking effort | Inspection of known files without a pinned review model |
 | `implementation` | Normal built-in coding tools | `openrouter:deepseek/deepseek-v4-flash-0731` at `high` | Implementation tasks, TDD, running verification |
 | `code-review` | `read` + read-only `bash` | `openrouter:deepseek/deepseek-v4-flash-0731` at `xhigh` | Code quality review, spec compliance review, final review |
 | `document-review` | `read` + read-only `bash` | `openrouter:deepseek/deepseek-v4-flash-0731` at `xhigh` | Feature-spec review and plan review at the design workflow gates |
+
+The three pinned cells are the bundled defaults, overridable per agent through the subagent config file (`[agents.<name>]`); see Provider, Model, and Thinking Effort Selection below.
 
 Review-profile agents (`code-review`, `document-review`) may call `read` and `bash`. Their instructions restrict `bash` strictly to read-only operations — `git diff`/`log`/`show`/`status`, `grep`/`rg`/`find` searches, and reading files with unknown exact paths — and forbid changing repo or environment state (no git writes, no file creation/deletion, no installs, no test or build runs, no background processes). They still cannot call `write`, `edit`, or other state-changing Tau tools: a public Tau `tool_call` hook blocks everything outside the allowed set. This hook is **not** an OS, filesystem, network, credential, model, or provider sandbox, and it cannot parse bash command semantics — read-only bash usage is instruction-governed.
 
@@ -98,7 +100,7 @@ The plain `read-only` agent remains stricter: only `read` is permitted, no `bash
 
 `code-review` returns a strict `## Code Review` section followed by a `## Summary`; `document-review` returns a strict `## Document Review` section followed by a `## Summary`. The `task` result relays both sections to the controller.
 
-Agent definitions may pin `provider`, `model`, and `reasoningEffort` in their frontmatter. **Do not override pinned values** unless a skill or the user explicitly prescribes the override: `implementation` is pinned to `provider: "openrouter"`, `model: "deepseek/deepseek-v4-flash-0731"`, `reasoningEffort: "high"`, and `code-review`/`document-review` to the same model at `reasoningEffort: "xhigh"`.
+Agent definitions may pin `provider`, `model`, and `reasoningEffort` in their frontmatter. **Do not override pinned values** unless a skill, the config file, or the user explicitly prescribes the override: `implementation` is pinned to `provider: "openrouter"`, `model: "deepseek/deepseek-v4-flash-0731"`, `reasoningEffort: "high"`, and `code-review`/`document-review` to the same model at `reasoningEffort: "xhigh"`.
 
 ## Custom Agents, Scope, and Approval
 
@@ -114,9 +116,33 @@ Definitions require non-empty `name` and `description` frontmatter. They may set
 
 If a requested name resolves to a project definition, `confirmProjectAgents: true` asks for confirmation in Tau's TUI and fails closed in headless mode. After inspecting the definition, set `confirmProjectAgents: false` to approve it explicitly for that call. Tau project trust and project-extension approval are separate and do not approve project agent prompts.
 
-## Provider and Model Selection
+## Provider, Model, and Thinking Effort Selection
 
-By default, omit both `provider` and `model`; the child inherits the parent session's active provider and model, or the selected agent definition's optional values when present. Precedence is call-level override, then agent definition, then parent session. Do not override either without explicit user direction or approval.
+By default, omit `provider`, `model`, and `reasoningEffort`: subagents inherit the parent session's active provider, model, and thinking level unless a config file, agent definition, or call value pins one. Do not override any of them without explicit user direction or approval.
+
+Per-field resolution, highest first:
+
+1. `task` call `provider` / `model` / `reasoningEffort`;
+2. the subagent config file `[agents.<name>]` section;
+3. the selected agent definition's frontmatter;
+4. the subagent config file `[defaults]` section;
+5. the parent session's active provider, model, and thinking level.
+
+The config file is `superpowers-subagent.toml` in `~/.tau/` or the nearest ancestor `<project>/.tau/` (project shadows user per key). A copy encoding today's defaults ships at `extensions/superpowers-subagent/superpowers-subagent.example.toml`:
+
+```toml
+[defaults]
+# provider = "openai"
+# model = "gpt-5.6-sol"
+# reasoningEffort = "medium"   # off | minimal | low | medium | high | xhigh
+
+[agents.code-review]
+provider = "openrouter"
+model = "deepseek/deepseek-v4-flash-0731"
+reasoningEffort = "xhigh"
+```
+
+Loaded config files and dropped-config diagnostics appear in `details.configPaths` and `details.configDiagnostics`. A section whose agent name matches no bundled, user, or project definition is reported there too, so a typo cannot silently no-op. Editing the file applies to the next `task` call; no Tau reload is needed.
 
 The fields are independent and map directly to Tau's separate provider and model settings:
 
@@ -128,7 +154,7 @@ The fields are independent and map directly to Tau's separate provider and model
 }
 ```
 
-Do not combine or split values. In particular, a slash inside `model` remains part of the model identifier and does not infer a provider. A call-level value overrides only the corresponding agent-level value.
+Do not combine or split values. In particular, a slash inside `model` remains part of the model identifier and does not infer a provider. A call-level value overrides only the corresponding lower-layer value.
 
 ## Child Context and Skill Isolation
 
@@ -153,6 +179,8 @@ Structured `details` uses this versioned shape (fields marked `?` are optional):
   agentScope: "user" | "project" | "both",
   projectAgentsDir: string | null,
   discoveryDiagnostics: string[],
+  configPaths?: string[],
+  configDiagnostics?: string[],
   results: [{
     agent, agentSource, task, cwd, exitCode, messages, stderr,
     usage: { input, output, cacheRead, cacheWrite, cost, contextTokens, turns },

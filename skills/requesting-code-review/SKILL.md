@@ -37,7 +37,7 @@ Supplying the diff keeps the reviewer fast and focused. The `code-review` agent 
 
 **2. Dispatch the code reviewer:**
 
-The bundled `code-review` agent is a read-only reviewer pinned to `openrouter:deepseek/deepseek-v4-flash-0731` at `xhigh` reasoning effort, and it returns a strict `## Code Review` section (verdict + severity-ordered actionable points) followed by a `## Summary`. The `task` result relays **both** sections to you, so the actionable points stay in your context alongside the summary. Do not pass `provider`, `model`, or `reasoningEffort` overrides.
+The bundled `code-review` agent is a read-only reviewer with its own pinned default provider/model/reasoning setup (overridable per agent in the subagent config file, `superpowers-subagent.toml`), and it returns a strict `## Code Review` section (verdict + severity-ordered actionable points) followed by a `## Summary`. The `task` result relays **both** sections to you, so the actionable points stay in your context alongside the summary. Do not pass `provider`, `model`, or `reasoningEffort` overrides.
 
 Read `code-reviewer.md`, fill its placeholders, and embed the complete diff, verification output, and paths of modified files in the delegated prompt. Then call the Tau `task` tool with this argument shape:
 

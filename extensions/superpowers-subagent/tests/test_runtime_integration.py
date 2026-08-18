@@ -420,3 +420,80 @@ async def test_project_agent_approval_uses_headless_fail_closed_and_public_ui_co
     assert approved.text.startswith("## Summary")
     assert child_results(approved)[0]["agentSource"] == "project"
     assert len([item for item in read_log(log_path) if item["event"] == "start"]) == 1
+
+
+class ThinkingRecordingSession(RecordingSession):
+    """Recording session that also exposes a parent thinking level."""
+
+    def __init__(self, cwd: Path) -> None:
+        super().__init__(cwd)
+        self.thinking_level = "medium"
+
+
+@pytest.mark.asyncio
+async def test_real_runtime_inherits_parent_thinking_level_and_config_overrides(
+    tmp_path: Path,
+    fake_tau_environment: tuple[Path, Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Prove through the real extension runtime that an unpinned child inherits
+    the parent session's thinking level by default, and that a per-agent config
+    section overrides lower layers, end to end into the child argv and back."""
+
+    _executable, log_path = fake_tau_environment
+    runtime = ExtensionRuntime()
+    runtime.load(
+        TauResourcePaths(
+            root=tmp_path / "tau-home",
+            cwd=tmp_path,
+            agents_root=tmp_path / "agents-home",
+        ),
+        extra_paths=(EXTENSION_DIR,),
+        include_resource_dirs=False,
+    )
+    runtime.bind(ThinkingRecordingSession(tmp_path))
+    tool = runtime.extension_tools[0]
+
+    inherited = await tool.execute(
+        "inherited", {"agent": "general-purpose", "task": "inherit-thinking"}
+    )
+    child = child_results(inherited)[0]
+    assert child["reasoningEffort"] == "medium"
+    starts = [item for item in read_log(log_path) if item["event"] == "start"]
+    assert len(starts) == 1
+    start = starts[0]
+    assert start["policyPath"] is not None
+    assert Path(start["policyPath"]).name == "thinking_policy.py"
+    assert 'level = "medium"' in start["policy"]
+
+    config_home = tmp_path / "config-home"
+    config_user_dir = config_home / ".tau"
+    config_user_dir.mkdir(parents=True)
+    config_path = config_user_dir / "superpowers-subagent.toml"
+    config_path.write_text(
+        '[agents.general-purpose]\nmodel = "cfg/model"\nreasoningEffort = "high"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(Path, "home", classmethod(lambda _cls: config_home))
+
+    pinned = await tool.execute("pinned", {"agent": "general-purpose", "task": "config-pinned"})
+    pinned_child = child_results(pinned)[0]
+    assert pinned_child["model"] == "cfg/model"
+    assert pinned_child["reasoningEffort"] == "high"
+    assert pinned.details["configPaths"] == [str(config_path)]
+    pinned_start = [
+        item
+        for item in read_log(log_path)
+        if item["event"] == "start" and item["task"] == "config-pinned"
+    ][0]
+    argv = pinned_start["argv"]
+    assert argv[argv.index("--model") + 1] == "cfg/model"
+    assert 'level = "high"' in pinned_start["policy"]
+
+    # Agents the config never mentions stay unconfigured: the read-only agent
+    # falls through to parent model and thinking level.
+    config_path.write_text("", encoding="utf-8")
+    unpinned = await tool.execute("unpinned", {"agent": "read-only", "task": "unpinned-work"})
+    unpinned_child = child_results(unpinned)[0]
+    assert unpinned_child["model"] == "outer-model"
+    assert unpinned_child["reasoningEffort"] == "medium"

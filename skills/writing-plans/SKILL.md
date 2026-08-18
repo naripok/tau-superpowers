@@ -258,7 +258,7 @@ After writing the complete plan and delta spec, look at everything with fresh ey
 
 If you find issues, fix them inline. No need to re-review — just fix and move on. If you find a spec requirement with no task, add the task. If you find a delta requirement with no test, add the test step.
 
-**Dispatch plan reviewer.** After the self-review passes, dispatch a `document-review` subagent using `plan-document-reviewer-prompt.md` to verify plan completeness and spec alignment. This is required — the self-review catches what you can see, the plan reviewer catches what you miss. The agent is pinned to `openrouter:deepseek/deepseek-v4-flash-0731` at `xhigh` reasoning effort and returns a strict `## Document Review` section (verdict + findings) followed by a `## Summary`; the `task` result relays both to you.
+**Dispatch plan reviewer.** After the self-review passes, dispatch a `document-review` subagent using `plan-document-reviewer-prompt.md` to verify plan completeness and spec alignment. This is required — the self-review catches what you can see, the plan reviewer catches what you miss. The `document-review` agent runs its bundled pinned setup (overridable in the subagent config file) and returns a strict `## Document Review` section (verdict + findings) followed by a `## Summary`; the `task` result relays both to you.
 
 **If the reviewer finds issues:** Fix the plan, then re-dispatch the reviewer. Loop until the reviewer approves.
 

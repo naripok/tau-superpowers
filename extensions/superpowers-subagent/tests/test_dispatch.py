@@ -7,6 +7,7 @@ from typing import Any
 import pytest
 from tau_agent.messages import AssistantMessage, TextContent
 
+from superpowers_subagent.config import AgentOverrides, SubagentConfig
 from superpowers_subagent.dispatch import TaskDispatcher, ValidationFailure, validate_arguments
 from superpowers_subagent.models import (
     AgentConfig,
@@ -36,8 +37,9 @@ class FakeRunner:
 
     async def run(self, **kwargs: Any) -> ChildResult:
         self.calls.append(kwargs)
-        # Effective values mirror utils.effective_provider_model (call, agent,
-        # then parent-session precedence); keep both in sync.
+        # Effective values mirror utils.effective_provider_model and
+        # utils.effective_reasoning_effort (call, config-agent, agent,
+        # config-defaults, then parent-session precedence); keep both in sync.
         self.active += 1
         self.max_active = max(self.max_active, self.active)
         task = kwargs["task"]
@@ -46,15 +48,38 @@ class FakeRunner:
         else:
             await asyncio.sleep(0.02)
         agent = kwargs["agent"]
+        config_overrides = kwargs.get("config_overrides")
+        config_defaults = kwargs.get("config_defaults")
+        provider = _first_specified(
+            kwargs.get("provider_override"),
+            _override_provider(config_overrides),
+            agent.provider,
+            _override_provider(config_defaults),
+            kwargs.get("parent_provider"),
+        )
+        model = _first_specified(
+            kwargs.get("model_override"),
+            _override_model(config_overrides),
+            agent.model,
+            _override_model(config_defaults),
+            kwargs.get("parent_model"),
+        )
+        reasoning_effort = _first_specified(
+            kwargs.get("reasoning_effort_override"),
+            _override_reasoning(config_overrides),
+            agent.reasoning_effort,
+            _override_reasoning(config_defaults),
+            kwargs.get("parent_reasoning_effort"),
+        )
         result = ChildResult(
             agent=agent.name,
             agent_source=agent.source,
             task=task,
             cwd=str(resolve_child_cwd(kwargs["default_cwd"], kwargs["cwd_override"])),
             exit_code=0,
-            provider=kwargs["provider_override"] or agent.provider or kwargs.get("parent_provider"),
-            model=kwargs["model_override"] or agent.model or kwargs.get("parent_model"),
-            reasoning_effort=kwargs["reasoning_effort_override"] or agent.reasoning_effort,
+            provider=provider,
+            model=model,
+            reasoning_effort=reasoning_effort,
             step=kwargs["step"],
         )
         if task == "fail":
@@ -92,6 +117,22 @@ class FakeRunner:
         return result
 
 
+def _first_specified(*values: Any) -> Any:
+    return next((value for value in values if value is not None), None)
+
+
+def _override_provider(overrides: Any) -> Any:
+    return overrides.provider if overrides is not None else None
+
+
+def _override_model(overrides: Any) -> Any:
+    return overrides.model if overrides is not None else None
+
+
+def _override_reasoning(overrides: Any) -> Any:
+    return overrides.reasoning_effort if overrides is not None else None
+
+
 def make_discovery(tmp_path: Path, *, source: str = "bundled") -> DiscoveryResult:
     agents = tuple(
         AgentConfig(
@@ -121,6 +162,8 @@ def make_dispatcher(
     source: str = "bundled",
     parent_provider: str | None = None,
     parent_model: str | None = None,
+    parent_reasoning_effort: str | None = None,
+    config: SubagentConfig | None = None,
 ) -> TaskDispatcher:
     discovery = make_discovery(tmp_path, source=source)
     return TaskDispatcher(
@@ -130,6 +173,8 @@ def make_dispatcher(
         discovery_fn=lambda _cwd, _scope: discovery,
         parent_provider=parent_provider,
         parent_model=parent_model,
+        parent_reasoning_effort=parent_reasoning_effort,
+        config=config,
     )
 
 
@@ -384,6 +429,227 @@ async def test_single_uses_parent_provider_and_model_when_agent_is_unpinned(
     assert call["model_override"] is None
     assert result.details["results"][0]["provider"] == "openai"
     assert result.details["results"][0]["model"] == "gpt-5.6-sol"
+
+
+@pytest.mark.asyncio
+async def test_single_inherits_parent_thinking_level_by_default(tmp_path: Path) -> None:
+    """Prove an unpinned child inherits the parent session's thinking level
+    unless the call, config, or agent definition pins one."""
+
+    runner = FakeRunner()
+    dispatcher = make_dispatcher(
+        tmp_path,
+        runner,
+        parent_reasoning_effort="medium",
+    )
+
+    result = await dispatcher.execute({"agent": "read-only", "task": "work"})
+
+    call = runner.calls[0]
+    assert call["parent_reasoning_effort"] == "medium"
+    assert call["reasoning_effort_override"] is None
+    assert result.details["results"][0]["reasoningEffort"] == "medium"
+
+
+@pytest.mark.asyncio
+async def test_call_reasoning_override_beats_parent_thinking_level(tmp_path: Path) -> None:
+    """Prove a call-level reasoningEffort overrides parent-session inheritance."""
+
+    runner = FakeRunner()
+    dispatcher = make_dispatcher(tmp_path, runner, parent_reasoning_effort="medium")
+
+    result = await dispatcher.execute(
+        {"agent": "read-only", "task": "work", "reasoningEffort": "low"}
+    )
+
+    assert runner.calls[0]["reasoning_effort_override"] == "low"
+    assert result.details["results"][0]["reasoningEffort"] == "low"
+
+
+@pytest.mark.asyncio
+async def test_config_agent_overrides_shadow_agent_definition(tmp_path: Path) -> None:
+    """Prove a per-agent config section overrides the selected agent definition
+    for the keys it sets, per agent, while unpinned keys still fall through."""
+
+    runner = FakeRunner()
+    config = SubagentConfig(
+        agents=(
+            (
+                "general-purpose",
+                AgentOverrides(model="config/model", reasoning_effort="high"),
+            ),
+        )
+    )
+    dispatcher = make_dispatcher(tmp_path, runner, config=config)
+
+    result = await dispatcher.execute({"agent": "general-purpose", "task": "work"})
+
+    call = runner.calls[0]
+    # make_discovery pins provider "agent-provider" and model "agent-model" on
+    # general-purpose; the config shadows the model and reasoning only.
+    assert call["config_overrides"] == AgentOverrides(model="config/model", reasoning_effort="high")
+    child = result.details["results"][0]
+    assert child["provider"] == "agent-provider"
+    assert child["model"] == "config/model"
+    assert child["reasoningEffort"] == "high"
+
+
+@pytest.mark.asyncio
+async def test_config_defaults_apply_to_unpinned_agents_before_parent(
+    tmp_path: Path,
+) -> None:
+    """Prove config defaults supply values for agents that pin nothing, ahead of
+    the parent-session fallback."""
+
+    runner = FakeRunner()
+    config = SubagentConfig(defaults=AgentOverrides(model="default/model", reasoning_effort="low"))
+    dispatcher = make_dispatcher(
+        tmp_path,
+        runner,
+        config=config,
+        parent_reasoning_effort="medium",
+        parent_provider="openai",
+        parent_model="gpt-5.6-sol",
+    )
+
+    result = await dispatcher.execute({"agent": "read-only", "task": "work"})
+
+    child = result.details["results"][0]
+    assert child["provider"] == "openai"
+    assert child["model"] == "default/model"
+    assert child["reasoningEffort"] == "low"
+
+
+@pytest.mark.asyncio
+async def test_bundled_agent_pins_survive_empty_config(tmp_path: Path) -> None:
+    """Prove bundled pins are preserved when a config file configures other
+    agents only, so defaults never leak into pinned agents."""
+
+    runner = FakeRunner()
+    config = SubagentConfig(defaults=AgentOverrides(model="default/model", reasoning_effort="low"))
+    dispatcher = make_dispatcher(tmp_path, runner, config=config)
+
+    result = await dispatcher.execute({"agent": "general-purpose", "task": "work"})
+
+    # The agent definition pins provider/model on general-purpose, which must
+    # beat config defaults (reasoning falls to the default layer).
+    child = result.details["results"][0]
+    assert child["provider"] == "agent-provider"
+    assert child["model"] == "agent-model"
+    assert child["reasoningEffort"] == "low"
+
+
+@pytest.mark.asyncio
+async def test_details_carry_config_paths_and_diagnostics(tmp_path: Path) -> None:
+    """Prove loaded config files and config diagnostics surface in details so
+    operators can see which config applied and why parts were ignored."""
+
+    runner = FakeRunner()
+    config = SubagentConfig(
+        paths=(tmp_path / ".tau" / "superpowers-subagent.toml",),
+        diagnostics=("ignored typo",),
+    )
+
+    result = await make_dispatcher(tmp_path, runner, config=config).execute(
+        {"agent": "read-only", "task": "work"}
+    )
+
+    assert result.details["configPaths"] == [str(tmp_path / ".tau" / "superpowers-subagent.toml")]
+    assert result.details["configDiagnostics"] == ["ignored typo"]
+    assert runner.calls[0]["config_overrides"] == AgentOverrides()
+
+
+@pytest.mark.asyncio
+async def test_parallel_applies_config_overrides_per_agent(tmp_path: Path) -> None:
+    """Prove parallel items each resolve their own config section, leaving
+    agents without a section on lower-layer fallback."""
+
+    runner = FakeRunner()
+    config = SubagentConfig(agents=(("read-only", AgentOverrides(reasoning_effort="xhigh")),))
+
+    result = await make_dispatcher(tmp_path, runner, config=config).execute(
+        {
+            "tasks": [
+                {"agent": "general-purpose", "task": "one"},
+                {"agent": "read-only", "task": "two"},
+            ]
+        }
+    )
+
+    children = result.details["results"]
+    assert children[0].get("reasoningEffort") is None
+    assert children[1]["reasoningEffort"] == "xhigh"
+    assert runner.calls[0]["config_overrides"] == AgentOverrides()
+    assert runner.calls[1]["config_overrides"] == AgentOverrides(reasoning_effort="xhigh")
+
+
+@pytest.mark.asyncio
+async def test_config_section_for_unknown_agent_name_adds_diagnostic(
+    tmp_path: Path,
+) -> None:
+    """Prove a config section whose agent name matches no bundled, user, or
+    project definition is reported as a diagnostic instead of silently no-oping,
+    since a typo here is the most likely config mistake."""
+
+    runner = FakeRunner()
+    config = SubagentConfig(agents=(("typo-agent", AgentOverrides(model="never-used")),))
+
+    result = await make_dispatcher(tmp_path, runner, config=config).execute(
+        {"agent": "general-purpose", "task": "work"}
+    )
+
+    assert result.details["configDiagnostics"] == [
+        "Subagent config: [agents.typo-agent] matches no bundled, user, or project agent definition"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_config_section_matching_another_scope_is_not_diagnosed(
+    tmp_path: Path,
+) -> None:
+    """Prove a config section for an agent that exists only in the project layer
+    is not flagged when the call uses user scope; scope gaps are not typos."""
+
+    runner = FakeRunner()
+    bundled = make_discovery(tmp_path, source="bundled")
+    project_agent = AgentConfig(
+        name="project-worker",
+        description="Project worker",
+        system_prompt="",
+        source="project",  # type: ignore[arg-type]
+        file_path=tmp_path / ".tau" / "agents" / "project-worker.md",
+    )
+    project = DiscoveryResult(
+        agents=(project_agent,),
+        project_agents_dir=tmp_path / ".tau" / "agents",
+        diagnostics=(),
+    )
+
+    def scope_aware(_cwd: Path, scope: str) -> DiscoveryResult:
+        if scope == "both":
+            return DiscoveryResult(
+                agents=(*bundled.agents, project_agent),
+                project_agents_dir=project.project_agents_dir,
+                diagnostics=(),
+            )
+        if scope == "project":
+            return project
+        return bundled
+
+    config = SubagentConfig(agents=(("project-worker", AgentOverrides(model="worker-model")),))
+    dispatcher = TaskDispatcher(
+        default_cwd=tmp_path,
+        ui=FakeUi(),
+        runner=runner,  # type: ignore[arg-type]
+        discovery_fn=scope_aware,
+        config=config,
+    )
+
+    result = await dispatcher.execute(
+        {"agent": "general-purpose", "task": "work", "agentScope": "user"}
+    )
+
+    assert result.details.get("configDiagnostics") is None
 
 
 @pytest.mark.asyncio

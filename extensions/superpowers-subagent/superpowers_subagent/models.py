@@ -158,13 +158,17 @@ def details_dict(
     discovery_diagnostics: tuple[str, ...],
     results: list[ChildResult],
     planned: int | None = None,
+    config_paths: tuple[Path, ...] = (),
+    config_diagnostics: tuple[str, ...] = (),
 ) -> dict[str, JSONValue]:
     """Serialize schema-versioned Task details.
 
     ``planned`` is the number of children the dispatch intends to run. It lets
     partial-result renderers show accurate live counts before every child has
     produced its first message; renderers fall back to ``len(results)`` when
-    absent.
+    absent. ``config_paths`` and ``config_diagnostics`` record which subagent
+    config files applied and why parts were ignored; both are omitted when
+    empty.
     """
 
     details: dict[str, JSONValue] = {
@@ -175,6 +179,10 @@ def details_dict(
         "discoveryDiagnostics": list(discovery_diagnostics),
         "results": [result.to_dict() for result in results],
     }
+    if config_paths:
+        details["configPaths"] = [str(path) for path in config_paths]
+    if config_diagnostics:
+        details["configDiagnostics"] = list(config_diagnostics)
     if planned is not None:
         details["planned"] = planned
     return details

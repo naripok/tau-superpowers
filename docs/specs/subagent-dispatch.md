@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The `task` tool delegates complete units of work to isolated Tau subprocesses. It supports single, ordered parallel, and sequential chain dispatch while preferring summary-first parent-model content and preserving complete accepted child messages in structured details. When a child returns an exact `## Code Review` heading followed by an exact `## Summary` heading, both sections are relayed; when a child omits the exact summary heading, its complete final assistant output is the documented fallback.
+The `task` tool delegates complete units of work to isolated Tau subprocesses. It supports single, ordered parallel, and sequential chain dispatch while preferring summary-first parent-model content and preserving complete accepted child messages in structured details. When a child returns an exact `## Code Review` heading followed by an exact `## Summary` heading, both sections are relayed; when a child omits the exact summary heading, its complete final assistant output is the documented fallback. Per-subagent provider, model, and thinking-effort values resolve at call, then a `superpowers-subagent.toml` config file (`[agents.<name>]` and `[defaults]` sections), then agent definitions, then the parent session's active provider, model, and thinking level.
 
 This is the canonical description of current behavior. See the [Tau `task` tool reference](../../skills/using-superpowers/references/tau-tools.md) for copyable calls and the [README](../../README.md) for installation.
 
@@ -92,7 +92,7 @@ The extension SHALL discover Markdown agent definitions in three increasing-prec
 
 Definitions SHALL contain scalar YAML frontmatter with non-empty string `name` and `description` values. They MAY contain `profile` (`general-purpose`, `read-only`, or `review`), `provider`, `model`, and `reasoningEffort` (one of `off`, `minimal`, `low`, `medium`, `high`, `xhigh`); profile SHALL default to `general-purpose`. Unknown metadata SHALL be ignored. Malformed, unreadable, incomplete, empty optional, unknown-profile, or unknown-reasoning-effort definitions SHALL be skipped with diagnostics that do not expose the body.
 
-The bundled definitions are `general-purpose`, `read-only`, `implementation` (general-purpose profile, `openrouter:deepseek/deepseek-v4-flash-0731`, `high`), `code-review` (review profile, `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh`, strict `## Code Review` plus `## Summary` report format), and `document-review` (review profile, `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh`, strict `## Document Review` plus `## Summary` report format).
+The bundled definitions are `general-purpose`, `read-only`, `implementation` (general-purpose profile, `openrouter:deepseek/deepseek-v4-flash-0731`, `high`), `code-review` (review profile, `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh`, strict `## Code Review` plus `## Summary` report format), and `document-review` (review profile, `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh`, strict `## Document Review` plus `## Summary` report format). These frontmatter pins are the default layer only and are overridable by the subagent configuration file and call-level values described under the overrides requirement.
 
 #### Scenario: Same-name override
 
@@ -188,9 +188,9 @@ The appended prompt SHALL preserve the selected agent body and state that the ch
 
 ### Requirement: Provider, model, and reasoning-effort overrides
 
-`provider` and `model` SHALL be independent opaque strings at call and agent-definition levels. A call-level value SHALL override only the corresponding agent value; values absent at call and agent levels SHALL fall back to the parent session's active provider and model, when the parent exposes them. Effective values SHALL map directly to Tau's separate `--provider` and `--model` flags; values absent at every level SHALL omit their flags. The extension SHALL NOT split combined values or infer a provider from a slash-containing model identifier.
+`provider` and `model` SHALL be independent opaque strings at call, config-file, and agent-definition levels. Per field, resolution SHALL fall through call-level value, then the config file's `[agents.<name>]` section, then the agent definition, then the config file's `[defaults]` section, then the parent session's active provider and model, when the parent exposes them. A value at a higher layer SHALL override only the corresponding lower-layer value. Effective values SHALL map directly to Tau's separate `--provider` and `--model` flags; values absent at every level SHALL omit their flags. The extension SHALL NOT split combined values or infer a provider from a slash-containing model identifier.
 
-`reasoningEffort` SHALL be an optional call-level thinking level resolved at call then agent precedence, mapped to the generated child extension described under child invocation, and recorded as `reasoningEffort` on the child result. Invalid or empty call values SHALL be rejected before child startup; invalid agent-definition values SHALL skip that definition with a diagnostic.
+`reasoningEffort` SHALL resolve at call, then config-file `[agents.<name>]`, then agent-definition, then config-file `[defaults]` precedence, then SHALL fall back to the parent session's active thinking level by default, so unpinned children inherit it. The effective level SHALL be mapped to the generated child extension described under child invocation and recorded as `reasoningEffort` on the child result. Invalid or empty call values SHALL be rejected before child startup; invalid agent-definition values SHALL skip that definition with a diagnostic; invalid config-file values SHALL be dropped with a config diagnostic. When no level resolves, the child runs at its ambient level and no thinking extension is generated.
 
 #### Scenario: Partial call override
 
@@ -199,9 +199,16 @@ The appended prompt SHALL preserve the selected agent body and state that the ch
 - THEN the agent provider is passed to `--provider`
 - AND the call model is passed to `--model`
 
+#### Scenario: Config shadows a bundled pin
+
+- GIVEN the config file sets `[agents.<name>]` model and the agent definition pins provider and model
+- WHEN child argv is built
+- THEN the config model is passed to `--model`
+- AND the agent provider is still passed to `--provider`
+
 #### Scenario: Omitted overrides
 
-- GIVEN neither the call nor the agent defines provider or model
+- GIVEN no call, config, or agent value defines provider or model
 - AND the parent session exposes no provider or model values
 - WHEN child argv is built
 - THEN both flags are absent
@@ -222,6 +229,14 @@ The appended prompt SHALL preserve the selected agent body and state that the ch
 - AND the generated child extension applies it before the first turn
 - AND the child result records the effective value
 
+#### Scenario: Parent thinking inheritance
+
+- GIVEN an unpinned agent and no call- or config-level reasoning value
+- AND the parent session runs at a thinking level
+- WHEN the child is launched
+- THEN the parent level is the effective reasoning effort
+- AND the generated child extension applies it before the first turn
+
 #### Scenario: Unsupported reasoning effort
 
 - GIVEN the effective provider/model does not support the requested level
@@ -229,6 +244,41 @@ The appended prompt SHALL preserve the selected agent body and state that the ch
 - THEN the child prints a `[superpowers-subagent]` diagnostic to `stderr`
 - AND the child still completes at its ambient level
 - AND the result retains the `stderr` diagnostic
+
+### Requirement: Subagent configuration file
+
+A `superpowers-subagent.toml` file SHALL be optional and discovered in the same directories Tau reads its other durable configs from: the user Tau home (`~/.tau/`) and the nearest ancestor `<cwd>/.tau/` directory with a file, mirroring agent-definition discovery. The project file SHALL shadow the user file per key, so a partial project config overrides only the keys it sets.
+
+The file SHALL support a `[defaults]` table (provider, model, `reasoningEffort` fallbacks for every agent) and `[agents.<name>]` tables with the same keys. Values SHALL be non-empty strings; `reasoningEffort` SHALL be one of `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, normalized case-insensitively. An absent or empty file SHALL leave the parent-inheritance defaults intact, so installing the shipped example (which pins the bundled implementation and review agents to their current values) SHALL NOT change behavior. Unknown keys, wrong-typed tables, empty strings, and invalid thinking levels SHALL be dropped with a diagnostic. A section whose agent name matches no bundled, user, or project definition SHALL be reported as a config diagnostic rather than silently no-oping, so a typo in an `[agents.<name>]` heading cannot be mistaken for an applied override.
+
+The loaded file paths and diagnostics SHALL be recorded on every Task result as `configPaths` and `configDiagnostics` when non-empty. Missing files SHALL NOT produce diagnostics. A malformed or unreadable file SHALL be skipped with a diagnostic and SHALL NOT block other files or dispatch. Config edits SHALL apply to the next `task` call without a Tau reload.
+
+#### Scenario: User file only
+
+- GIVEN a `[defaults]` table in `~/.tau/superpowers-subagent.toml`
+- WHEN an unpinned agent dispatches
+- THEN the default values apply ahead of parent-session fallback
+
+#### Scenario: Project shadows user per key
+
+- GIVEN the user file sets a default model and the project file sets a different model plus a provider
+- WHEN dispatch resolves the effective values
+- THEN the project model and provider apply
+- AND keys the project file does not set still come from the user file
+
+#### Scenario: Nearest project directory only
+
+- GIVEN more than one ancestor contains `.tau/superpowers-subagent.toml`
+- WHEN dispatch resolves the config
+- THEN only the nearest file is the project layer
+
+#### Scenario: Invalid config content
+
+- GIVEN a file is unreadable, malformed TOML, or contains unknown keys or invalid values
+- WHEN the config loads
+- THEN the invalid file or values are skipped
+- AND diagnostics are recorded on the Task details
+- AND dispatch still runs with the remaining valid configuration
 
 ### Requirement: Child tool profiles
 
@@ -338,7 +388,7 @@ Status parsing SHALL independently use the last recognized case-insensitive bold
 
 Final `content` SHALL prefer summary-scale text while `details` retains complete accepted child messages. Successful single content SHALL be the extracted summary, the complete final-output fallback when no exact heading exists, or `(no output)` for empty final text; failed single content SHALL be a concise failure. Parallel content SHALL include a success count and one input-ordered `[agent] (completed|failed)` summary/fallback section per item. Successful chain content SHALL be the final step's summary/fallback; failed chain content SHALL identify the stopped step concisely. A child that omits the requested summary can therefore return complete final output to the parent context.
 
-Details SHALL be JSON with `schemaVersion: 1`, mode, scope, project agent directory, discovery diagnostics, and ordered child results; partial results SHALL include `planned`, the intended child count, so live viewers can show accurate counts before every child has produced a message, and renderers SHALL fall back to the result count when `planned` is absent. Each child result SHALL contain `agent`, `agentSource`, effective `task` and `cwd`, `exitCode`, complete accepted wire `messages`, `stderr`, usage fields, `status`, `timedOut`, `cancelled`, and `malformedJsonLines`; applicable `provider`, `model`, `reasoningEffort`, `stopReason`, `errorMessage`, and `step` fields SHALL also be included. Failure SHALL be represented through content and these fields because Tau tool results have no portable `isError` property.
+Details SHALL be JSON with `schemaVersion: 1`, mode, scope, project agent directory, discovery diagnostics, and ordered child results; non-empty subagent-config file paths and diagnostics SHALL be included as `configPaths` and `configDiagnostics`; partial results SHALL include `planned`, the intended child count, so live viewers can show accurate counts before every child has produced a message, and renderers SHALL fall back to the result count when `planned` is absent. Each child result SHALL contain `agent`, `agentSource`, effective `task` and `cwd`, `exitCode`, complete accepted wire `messages`, `stderr`, usage fields, `status`, `timedOut`, `cancelled`, and `malformedJsonLines`; applicable `provider`, `model`, `reasoningEffort`, `stopReason`, `errorMessage`, and `step` fields SHALL also be included. Failure SHALL be represented through content and these fields because Tau tool results have no portable `isError` property.
 
 #### Scenario: Single success
 
@@ -453,7 +503,7 @@ The current Tau implementation uses the lowercase `task` tool name and preserves
 | Historical capability | Current Tau behavior |
 | --- | --- |
 | Combined provider/model setting | Separate opaque `provider` and `model` values |
-| Per-agent reasoning level | `reasoningEffort` at call and definition levels, applied by a generated child extension because Tau 0.3 has no thinking-level CLI flag |
+| Per-agent reasoning level | `reasoningEffort` at call, config-file, and definition levels with parent-session thinking inheritance by default, applied by a generated child extension because Tau 0.3 has no thinking-level CLI flag |
 | Arbitrary per-agent tool lists | Fixed `general-purpose`, `read-only`, and `review` profiles |
 | Complete skill suppression in children | Project resources and extensions are disabled; ambient user skills are discouraged by prompt only |
 | Framework-specific component rendering | Public string renderers with generic fallback |

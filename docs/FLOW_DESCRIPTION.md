@@ -66,7 +66,7 @@ IMPLEMENTATION
   1. Work in an isolated Git worktree, never directly on main/master.
   2. For each task, use red -> green -> refactor and run named checks.
   3. If subagent-driven development was selected:
-       a. task(implementation): implement one complete task (openrouter deepseek v4 flash at high).
+       a. task(implementation): implement one complete task (openrouter deepseek v4 flash at high by default).
        b. Inspect summary, process fields, semantic status, tests, and commit.
        c. task(code-review): spec-compliance review against the full delta.
        d. Fix and re-review until DONE.
@@ -97,15 +97,15 @@ FINISHING
 
 The full argument and result contract is in the [Tau `task` tool reference](../skills/using-superpowers/references/tau-tools.md). Workflow dispatches use five bundled agents:
 
-| Agent | Tool access | Pinned model | Workflow use |
+| Agent | Tool access | Default provider/model/reasoning | Workflow use |
 | --- | --- | --- | --- |
 | `implementation` | Tau's normal built-in coding tools | `openrouter:deepseek/deepseek-v4-flash-0731`, `high` | One implementation task at a time |
 | `code-review` | `read` + read-only `bash`, enforced by a public hook | `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh` | Spec-compliance, code-quality, and final review of named files; returns strict `## Code Review` + `## Summary` sections |
 | `document-review` | `read` + read-only `bash`, enforced by a public hook | `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh` | Feature-spec and plan review at the design gates; returns strict `## Document Review` + `## Summary` sections |
-| `general-purpose` | Tau's normal built-in coding tools | Parent session's active provider/model | Unpinned implementation or scouting work |
-| `read-only` | Only the `read` tool, enforced by a public hook | Parent session's active provider/model | Unpinned inspection of known files |
+| `general-purpose` | Tau's normal built-in coding tools | Parent session's active provider/model/thinking | Unpinned implementation or scouting work |
+| `read-only` | Only the `read` tool, enforced by a public hook | Parent session's active provider/model/thinking | Unpinned inspection of known files |
 
-Agents without a pinned provider or model inherit the parent session's active provider and model at dispatch time.
+These are the defaults, not guarantees: the user can override any of them per agent with the subagent config file (`[agents.<name>]` in `superpowers-subagent.toml`). Agents without a pin at any layer inherit the parent session's active provider, model, and thinking level at dispatch time.
 
 A typical reviewer call supplies every readable path and embeds any information the reviewer cannot obtain with `read`:
 

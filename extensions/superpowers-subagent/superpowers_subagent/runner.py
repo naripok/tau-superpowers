@@ -15,6 +15,7 @@ from pydantic import TypeAdapter, ValidationError
 from tau_agent.messages import AgentMessage, AssistantMessage, ToolResultMessage
 from tau_agent.tools import ToolCancellationToken
 
+from .config import AgentOverrides
 from .models import AgentConfig, ChildResult
 from .utils import (
     build_tau_argv,
@@ -160,8 +161,11 @@ class TauChildRunner:
         provider_override: str | None,
         model_override: str | None,
         reasoning_effort_override: str | None,
+        config_overrides: AgentOverrides | None = None,
+        config_defaults: AgentOverrides | None = None,
         parent_provider: str | None = None,
         parent_model: str | None = None,
+        parent_reasoning_effort: str | None = None,
         timeout_seconds: float,
         signal: ToolCancellationToken | None,
         step: int | None = None,
@@ -174,10 +178,18 @@ class TauChildRunner:
             agent,
             provider_override,
             model_override,
+            config_overrides=config_overrides,
+            config_defaults=config_defaults,
             parent_provider=parent_provider,
             parent_model=parent_model,
         )
-        reasoning_effort = effective_reasoning_effort(agent, reasoning_effort_override)
+        reasoning_effort = effective_reasoning_effort(
+            agent,
+            reasoning_effort_override,
+            config_overrides=config_overrides,
+            config_defaults=config_defaults,
+            parent_reasoning_effort=parent_reasoning_effort,
+        )
         result = ChildResult(
             agent=agent.name,
             agent_source=agent.source,

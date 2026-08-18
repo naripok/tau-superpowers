@@ -8,6 +8,7 @@ from typing import cast
 
 from tau_agent.messages import AgentMessage, AssistantMessage, TextContent
 
+from .config import AgentOverrides
 from .models import AgentConfig, SubagentStatus
 
 _SUMMARY_HEADING = re.compile(r"^[\t ]*## Summary[\t ]*\r?$", re.MULTILINE)
@@ -93,24 +94,46 @@ def effective_provider_model(
     provider_override: str | None,
     model_override: str | None,
     *,
+    config_overrides: AgentOverrides | None = None,
+    config_defaults: AgentOverrides | None = None,
     parent_provider: str | None = None,
     parent_model: str | None = None,
 ) -> tuple[str | None, str | None]:
-    """Resolve provider and model at call, agent, then parent-session precedence."""
+    """Resolve provider and model independently per side at call, config-agent,
+    agent-definition, config-defaults, then parent-session precedence."""
 
     return (
-        provider_override or agent.provider or parent_provider,
-        model_override or agent.model or parent_model,
+        provider_override
+        or (config_overrides.provider if config_overrides is not None else None)
+        or agent.provider
+        or (config_defaults.provider if config_defaults is not None else None)
+        or parent_provider,
+        model_override
+        or (config_overrides.model if config_overrides is not None else None)
+        or agent.model
+        or (config_defaults.model if config_defaults is not None else None)
+        or parent_model,
     )
 
 
 def effective_reasoning_effort(
     agent: AgentConfig,
     reasoning_effort_override: str | None,
+    *,
+    config_overrides: AgentOverrides | None = None,
+    config_defaults: AgentOverrides | None = None,
+    parent_reasoning_effort: str | None = None,
 ) -> str | None:
-    """Resolve the reasoning effort at call then agent precedence."""
+    """Resolve the reasoning effort at call, config-agent, agent-definition,
+    config-defaults, then parent-session thinking-level precedence."""
 
-    return reasoning_effort_override or agent.reasoning_effort
+    return (
+        reasoning_effort_override
+        or (config_overrides.reasoning_effort if config_overrides is not None else None)
+        or agent.reasoning_effort
+        or (config_defaults.reasoning_effort if config_defaults is not None else None)
+        or parent_reasoning_effort
+    )
 
 
 def build_tau_argv(

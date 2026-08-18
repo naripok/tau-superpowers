@@ -8,9 +8,10 @@ The project combines ideas and material from [obra/superpowers](https://github.c
 
 - 14 Tau-discoverable Agent Skills covering the full design-to-delivery workflow.
 - A `task` tool for single, parallel, and chained Tau subprocesses.
-- Bundled child agents: `general-purpose`, tool-enforced `read-only`, `implementation` (OpenRouter DeepSeek, `high` reasoning), `code-review` and `document-review` (OpenRouter DeepSeek, `xhigh` reasoning, `read` + read-only `bash`, strict `## Code Review`/`## Document Review` + `## Summary` reports). Children whose agent definition pins neither provider nor model inherit the parent session's active provider and model, after call-level and agent-definition values.
+- Bundled child agents: `general-purpose`, tool-enforced `read-only`, `implementation` (OpenRouter DeepSeek, `high` reasoning), `code-review` and `document-review` (OpenRouter DeepSeek, `xhigh` reasoning, `read` + read-only `bash`, strict `## Code Review`/`## Document Review` + `## Summary` reports). Children inherit the parent session's active provider, model, and thinking effort by default, after call-level, config-file, and agent-definition values.
 - User and project agent definitions with deterministic precedence and explicit project-agent approval.
-- Per-child `reasoningEffort` at call or definition level, applied as the child's Tau thinking level.
+- A per-subagent config file (`~/.tau/superpowers-subagent.toml` and `<project>/.tau/superpowers-subagent.toml`) that pins provider, model, and `reasoningEffort` globally or per agent; a copy encoding today's defaults ships as `superpowers-subagent.example.toml`.
+- Per-child `reasoningEffort` at call or config-file level, applied as the child's Tau thinking level.
 - Summary-sized parent context with complete child messages retained in structured result details; code-review children relay both the `## Code Review` section and the `## Summary`.
 
 ## Requirements
@@ -147,6 +148,7 @@ A chain stops for child process/protocol failure, timeout, or cancellation. Sema
 | `confirmProjectAgents` | Require project-agent confirmation (default `true`); `false` is explicit per-call approval |
 | `provider` | Independent opaque Tau provider override |
 | `model` | Independent opaque Tau model override |
+| `reasoningEffort` | Thinking level for every child: `off`, `minimal`, `low`, `medium`, `high`, or `xhigh`. Overrides the config file and agent definition; otherwise the level falls back to the config file, then the agent definition, then the parent session's thinking level |
 | `timeoutSeconds` | Per-child timeout, greater than 0 and at most 3600; default 3600 |
 
 In single mode, `cwd` is top-level. Parallel and chain items each carry their own optional `cwd`.
@@ -186,9 +188,36 @@ When a selected definition resolves to project-controlled Markdown, the extensio
 
 The `read-only` profile loads a temporary public Tau hook that blocks every Tau tool except `read`. It cannot run commands, search unknown paths, or produce its own `git diff`; provide those inputs in the delegated prompt. The `review` profile (used by `code-review` and `document-review`) permits `read` plus `bash` for read-only operations — git read commands, grep/rg/find searches — and instructs the child to never change the state of the repository or environment. The hook cannot parse bash command semantics, so read-only bash usage is instruction-governed. Both profiles are tool-layer policies, **not** an OS, filesystem, network, credential, model, provider, or prompt-injection sandbox.
 
-## Provider and Model Selection
+## Provider, Model, and Thinking Effort Selection
 
-Normally omit `provider` and `model`. Children then inherit the parent session's active provider and model unless the agent definition or call pins one. Configure durable Tau defaults with `/login` and `/model`.
+Normally omit `provider`, `model`, and `reasoningEffort`. Subagents then inherit the parent session's active provider, model, and thinking effort unless a config file, agent definition, or call value pins one. Configure durable Tau defaults with `/login` and `/model`.
+
+Per-field resolution, highest first:
+
+1. `task` call `provider` / `model` / `reasoningEffort`;
+2. the subagent config file `[agents.<name>]` section;
+3. the selected agent definition's frontmatter;
+4. the subagent config file `[defaults]` section;
+5. the parent session's active provider, model, and thinking level.
+
+The subagent config file is a TOML file named `superpowers-subagent.toml` in either `~/.tau/` or the nearest ancestor `<project>/.tau/`, the same directories Tau reads its other durable configs from. A project file shadows the user file per key. A copy encoding today's defaults ships at `extensions/superpowers-subagent/superpowers-subagent.example.toml`; link or copy it to `~/.tau/superpowers-subagent.toml` from your dotfiles to pin current behavior:
+
+```toml
+[defaults]
+# provider = "openai"
+# model = "gpt-5.6-sol"
+# reasoningEffort = "medium"   # off | minimal | low | medium | high | xhigh
+
+[agents.implementation]
+provider = "openrouter"
+model = "deepseek/deepseek-v4-flash-0731"
+reasoningEffort = "high"
+
+[agents.code-review]
+provider = "openrouter"
+model = "deepseek/deepseek-v4-flash-0731"
+reasoningEffort = "xhigh"
+```
 
 Per-call overrides are separate and map directly to Tau's separate CLI settings:
 
@@ -201,7 +230,7 @@ Per-call overrides are separate and map directly to Tau's separate CLI settings:
 }
 ```
 
-A call value overrides only the corresponding agent value. The extension never splits combined strings or infers a provider from a slash in a model identifier. An unpersisted model selected only in the parent process is carried into children as the parent-session fallback for agent definitions that pin neither provider nor model.
+A call value overrides only the corresponding lower layer. The extension never splits combined strings or infers a provider from a slash in a model identifier. An unpersisted model or thinking level selected only in the parent process is carried into children as the parent-session fallback for values pinned nowhere else.
 
 ## Isolation and Security Boundaries
 
@@ -245,6 +274,7 @@ The main flow is:
 skills/                                 # canonical Agent Skill sources
 extensions/superpowers-subagent/
   extension.py                          # Tau loader entry point
+  superpowers-subagent.example.toml      # current-defaults config template
   superpowers_subagent/                 # Python implementation
   agents/                               # bundled agent definitions
   tests/                                # unit and runtime integration tests

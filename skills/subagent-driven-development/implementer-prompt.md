@@ -11,7 +11,7 @@ This is a template for constructing the `task` string of the Tau `task` tool. Ca
 }
 ```
 
-The `implementation` agent is pinned to `openrouter:deepseek/deepseek-v4-flash-0731` at `high` reasoning effort. Do not add `provider`, `model`, or `reasoningEffort` unless the user explicitly requests or approves an override; the pinned configuration is the approved default. The child has no controller conversation history, cannot converse mid-task, and is instructed not to invoke ambient user skills. Include all required file paths, command output, requirements, and workflow steps in the filled prompt.
+The `implementation` agent runs its bundled pinned setup; the user's subagent config file (`superpowers-subagent.toml`) can override provider, model, and reasoning effort per agent. Do not add `provider`, `model`, or `reasoningEffort` to the call unless the user explicitly requests or approves an override; the pinned or user-configured setup is the approved configuration. The child has no controller conversation history, cannot converse mid-task, and is instructed not to invoke ambient user skills. Include all required file paths, command output, requirements, and workflow steps in the filled prompt.
 
 ```markdown
     You are implementing Task N: [task name]
@@ -81,23 +81,6 @@ The `implementation` agent is pinned to `openrouter:deepseek/deepseek-v4-flash-0
       they prove and why they are needed
     - Document only the current state and behavior — never old system states, removed
       behavior, or "previously" references
-
-    ## When You're in Over Your Head
-
-    It is always OK to stop and say "this is too hard for me." Bad work is worse than
-    no work. You will not be penalized for escalating.
-
-    **STOP and escalate when:**
-    - The task requires architectural decisions with multiple valid approaches
-    - You need to understand code beyond what was provided and can't find clarity
-    - You feel uncertain about whether your approach is correct
-    - The task involves restructuring existing code in ways the plan didn't anticipate
-    - You've been reading file after file trying to understand the system without progress
-
-    **How to escalate:** Report back with status BLOCKED or NEEDS_CONTEXT. Describe
-    specifically what you're stuck on, what you've tried, and what kind of help you need.
-    The controller can provide more context, adjust the task, or break the task into
-    smaller pieces.
 
     ## Before Reporting Back: Self-Review
 

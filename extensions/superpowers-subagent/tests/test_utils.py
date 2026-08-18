@@ -2,6 +2,7 @@ from pathlib import Path
 
 from tau_agent.messages import AssistantMessage, TextContent, ThinkingContent, ToolCall, UserMessage
 
+from superpowers_subagent.config import AgentOverrides
 from superpowers_subagent.models import AgentConfig
 from superpowers_subagent.utils import (
     build_tau_argv,
@@ -240,6 +241,151 @@ def test_effective_reasoning_effort_prefers_call_then_agent(tmp_path: Path) -> N
     )
     assert effective_reasoning_effort(plain, None) is None
     assert effective_reasoning_effort(plain, "low") == "low"
+
+
+def test_effective_reasoning_effort_config_layers_and_parent_fallback(
+    tmp_path: Path,
+) -> None:
+    """Prove the reasoning effort resolves at call, config-agent, agent,
+    config-defaults, then parent-session precedence."""
+
+    pinned = AgentConfig(
+        name="pinned",
+        description="Pinned",
+        system_prompt="",
+        source="user",
+        file_path=tmp_path / "pinned.md",
+        reasoning_effort="xhigh",
+    )
+    plain = AgentConfig(
+        name="plain",
+        description="Plain",
+        system_prompt="",
+        source="user",
+        file_path=tmp_path / "plain.md",
+    )
+    agent_config = AgentOverrides(reasoning_effort="medium")
+    defaults_config = AgentOverrides(reasoning_effort="low")
+
+    # Call beats config-agent, config-agent beats agent pin, agent beats
+    # config-defaults, config-defaults beats the parent session level.
+    assert (
+        effective_reasoning_effort(
+            pinned, "off", config_overrides=agent_config, config_defaults=defaults_config
+        )
+        == "off"
+    )
+    assert (
+        effective_reasoning_effort(
+            pinned, None, config_overrides=agent_config, config_defaults=defaults_config
+        )
+        == "medium"
+    )
+    assert (
+        effective_reasoning_effort(
+            pinned,
+            None,
+            config_overrides=None,
+            config_defaults=defaults_config,
+            parent_reasoning_effort="xhigh",
+        )
+        == "xhigh"
+    )
+    assert (
+        effective_reasoning_effort(
+            plain, None, config_defaults=defaults_config, parent_reasoning_effort="xhigh"
+        )
+        == "low"
+    )
+    # Nothing else pinned: the parent session thinking level is the default.
+    assert effective_reasoning_effort(plain, None, parent_reasoning_effort="medium") == "medium"
+    assert effective_reasoning_effort(plain, None) is None
+
+
+def test_effective_provider_model_config_layers_between_call_and_agent(
+    tmp_path: Path,
+) -> None:
+    """Prove config-agent values sit between the call and agent definition,
+    and config-defaults sit between the agent definition and parent fallback,
+    on an independent per-key basis."""
+
+    pinned = AgentConfig(
+        name="pinned",
+        description="Pinned",
+        system_prompt="",
+        source="user",
+        file_path=tmp_path / "pinned.md",
+        provider="agent-provider",
+        model="agent/model",
+    )
+    plain = AgentConfig(
+        name="plain",
+        description="Plain",
+        system_prompt="",
+        source="user",
+        file_path=tmp_path / "plain.md",
+    )
+    agent_config = AgentOverrides(model="config/model")
+    defaults_config = AgentOverrides(provider="default-provider")
+
+    # Config-agent model shadows the agent pin while the agent provider stays.
+    assert effective_provider_model(
+        pinned,
+        None,
+        None,
+        config_overrides=agent_config,
+        config_defaults=defaults_config,
+        parent_provider="parent-provider",
+        parent_model="parent-model",
+    ) == ("agent-provider", "config/model")
+    # Config-defaults shadow the parent session fallback for an unpinned agent.
+    assert effective_provider_model(
+        plain,
+        None,
+        None,
+        config_overrides=None,
+        config_defaults=defaults_config,
+        parent_provider="parent-provider",
+        parent_model="parent-model",
+    ) == ("default-provider", "parent-model")
+    # A call override still wins over every other layer.
+    assert effective_provider_model(
+        pinned,
+        "call-provider",
+        None,
+        config_overrides=agent_config,
+        config_defaults=defaults_config,
+        parent_provider="parent-provider",
+        parent_model="parent-model",
+    ) == ("call-provider", "config/model")
+
+
+def test_effective_resolution_ignores_empty_override_objects(tmp_path: Path) -> None:
+    """Prove empty config override objects behave exactly like None so a loaded
+    config file with no relevant keys never changes resolution."""
+
+    plain = AgentConfig(
+        name="plain",
+        description="Plain",
+        system_prompt="",
+        source="user",
+        file_path=tmp_path / "plain.md",
+    )
+    empty = AgentOverrides()
+
+    assert effective_provider_model(
+        plain,
+        None,
+        None,
+        config_overrides=empty,
+        config_defaults=empty,
+        parent_provider="parent-provider",
+        parent_model="parent-model",
+    ) == ("parent-provider", "parent-model")
+    assert (
+        effective_reasoning_effort(plain, None, config_overrides=empty, config_defaults=empty)
+        is None
+    )
 
 
 def test_build_tau_argv_uses_supported_flags_and_positional_task(tmp_path: Path) -> None:

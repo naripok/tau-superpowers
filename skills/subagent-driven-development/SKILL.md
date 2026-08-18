@@ -92,15 +92,15 @@ digraph process {
 
 ## Provider and Model Selection
 
-The bundled agents pin their model and reasoning effort, so omit `provider`, `model`, and `reasoningEffort` by default:
+The bundled agents ship with their own pinned provider/model/reasoning-effort defaults, so omit `provider`, `model`, and `reasoningEffort` at the call level. Choose agents by role and capability, not by model:
 
-- **`implementation`** — runs `openrouter:deepseek/deepseek-v4-flash-0731` at `high` reasoning effort.
-- **`code-review`** — runs `openrouter:deepseek/deepseek-v4-flash-0731` at `xhigh` reasoning effort. It returns a strict `## Code Review` section followed by a `## Summary`; the `task` result relays both to you.
-- `general-purpose` and `read-only` — inherit the parent session's active provider/model; use them when a child must not be pinned (scouting, document inspection).
+- **`implementation`** — implementation subagent for one well-scoped task, working with its inherited or user-configured provider, model, and reasoning effort.
+- **`code-review`** — adversarial reviewer of named files. It returns a strict `## Code Review` section (verdict + severity-ordered actionable points) followed by a `## Summary`; the `task` result relays both to you.
+- `general-purpose` and `read-only` — inherit the parent session's active provider, model, and thinking level; use them when a child must not be pinned (scouting, document inspection).
 
-Do not set overrides merely to optimize cost or speed. If the user explicitly requests or approves an override, pass `provider`, `model`, and optionally `reasoningEffort` as separate opaque `task` fields; never infer one from the other or split a slash-containing model identifier.
+The exact bundled defaults are documented in the extension living spec and the bundled agent definitions, and the user can change them per agent with the subagent config file (`[agents.<name>]` in `~/.tau/superpowers-subagent.toml` or `<project>/.tau/superpowers-subagent.toml`), which overrides the bundled frontmatter. Do not set call-level overrides merely to optimize cost or speed. If the user explicitly requests or approves an override, pass `provider`, `model`, and optionally `reasoningEffort` as separate opaque `task` fields; never infer one from the other or split a slash-containing model identifier.
 
-Match capability to role: implementation stays on its pinned model at `high` reasoning effort, while review work uses the review-profile agents at `xhigh`.
+Match capability to role: implementation handles one well-scoped task at the default or user-configured setup, while review work uses the review-profile agents.
 
 ## Handling Implementer Status
 
@@ -117,7 +117,7 @@ Implementer subagents report one of four semantic statuses in the `task` result.
 2. If the task is too large, break it into smaller pieces
 3. If the plan itself is wrong, escalate to the human
 
-**Never** ignore an escalation or force the same model to retry without changes. If the implementer said it's stuck, something needs to change.
+**Never** blindly re-dispatch a stuck implementer with no changes. If the implementer reported `BLOCKED` or `NEEDS_CONTEXT`, supply the missing context, split the task, or check the plan — a plain restart is not a fix.
 
 ## Prompt Templates
 
