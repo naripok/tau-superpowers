@@ -57,9 +57,7 @@ def test_setup_registers_exactly_one_task(monkeypatch: Any) -> None:
     monkeypatch.delenv(RECURSION_GUARD, raising=False)
     import superpowers_subagent.extension as extension_module
 
-    monkeypatch.setattr(
-        extension_module, "install_sidebar_section", lambda _tracker: None, raising=False
-    )
+    monkeypatch.setattr(extension_module, "install_sidebar_section", lambda _tracker: None)
     tau = FakeTau()
 
     setup(tau)  # type: ignore[arg-type]
@@ -77,9 +75,7 @@ def test_setup_refuses_recursive_registration(monkeypatch: Any) -> None:
     monkeypatch.setenv(RECURSION_GUARD, "1")
     import superpowers_subagent.extension as extension_module
 
-    monkeypatch.setattr(
-        extension_module, "install_sidebar_section", lambda _tracker: None, raising=False
-    )
+    monkeypatch.setattr(extension_module, "install_sidebar_section", lambda _tracker: None)
     tau = FakeTau()
 
     setup(tau)  # type: ignore[arg-type]
@@ -94,9 +90,7 @@ async def test_execute_task_loads_config_per_call(monkeypatch: Any) -> None:
 
     import superpowers_subagent.extension as extension_module
 
-    monkeypatch.setattr(
-        extension_module, "install_sidebar_section", lambda _tracker: None, raising=False
-    )
+    monkeypatch.setattr(extension_module, "install_sidebar_section", lambda _tracker: None)
     captured: dict[str, Any] = {}
     loads = []
 
@@ -144,9 +138,7 @@ async def test_execute_task_passes_parent_session_provider_and_model(
 
     import superpowers_subagent.extension as extension_module
 
-    monkeypatch.setattr(
-        extension_module, "install_sidebar_section", lambda _tracker: None, raising=False
-    )
+    monkeypatch.setattr(extension_module, "install_sidebar_section", lambda _tracker: None)
     captured: dict[str, Any] = {}
 
     class FakeDispatcher:
@@ -193,9 +185,7 @@ async def test_execute_task_reads_parent_session_thinking_level(monkeypatch: Any
 
     import superpowers_subagent.extension as extension_module
 
-    monkeypatch.setattr(
-        extension_module, "install_sidebar_section", lambda _tracker: None, raising=False
-    )
+    monkeypatch.setattr(extension_module, "install_sidebar_section", lambda _tracker: None)
     captured: dict[str, Any] = {}
 
     class FakeDispatcher:
@@ -232,12 +222,14 @@ async def test_execute_task_reads_parent_session_thinking_level(monkeypatch: Any
 
 @pytest.mark.asyncio
 async def test_execute_task_wires_tracker_as_usage_observer(monkeypatch: Any) -> None:
-    """Prove the task tool feeds the session usage tracker from the dispatcher
-    and registers a session_start handler for rebind resets."""
+    """Prove the dispatcher's usage observer feeds the sidebar tracker and the
+    registered session_start handler resets it on rebinds but not otherwise."""
 
     import superpowers_subagent.extension as extension_module
+    from superpowers_subagent.models import ChildResult, UsageStats
 
     captured: dict[str, Any] = {}
+    installed: dict[str, Any] = {}
 
     class FakeDispatcher:
         def __init__(self, **kwargs: Any) -> None:
@@ -252,14 +244,16 @@ async def test_execute_task_wires_tracker_as_usage_observer(monkeypatch: Any) ->
             del arguments, signal, on_update
             return AgentToolResult(content=[])
 
+    def fake_install(tracker: Any) -> None:
+        installed["tracker"] = tracker
+
     monkeypatch.setattr(extension_module, "TaskDispatcher", FakeDispatcher)
-    monkeypatch.setattr(
-        extension_module, "install_sidebar_section", lambda _tracker: None, raising=False
-    )
+    monkeypatch.setattr(extension_module, "install_sidebar_section", fake_install)
     monkeypatch.delenv(RECURSION_GUARD, raising=False)
     tau = FakeTau()
 
     setup(tau)  # type: ignore[arg-type]
+    tracker = installed["tracker"]
     # The dispatcher is constructed per call, so a call must run before the
     # captured kwargs exist.
     await tau.tools[0].execute_fn(  # type: ignore[attr-defined]
@@ -268,6 +262,30 @@ async def test_execute_task_wires_tracker_as_usage_observer(monkeypatch: Any) ->
 
     assert callable(captured["usage_observer"])
     assert "session_start" in tau.handlers
+
+    tracked = ChildResult(
+        agent="a",
+        agent_source="bundled",
+        task="t",
+        cwd="/w",
+        exit_code=0,
+        usage=UsageStats(input=10, output=5),
+    )
+    captured["usage_observer"]([tracked], True)
+    assert tracker.totals.runs == 1
+
+    handler = tau.handlers["session_start"]
+    handler(types.SimpleNamespace(reason="startup"), None)
+    assert tracker.totals.runs == 1
+    handler(types.SimpleNamespace(reason="reload"), None)
+    assert tracker.totals.runs == 1
+    handler(types.SimpleNamespace(), None)
+    assert tracker.totals.runs == 1
+    for reason in ("new", "resume", "branch"):
+        handler(types.SimpleNamespace(reason=reason), None)
+        assert tracker.totals.runs == 0
+        captured["usage_observer"]([tracked], True)
+        assert tracker.totals.runs == 1
 
 
 def test_reset_tracker_on_rebind_reasons() -> None:
@@ -334,7 +352,7 @@ async def test_execute_task_discards_pending_on_hard_cancellation(monkeypatch: A
         installed["tracker"] = tracker
 
     monkeypatch.setattr(extension_module, "TaskDispatcher", FakeDispatcher)
-    monkeypatch.setattr(extension_module, "install_sidebar_section", fake_install, raising=False)
+    monkeypatch.setattr(extension_module, "install_sidebar_section", fake_install)
     monkeypatch.delenv(RECURSION_GUARD, raising=False)
     tau = FakeTau()
     setup(tau)  # type: ignore[arg-type]

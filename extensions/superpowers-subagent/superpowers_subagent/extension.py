@@ -146,7 +146,7 @@ def _reset_tracker_on_rebind(tracker: SubagentUsageTracker, event: object) -> No
 
 
 def setup(tau: ExtensionAPI) -> None:
-    """Register the task tool unless this process is a child."""
+    """Set up the task tool, session usage tracking, and the sidebar seam."""
 
     if os.environ.get(RECURSION_GUARD):
         return
