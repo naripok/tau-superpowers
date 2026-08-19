@@ -1448,9 +1448,13 @@ def setup(tau: ExtensionAPI) -> None:
     install_sidebar_section(tracker)
     runner = TauChildRunner()
 
-    @tau.on("session_start")
     def on_session_start(event: object, _context: object) -> None:
         _reset_tracker_on_rebind(tracker, event)
+
+    # Explicit handler form: ``ExtensionAPI.on``'s return type is a union that
+    # includes the two-argument handler itself, so mypy strict rejects the
+    # decorator form; passing the handler directly type-checks cleanly.
+    tau.on("session_start", on_session_start)
 
     async def execute_task(
         tool_call_id: str,
@@ -1513,7 +1517,7 @@ git commit -m "feat: wire usage tracker into task dispatch and session lifecycle
 - [ ] **Step 1: Run the full test suite**
 
 Run (from `extensions/superpowers-subagent/`): `PYTHONPATH=/opt/tau/lib/python3.14/site-packages .venv/bin/python -m pytest -q`
-Expected: 160 passed (131 baseline + 10 usage + 5 dispatch + 11 sidebar + 3 extension), zero failures.
+Expected: 163 passed (131 baseline + 12 usage + 5 dispatch + 11 sidebar + 3 extension + 1 ordering pin), zero failures.
 
 - [ ] **Step 2: Ruff and mypy**
 
