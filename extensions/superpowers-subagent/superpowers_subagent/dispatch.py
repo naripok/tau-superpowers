@@ -475,14 +475,34 @@ def validate_arguments(arguments: Mapping[str, JSONValue]) -> ParsedRequest:
     task = _optional_string(arguments, "task", nonempty=True)
     cwd = _optional_string(arguments, "cwd", nonempty=False)
     if (agent is None) != (task is None):
-        raise ValidationFailure("single mode requires both non-empty agent and task")
+        raise ValidationFailure(
+            "single mode requires both non-empty agent and task; top-level agent and "
+            "task are only valid together and never combine with tasks or chain"
+        )
 
     tasks = _optional_items(arguments, "tasks")
     chain = _optional_items(arguments, "chain")
     has_single = agent is not None and task is not None
     has_parallel = bool(tasks)
     has_chain = bool(chain)
-    if sum((has_single, has_parallel, has_chain)) != 1:
+    selected = [
+        name
+        for name, present in (
+            ("single (agent + task)", has_single),
+            ("parallel (tasks)", has_parallel),
+            ("chain (chain)", has_chain),
+        )
+        if present
+    ]
+    if len(selected) > 1:
+        raise ValidationFailure(
+            "mode fields are mutually exclusive but this call combined "
+            + " and ".join(selected)
+            + "; pass exactly one mode per call: single (agent + task), parallel "
+            "(tasks), or chain (chain), and use separate calls for additional or "
+            "conditional work"
+        )
+    if not selected:
         raise ValidationFailure(
             "provide exactly one non-empty mode: single (agent + task), parallel "
             "(tasks), or chain (chain)"

@@ -232,6 +232,56 @@ def test_validation_rejects_invalid_modes_and_common_options(arguments: dict[str
         validate_arguments(arguments)
 
 
+def test_combined_modes_error_names_the_selected_modes() -> None:
+    """Pin the self-correcting contract: a combined-mode rejection must name the
+    modes the call actually carried so the caller can fix its arguments instead
+    of rationalizing that the tool prompt asked for the combination."""
+
+    with pytest.raises(ValidationFailure) as single_parallel:
+        validate_arguments(
+            {
+                "agent": "general-purpose",
+                "task": "work",
+                "tasks": [{"agent": "read-only", "task": "review"}],
+            }
+        )
+    message = str(single_parallel.value)
+    assert "mutually exclusive" in message
+    assert "combined single (agent + task) and parallel (tasks)" in message
+    assert "exactly one mode" in message
+
+    with pytest.raises(ValidationFailure) as parallel_chain:
+        validate_arguments(
+            {
+                "tasks": [{"agent": "a", "task": "x"}],
+                "chain": [{"agent": "a", "task": "y"}],
+            }
+        )
+    message = str(parallel_chain.value)
+    assert "combined parallel (tasks) and chain (chain)" in message
+
+
+def test_partial_single_error_forbids_combining_with_other_modes() -> None:
+    """A lone top-level agent or task is a single-mode fragment; the error must
+    make clear those fields are never valid alongside tasks or chain."""
+
+    with pytest.raises(ValidationFailure) as excinfo:
+        validate_arguments({"agent": "general-purpose", "tasks": [{"agent": "a", "task": "x"}]})
+    message = str(excinfo.value)
+    assert "single mode requires both non-empty agent and task" in message
+    assert "never combine with tasks or chain" in message
+
+
+def test_no_mode_error_lists_every_mode() -> None:
+    with pytest.raises(ValidationFailure) as excinfo:
+        validate_arguments({})
+    message = str(excinfo.value)
+    assert "exactly one non-empty mode" in message
+    assert "single (agent + task)" in message
+    assert "parallel (tasks)" in message
+    assert "chain (chain)" in message
+
+
 def test_validation_accepts_single_and_independent_overrides() -> None:
     request = validate_arguments(
         {

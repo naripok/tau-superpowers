@@ -44,29 +44,43 @@ _TASK_PARAMETERS: dict[str, JSONValue] = {
         "agent": {
             "type": "string",
             "minLength": 1,
-            "description": "Agent name for single mode.",
+            "description": (
+                "Agent name for single mode; requires task and never combines with tasks or chain."
+            ),
         },
         "task": {
             "type": "string",
             "minLength": 1,
-            "description": "Complete delegated prompt for single mode.",
+            "description": (
+                "Complete delegated prompt for single mode; requires agent and "
+                "never combines with tasks or chain."
+            ),
         },
         "cwd": {
             "type": "string",
-            "description": "Child working directory for single mode.",
+            "description": (
+                "Child working directory for single mode; parallel and chain "
+                "items carry their own cwd."
+            ),
         },
         "tasks": {
             "type": "array",
             "minItems": 1,
             "maxItems": 8,
             "items": _TASK_ITEM_SCHEMA,
-            "description": "Independent parallel tasks (at most eight).",
+            "description": (
+                "Independent parallel tasks (at most eight); never combine "
+                "with agent + task or chain."
+            ),
         },
         "chain": {
             "type": "array",
             "minItems": 1,
             "items": _TASK_ITEM_SCHEMA,
-            "description": "Sequential tasks; {previous} receives complete prior output.",
+            "description": (
+                "Sequential tasks; {previous} receives complete prior output. "
+                "Never combine with agent + task or tasks."
+            ),
         },
         "agentScope": {
             "type": "string",
@@ -193,9 +207,12 @@ def setup(tau: ExtensionAPI) -> None:
             name="task",
             label="task",
             description=(
-                "Dispatch complete tasks to isolated Tau subagents. Use agent + task for "
-                "single mode, tasks for ordered parallel mode (max eight, four active), "
-                "or chain for sequential work with {previous}. Bundled agents include "
+                "Dispatch complete tasks to isolated Tau subagents. Pass exactly one "
+                "mode per call: agent + task for single mode, tasks for ordered "
+                "parallel mode (max eight, four active), or chain for sequential work "
+                "with {previous}. The mode fields are mutually exclusive: never pass "
+                "agent + task together with tasks or chain; use separate calls for "
+                "additional or conditional work. Bundled agents include "
                 "general-purpose, implementation, code-review and document-review "
                 "(read plus read-only bash), and the enforced read-only profile. "
                 "Project-controlled agent prompts require explicit approval."
@@ -205,6 +222,9 @@ def setup(tau: ExtensionAPI) -> None:
             prompt_snippet="Dispatch work to an isolated Tau subagent.",
             prompt_guidelines=(
                 "Include all required context because subagents cannot see this conversation.",
+                "Pass exactly one dispatch mode per call: agent + task, or tasks, or "
+                "chain. Mode fields never combine; use separate calls for conditional "
+                "sequences.",
                 "Use implementation for implementation work, code-review for reviews, "
                 "and read-only for plain file inspection.",
                 "Do not set provider, model, or reasoningEffort unless the user "

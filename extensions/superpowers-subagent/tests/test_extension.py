@@ -71,6 +71,32 @@ def test_setup_registers_exactly_one_task(monkeypatch: Any) -> None:
     assert tool.render_result is not None
 
 
+def test_task_tool_prompt_states_mode_exclusivity(monkeypatch: Any) -> None:
+    """Pin the always-visible tool prompt: the runtime rejects calls that combine
+    single, parallel, and chain fields, so the description, parameter docs, and
+    guidelines must state the exactly-one-mode rule explicitly. Agents see only
+    this prompt at call time; without it they combine modes and then misread the
+    rejection as contradicting the instructions."""
+
+    monkeypatch.delenv(RECURSION_GUARD, raising=False)
+    import superpowers_subagent.extension as extension_module
+
+    monkeypatch.setattr(extension_module, "install_sidebar_section", lambda _tracker: None)
+    tau = FakeTau()
+
+    setup(tau)  # type: ignore[arg-type]
+
+    tool = tau.tools[0]
+    assert "exactly one mode" in tool.description
+    assert "mutually exclusive" in tool.description
+    assert any("exactly one dispatch mode" in guideline for guideline in tool.prompt_guidelines)
+    properties = tool.parameters["properties"]
+    assert "never combines" in properties["agent"]["description"]
+    assert "never combines" in properties["task"]["description"]
+    assert "never combine" in properties["tasks"]["description"]
+    assert "Never combine" in properties["chain"]["description"]
+
+
 def test_setup_refuses_recursive_registration(monkeypatch: Any) -> None:
     monkeypatch.setenv(RECURSION_GUARD, "1")
     import superpowers_subagent.extension as extension_module
