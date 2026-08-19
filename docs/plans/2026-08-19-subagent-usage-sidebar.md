@@ -351,7 +351,7 @@ Expected: `Success: no issues found in 10 source files`
 - [ ] **Step 6: Commit**
 
 ```bash
-git add extensions/superpowers-subagent/superpowers_subagent/usage.py extensions/superpowers-subagent/tests/test_usage.py
+git add superpowers_subagent/usage.py tests/test_usage.py
 git commit -m "feat: session-scoped subagent usage tracker"
 ```
 
@@ -533,7 +533,7 @@ def make_dispatcher(
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `PYTHONPATH=/opt/tau/lib/python3.14/site-packages .venv/bin/python -m pytest tests/test_dispatch.py -q`
-Expected: the 5 new tests FAIL (`TaskDispatcher.__init__() got an unexpected keyword argument 'usage_observer'`); all pre-existing tests still pass.
+Expected: FAIL — the 5 new tests AND every pre-existing test that builds a dispatcher through `make_dispatcher` fail with `TypeError: TaskDispatcher.__init__() got an unexpected keyword argument 'usage_observer'` (Step 1 already wired `make_dispatcher` to pass the observer).
 
 - [ ] **Step 3: Implement the observer**
 
@@ -743,7 +743,7 @@ Expected: `Success: no issues found in 10 source files`
 - [ ] **Step 6: Commit**
 
 ```bash
-git add extensions/superpowers-subagent/superpowers_subagent/dispatch.py extensions/superpowers-subagent/tests/test_dispatch.py
+git add superpowers_subagent/dispatch.py tests/test_dispatch.py
 git commit -m "feat: dispatcher feeds session usage observer"
 ```
 
@@ -775,7 +775,9 @@ when these tests run; helpers here always resolve the pristine builder.
 
 from __future__ import annotations
 
+import builtins
 import io
+from pathlib import Path
 from typing import Any
 
 import tau_coding.tui.widgets as widgets
@@ -810,7 +812,15 @@ class FakeSession:
     skills = ()
     prompt_templates = ()
     extension_names = ("superpowers-subagent",)
-    cwd = "/workspace"
+    cwd = Path("/workspace")
+    provider_name = "openai"
+    model = "gpt-5.6-sol"
+    thinking_level = "high"
+    context_window_tokens = 200_000
+    has_provider_context_usage = False
+    # All remaining attributes needed by the narrow-layout renderer come from
+    # the SessionSummarySource protocol; the renderer reads cwd, provider_name,
+    # model, thinking level, context usage, and auto-compaction threshold.
 
 
 def _child(*, input: int, output: int, cost: float = 0.0) -> ChildResult:
@@ -980,6 +990,7 @@ def test_reinstall_replaces_previous_wrapper() -> None:
 
 def test_missing_builder_skips_install() -> None:
     """Prove an unavailable seam leaves the module untouched and never raises."""
+    pristine = _pristine_builder()
     try:
         widgets._build_sidebar_content = None  # type: ignore[attr-defined]
 
@@ -987,12 +998,32 @@ def test_missing_builder_skips_install() -> None:
 
         assert widgets._build_sidebar_content is None
     finally:
-        widgets._build_sidebar_content = _pristine_builder()
+        widgets._build_sidebar_content = pristine
+
+
+def test_install_import_failure_degrades_silently(monkeypatch: Any) -> None:
+    """Prove a Tau version without the TUI widgets module never breaks install
+    (the print-mode branch of degrade-safely)."""
+    real_import = builtins.__import__
+
+    def deny_tui(name: str, *args: Any, **kwargs: Any) -> Any:
+        if name == "tau_coding.tui.widgets":
+            raise ImportError("no TUI in this build")
+        return real_import(name, *args, **kwargs)
+
+    pristine = _pristine_builder()
+    monkeypatch.setattr(builtins, "__import__", deny_tui)
+    install(SubagentUsageTracker())
+    widgets._build_sidebar_content = pristine
 
 
 def test_display_failure_during_rebuild_returns_original(monkeypatch: Any) -> None:
     """Prove a failure while building the section degrades to the normal
-    sidebar summary without raising."""
+    sidebar summary without raising. The failure is injected into the
+    extension's own injection step (the only guarded part of the wrapper),
+    never into the core builder."""
+    import superpowers_subagent.sidebar as sidebar_module
+
     tracker = SubagentUsageTracker()
     tracker.update([_child(input=100, output=50)], final=True)
     try:
@@ -1001,7 +1032,7 @@ def test_display_failure_during_rebuild_returns_original(monkeypatch: Any) -> No
         def explode(*_args: Any, **_kwargs: Any) -> Any:
             raise RuntimeError("boom")
 
-        monkeypatch.setattr(widgets, "_sidebar_section", explode)
+        monkeypatch.setattr(sidebar_module, "_inject_section", explode)
         content = widgets._build_sidebar_content(FakeSession(), theme=TAU_DARK_THEME)
         assert "subagents" not in _section_titles(content)
     finally:
@@ -1133,7 +1164,7 @@ def _section_body(totals: SubagentUsageTotals, theme: Any, widgets: Any) -> Any:
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `PYTHONPATH=/opt/tau/lib/python3.14/site-packages .venv/bin/python -m pytest tests/test_sidebar.py -q`
-Expected: 10 passed
+Expected: 11 passed
 
 - [ ] **Step 5: Lint, format, and type-check**
 
@@ -1149,7 +1180,7 @@ Expected: `Success: no issues found in 11 source files`
 - [ ] **Step 6: Commit**
 
 ```bash
-git add extensions/superpowers-subagent/superpowers_subagent/sidebar.py extensions/superpowers-subagent/tests/test_sidebar.py
+git add superpowers_subagent/sidebar.py tests/test_sidebar.py
 git commit -m "feat: guarded sidebar section for subagent usage"
 ```
 
@@ -1367,7 +1398,7 @@ async def test_execute_task_discards_pending_on_hard_cancellation(monkeypatch: A
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `PYTHONPATH=/opt/tau/lib/python3.14/site-packages .venv/bin/python -m pytest tests/test_extension.py -q`
-Expected: the 3 new tests FAIL: `test_execute_task_wires_tracker_as_usage_observer` with `KeyError: 'usage_observer'` (the old setup never passes a usage observer), `test_reset_tracker_on_rebind_reasons` with `ImportError` (no `_reset_tracker_on_rebind` yet), and `test_execute_task_discards_pending_on_hard_cancellation` with `TypeError` (`captured["usage_observer"]` is `None`). The five modified pre-existing tests still pass (the `install_sidebar_section` attribute is created by the monkeypatch and the old setup never calls it).
+Expected: the 3 new tests FAIL: `test_execute_task_wires_tracker_as_usage_observer` with `KeyError: 'usage_observer'` (the old setup never passes a usage observer and the dispatcher is only built per call), `test_reset_tracker_on_rebind_reasons` with `ImportError` (no `_reset_tracker_on_rebind` yet), and `test_execute_task_discards_pending_on_hard_cancellation` with `KeyError: 'tracker'` at `installed["tracker"]` (the old setup never calls `install_sidebar_section`, so the fake install is never invoked). The five modified pre-existing tests still pass (the `install_sidebar_section` attribute is created by the monkeypatch and the old setup never calls it).
 
 - [ ] **Step 3: Implement the wiring**
 
@@ -1459,7 +1490,7 @@ Expected: `Success: no issues found in 11 source files`
 - [ ] **Step 6: Commit**
 
 ```bash
-git add extensions/superpowers-subagent/superpowers_subagent/extension.py extensions/superpowers-subagent/tests/test_extension.py
+git add superpowers_subagent/extension.py tests/test_extension.py
 git commit -m "feat: wire usage tracker into task dispatch and session lifecycle"
 ```
 
@@ -1474,7 +1505,7 @@ git commit -m "feat: wire usage tracker into task dispatch and session lifecycle
 - [ ] **Step 1: Run the full test suite**
 
 Run (from `extensions/superpowers-subagent/`): `PYTHONPATH=/opt/tau/lib/python3.14/site-packages .venv/bin/python -m pytest -q`
-Expected: 159 passed (131 baseline + 10 usage + 5 dispatch + 10 sidebar + 3 extension), zero failures.
+Expected: 160 passed (131 baseline + 10 usage + 5 dispatch + 11 sidebar + 3 extension), zero failures.
 
 - [ ] **Step 2: Ruff and mypy**
 
