@@ -48,7 +48,7 @@ The extension SHALL accumulate each child result's reported token usage and cost
 - THEN they are identical to the same call without aggregation
 
 #### Requirement: Sidebar subagent usage section
-In a frontend that shows a sidebar summary, the extension SHALL display the current totals (committed plus in-flight) in a `subagents` section positioned immediately below the `usage` section. The section SHALL be omitted when no child has reported non-zero token usage or cost. When the summary contains no `usage` section, the `subagents` section SHALL NOT be injected. The section SHALL present the number of runs and the accumulated input, output, and cost using the same token and cost formatting as the `usage` section, and SHALL show a cost value only when at least one child reported a non-zero cost. The section SHALL NOT appear in the narrow-layout session summary. Whenever the sidebar summary is rebuilt, the section SHALL reflect the latest committed or in-flight totals.
+In a frontend that shows a sidebar summary, the extension SHALL display the current totals (committed plus in-flight) in a `subagents` section positioned immediately below the `usage` section. The section SHALL be omitted when no child has reported non-zero token usage or cost. When the summary contains no `usage` section, the `subagents` section SHALL NOT be injected. The section SHALL present the number of runs and the accumulated input, output, and cost using the same token and cost formatting as the `usage` section, where input SHALL include cached and cache-written tokens as the `usage` section's input does. The section SHALL show a cost value only when at least one child reported a non-zero cost. The section SHALL NOT appear in the narrow-layout session summary. Whenever the sidebar summary is rebuilt, the section SHALL reflect the latest committed or in-flight totals.
 
 ##### Scenario: Rebuild shows the section
 - GIVEN a task call with child usage completed
@@ -60,6 +60,12 @@ In a frontend that shows a sidebar summary, the extension SHALL display the curr
 - GIVEN a call is in progress and at least one child has emitted usage
 - WHEN the sidebar summary is rebuilt
 - THEN the section shows the committed totals plus that child's latest cumulative usage
+- AND the run count includes each in-flight child that reports non-zero usage
+
+##### Scenario: Summary without a usage section
+- GIVEN a sidebar summary contains no `usage` section and child usage is non-zero
+- WHEN the summary is built
+- THEN no `subagents` section appears
 
 ##### Scenario: Empty totals hide the section
 - GIVEN no child has reported token usage or cost
