@@ -767,21 +767,26 @@ Create `tests/test_sidebar.py`:
 These tests pin the "Sidebar subagent usage section" and "Unavailable sidebar
 display degrades safely" delta requirements: placement directly below usage,
 hide and omission rules, and guarded degradation of the display path.
+
+The runtime-integration tests run the extension's real install path in this
+same pytest process, so the core sidebar builder may already carry a wrapper
+when these tests run; helpers here always resolve the pristine builder.
 """
 
 from __future__ import annotations
 
-import importlib
+import io
 from typing import Any
 
+import tau_coding.tui.widgets as widgets
+from rich.console import Console
 from rich.text import Text
 from tau_coding.session_stats import SessionStats
 from tau_coding.tui.config import TAU_DARK_THEME
-from tau_coding.tui.widgets import _SidebarContent, _sidebar_section
 
 from superpowers_subagent.models import ChildResult, UsageStats
 from superpowers_subagent.sidebar import _inject_section, install
-from superpowers_subagent.usage import SubagentUsageTracker
+from superpowers_subagent.usage import SubagentUsageTotals, SubagentUsageTracker
 
 
 class FakeSession:
@@ -831,77 +836,88 @@ def _section_titles(content: Any) -> list[str]:
     return titles
 
 
-def test_install_injects_section_below_usage() -> None:
-    """Prove the wrapped builder places a subagents section directly below the
-    usage section, showing the run count and accumulated totals."""
-    widgets = importlib.import_module("tau_coding.tui.widgets")
+def _section_body(content: Any, title: str) -> Text:
+    """Body text of the sidebar section with the given title."""
+    index = _section_titles(content).index(title)
+    body = content.summary_sections[index].renderables[1].renderable
+    assert isinstance(body, Text)
+    return body
+
+
+def _base_content() -> Any:
+    """A pristine sidebar summary built by the real core builder."""
+    return _pristine_builder()(FakeSession(), theme=TAU_DARK_THEME)
+
+
+def _pristine_builder() -> Any:
+    """The true core builder, unwrapping a wrapper left by an earlier test."""
     original = widgets._build_sidebar_content
-    try:
-        tracker = SubagentUsageTracker()
-        tracker.update([_child(input=16000, output=4000, cost=0.05)], final=True)
-        install(tracker)
-
-        content = widgets._build_sidebar_content(FakeSession(), theme=TAU_DARK_THEME)
-
-        titles = _section_titles(content)
-        subagents_index = titles.index("subagents")
-        assert subagents_index == titles.index("usage") + 1
-        body = content.summary_sections[subagents_index].renderables[1].renderable
-        assert isinstance(body, Text)
-        assert "1 run" in body.plain
-        assert "16k in" in body.plain
-        assert "4k out" in body.plain
-        assert "$0.05" in body.plain
-    finally:
-        widgets._build_sidebar_content = original
+    if getattr(original, "_superpowers_subagent_wrapper", False):
+        return original.__wrapped__
+    return original
 
 
-def test_empty_totals_hide_section() -> None:
+def test_injection_places_section_below_usage() -> None:
+    """Prove the injected section sits directly below the usage section and
+    shows the run count plus accumulated totals in the usage section's style."""
+    tracker = SubagentUsageTracker()
+    tracker.update([_child(input=16000, output=4000, cost=0.05)], final=True)
+
+    content = _inject_section(_base_content(), tracker.totals, TAU_DARK_THEME, widgets)
+
+    titles = _section_titles(content)
+    assert titles.index("subagents") == titles.index("usage") + 1
+    body = _section_body(content, "subagents")
+    assert "1 run" in body.plain
+    assert "16k in" in body.plain
+    assert "4k out" in body.plain
+    assert "$0.05" in body.plain
+
+
+def test_injection_counts_in_flight_runs() -> None:
+    """Prove totals include the running call's latest snapshot with its runs
+    counted, per the in-flight display contract."""
+    tracker = SubagentUsageTracker()
+    tracker.update([_child(input=16000, output=4000)], final=True)
+    tracker.update([_child(input=10000, output=2000)], final=False)
+
+    content = _inject_section(_base_content(), tracker.totals, TAU_DARK_THEME, widgets)
+
+    body = _section_body(content, "subagents")
+    assert "2 runs" in body.plain
+    assert "26k in" in body.plain
+    assert "6k out" in body.plain
+
+
+def test_injection_omits_cost_when_unreported() -> None:
+    """Prove the section keeps runs and tokens but no cost value when no child
+    reported a cost."""
+    tracker = SubagentUsageTracker()
+    tracker.update([_child(input=16000, output=4000)], final=True)
+
+    content = _inject_section(_base_content(), tracker.totals, TAU_DARK_THEME, widgets)
+
+    body = _section_body(content, "subagents")
+    assert "1 run" in body.plain
+    assert "$" not in body.plain
+
+
+def test_empty_totals_leave_content_unchanged() -> None:
     """Prove no subagents section appears until a run reports usage."""
-    widgets = importlib.import_module("tau_coding.tui.widgets")
-    original = widgets._build_sidebar_content
-    try:
-        install(SubagentUsageTracker())
+    base = _base_content()
 
-        content = widgets._build_sidebar_content(FakeSession(), theme=TAU_DARK_THEME)
+    content = _inject_section(base, SubagentUsageTotals(), TAU_DARK_THEME, widgets)
 
-        assert "subagents" not in _section_titles(content)
-    finally:
-        widgets._build_sidebar_content = original
+    assert content is base
+    assert "subagents" not in _section_titles(content)
 
 
-def test_missing_builder_skips_install(monkeypatch: Any) -> None:
-    """Prove an unavailable seam leaves the module untouched and never raises."""
-    widgets = importlib.import_module("tau_coding.tui.widgets")
-    monkeypatch.setattr(widgets, "_build_sidebar_content", None)
-
-    install(SubagentUsageTracker())
-
-    assert widgets._build_sidebar_content is None
-
-
-def test_reload_replaces_previous_wrapper() -> None:
-    """Prove reinstalling replaces the previous generation's wrapper instead of
-    wrapping it again, so the builder never grows a wrapper chain."""
-    widgets = importlib.import_module("tau_coding.tui.widgets")
-    original = widgets._build_sidebar_content
-    try:
-        install(SubagentUsageTracker())
-        first = widgets._build_sidebar_content
-        install(SubagentUsageTracker())
-        second = widgets._build_sidebar_content
-
-        assert second is not first
-        assert second.__wrapped__ is original  # type: ignore[attr-defined]
-    finally:
-        widgets._build_sidebar_content = original
-
-
-def test_no_usage_section_content_unchanged() -> None:
+def test_no_usage_section_prevents_injection() -> None:
     """Prove a summary without a usage section never gains a subagents section."""
-    widgets = importlib.import_module("tau_coding.tui.widgets")
-    content = _SidebarContent(
-        summary_sections=(_sidebar_section("activity", Text("x"), theme=TAU_DARK_THEME),),
+    content = widgets._SidebarContent(
+        summary_sections=(
+            widgets._sidebar_section("activity", Text("x"), theme=TAU_DARK_THEME),
+        ),
         skills=Text(""),
         prompts=Text(""),
         extensions=Text(""),
@@ -912,59 +928,74 @@ def test_no_usage_section_content_unchanged() -> None:
     assert _inject_section(content, tracker.totals, TAU_DARK_THEME, widgets) is content
 
 
-def test_section_shows_in_flight_totals() -> None:
-    """Prove a rebuilt summary shows committed totals plus the in-flight
-    snapshot, with in-flight runs counted, while a call is running."""
-    widgets = importlib.import_module("tau_coding.tui.widgets")
-    original = widgets._build_sidebar_content
+def test_narrow_layout_omits_section() -> None:
+    """Prove the narrow-layout session summary never shows the subagents
+    section even with the seam installed: it is rendered by core's own
+    renderer, which the seam does not touch."""
+    tracker = SubagentUsageTracker()
+    tracker.update([_child(input=100, output=50)], final=True)
     try:
-        tracker = SubagentUsageTracker()
-        tracker.update([_child(input=16000, output=4000)], final=True)
-        tracker.update([_child(input=10000, output=2000)], final=False)
+        install(tracker)
+
+        output = io.StringIO()
+        Console(file=output, width=100).print(
+            widgets.render_compact_session_info(FakeSession(), theme=TAU_DARK_THEME)
+        )
+
+        assert "subagents" not in output.getvalue()
+    finally:
+        widgets._build_sidebar_content = _pristine_builder()
+
+
+def test_install_wraps_builder_and_injects() -> None:
+    """Prove the installed wrapper injects the section into real sidebar
+    builds, reading the tracker's current totals."""
+    tracker = SubagentUsageTracker()
+    tracker.update([_child(input=16000, output=4000, cost=0.05)], final=True)
+    try:
         install(tracker)
 
         content = widgets._build_sidebar_content(FakeSession(), theme=TAU_DARK_THEME)
 
-        titles = _section_titles(content)
-        body = content.summary_sections[titles.index("subagents")].renderables[1].renderable
-        assert isinstance(body, Text)
-        assert "2 runs" in body.plain
-        assert "26k in" in body.plain
-        assert "6k out" in body.plain
+        body = _section_body(content, "subagents")
+        assert "$0.05" in body.plain
     finally:
-        widgets._build_sidebar_content = original
+        widgets._build_sidebar_content = _pristine_builder()
 
 
-def test_cost_omitted_when_unreported() -> None:
-    """Prove the section shows run and token totals without any cost value
-    when no child reported a cost."""
-    widgets = importlib.import_module("tau_coding.tui.widgets")
-    original = widgets._build_sidebar_content
+def test_reinstall_replaces_previous_wrapper() -> None:
+    """Prove reinstalling replaces the previous generation's wrapper instead of
+    wrapping it again, so the builder never grows a wrapper chain."""
     try:
-        tracker = SubagentUsageTracker()
-        tracker.update([_child(input=16000, output=4000)], final=True)
-        install(tracker)
+        install(SubagentUsageTracker())
+        first = widgets._build_sidebar_content
+        install(SubagentUsageTracker())
+        second = widgets._build_sidebar_content
 
-        content = widgets._build_sidebar_content(FakeSession(), theme=TAU_DARK_THEME)
-
-        titles = _section_titles(content)
-        body = content.summary_sections[titles.index("subagents")].renderables[1].renderable
-        assert isinstance(body, Text)
-        assert "1 run" in body.plain
-        assert "16k in" in body.plain
-        assert "$" not in body.plain
+        assert second is not first
+        assert second.__wrapped__ is _pristine_builder()
     finally:
-        widgets._build_sidebar_content = original
+        widgets._build_sidebar_content = _pristine_builder()
+
+
+def test_missing_builder_skips_install() -> None:
+    """Prove an unavailable seam leaves the module untouched and never raises."""
+    try:
+        widgets._build_sidebar_content = None  # type: ignore[attr-defined]
+
+        install(SubagentUsageTracker())
+
+        assert widgets._build_sidebar_content is None
+    finally:
+        widgets._build_sidebar_content = _pristine_builder()
 
 
 def test_display_failure_during_rebuild_returns_original(monkeypatch: Any) -> None:
     """Prove a failure while building the section degrades to the normal
     sidebar summary without raising."""
-    widgets = importlib.import_module("tau_coding.tui.widgets")
-    original = widgets._build_sidebar_content
+    tracker = SubagentUsageTracker()
+    tracker.update([_child(input=100, output=50)], final=True)
     try:
-        tracker = SubagentUsageTracker()
-        tracker.update([_child(input=100, output=50)], final=True)
         install(tracker)
 
         def explode(*_args: Any, **_kwargs: Any) -> Any:
@@ -974,7 +1005,7 @@ def test_display_failure_during_rebuild_returns_original(monkeypatch: Any) -> No
         content = widgets._build_sidebar_content(FakeSession(), theme=TAU_DARK_THEME)
         assert "subagents" not in _section_titles(content)
     finally:
-        widgets._build_sidebar_content = original
+        widgets._build_sidebar_content = _pristine_builder()
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
@@ -1102,7 +1133,7 @@ def _section_body(totals: SubagentUsageTotals, theme: Any, widgets: Any) -> Any:
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `PYTHONPATH=/opt/tau/lib/python3.14/site-packages .venv/bin/python -m pytest tests/test_sidebar.py -q`
-Expected: 8 passed
+Expected: 10 passed
 
 - [ ] **Step 5: Lint, format, and type-check**
 
@@ -1136,16 +1167,11 @@ git commit -m "feat: guarded sidebar section for subagent usage"
 
 Edit `tests/test_extension.py`:
 
-1. Add `import asyncio` and `import types` to the imports at the top:
+1. Add two imports into the existing import block (the block currently starts with `from __future__ import annotations` and contains `import pytest`, `from tau_agent.tools import AgentToolResult`, `from superpowers_subagent.extension import setup`, and `from superpowers_subagent.runner import RECURSION_GUARD`; keep all of those). Insert exactly these two lines after `from __future__ import annotations`:
 
 ```python
-from __future__ import annotations
-
 import asyncio
 import types
-from collections.abc import Mapping
-from pathlib import Path
-from typing import Any
 ```
 
 2. Give `FakeTau` an event registry so `setup` can register the rebind handler — add `self.handlers` and an `on` method:
@@ -1241,6 +1267,11 @@ async def test_execute_task_wires_tracker_as_usage_observer(monkeypatch: Any) ->
     tau = FakeTau()
 
     setup(tau)  # type: ignore[arg-type]
+    # The dispatcher is constructed per call, so a call must run before the
+    # captured kwargs exist.
+    await tau.tools[0].execute_fn(  # type: ignore[attr-defined]
+        "call", {"agent": "general-purpose", "task": "work"}, None, None
+    )
 
     assert callable(captured["usage_observer"])
     assert "session_start" in tau.handlers
@@ -1336,7 +1367,7 @@ async def test_execute_task_discards_pending_on_hard_cancellation(monkeypatch: A
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `PYTHONPATH=/opt/tau/lib/python3.14/site-packages .venv/bin/python -m pytest tests/test_extension.py -q`
-Expected: the 3 new tests FAIL (`AttributeError: 'FakeTau' object has no attribute 'on'` for the async ones; `ImportError` for the rebind helper); the pre-existing tests still pass.
+Expected: the 3 new tests FAIL: `test_execute_task_wires_tracker_as_usage_observer` with `KeyError: 'usage_observer'` (the old setup never passes a usage observer), `test_reset_tracker_on_rebind_reasons` with `ImportError` (no `_reset_tracker_on_rebind` yet), and `test_execute_task_discards_pending_on_hard_cancellation` with `TypeError` (`captured["usage_observer"]` is `None`). The five modified pre-existing tests still pass (the `install_sidebar_section` attribute is created by the monkeypatch and the old setup never calls it).
 
 - [ ] **Step 3: Implement the wiring**
 
@@ -1349,23 +1380,21 @@ from .sidebar import install as install_sidebar_section
 from .usage import SubagentUsageTracker
 ```
 
-2. Add a module constant and the rebind helper above `setup`:
+2. Add a module constant and the rebind helper above `setup` (`RECURSION_GUARD` already comes from `.runner`; do not redeclare it):
 
 ```python
-_RECURSION_GUARD = "TAU_SUPERPOWERS_SUBAGENT"  # already imported from runner if present
-```
-
-(`RECURSION_GUARD` is already imported from `.runner` — do not redeclare it.)
-
-```python
+#: Tau session lifecycle reasons that re-scope the session: totals reset on
+#: rebinds, but not at startup or /reload (a fresh setup already starts empty).
 _REBIND_REASONS: frozenset[str] = frozenset({"new", "resume", "branch"})
 
 
 def _reset_tracker_on_rebind(tracker: SubagentUsageTracker, event: object) -> None:
-    """Reset session-scoped totals when the session rebinds to a new branch."""
+    """Reset session-scoped totals when the session rebinds."""
     if getattr(event, "reason", None) in _REBIND_REASONS:
         tracker.reset()
 ```
+
+Note: `tests/test_runtime_integration.py` loads the real extension in-process, so the real `install_sidebar_section` runs there too and leaves a wrapper on the core builder in the shared pytest process; the sidebar tests resolve the pristine builder explicitly (see `_pristine_builder` in Task 3), so no test ordering dependency exists.
 
 3. Rewire `setup` — after the recursion guard, create the tracker, install the sidebar, register the rebind handler, and pass the tracker to the dispatcher:
 
@@ -1444,8 +1473,8 @@ git commit -m "feat: wire usage tracker into task dispatch and session lifecycle
 
 - [ ] **Step 1: Run the full test suite**
 
-Run: `cd extensions/superpowers-subagent && PYTHONPATH=/opt/tau/lib/python3.14/site-packages .venv/bin/python -m pytest -q`
-Expected: 157 passed (131 baseline + 10 usage + 5 dispatch + 8 sidebar + 3 extension), zero failures.
+Run (from `extensions/superpowers-subagent/`): `PYTHONPATH=/opt/tau/lib/python3.14/site-packages .venv/bin/python -m pytest -q`
+Expected: 159 passed (131 baseline + 10 usage + 5 dispatch + 10 sidebar + 3 extension), zero failures.
 
 - [ ] **Step 2: Ruff and mypy**
 
@@ -1459,9 +1488,10 @@ Expected: no uncommitted changes in `extensions/superpowers-subagent/` (`docs/` 
 
 - [ ] **Step 4: Commit any remaining drift**
 
-If Steps 1-3 produced changes, commit them:
+If Steps 1-3 produced changes, commit them (from `extensions/superpowers-subagent/`):
 
 ```bash
-git add -A extensions/superpowers-subagent/
+git add superpowers_subagent tests
+cd /workspace
 git commit -m "chore: verification fixes for subagent usage sidebar"
 ```
