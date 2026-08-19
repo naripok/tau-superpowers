@@ -848,10 +848,18 @@ def _section_titles(content: Any) -> list[str]:
 
 def _section_body(content: Any, title: str) -> Text:
     """Body text of the sidebar section with the given title."""
-    index = _section_titles(content).index(title)
-    body = content.summary_sections[index].renderables[1].renderable
+    sections = [
+        section for section in content.summary_sections if getattr(section, "renderables", None)
+    ]
+    titles = [section.renderables[0].renderable.plain for section in sections]
+    body = sections[titles.index(title)].renderables[1].renderable
     assert isinstance(body, Text)
     return body
+
+
+# NOTE: ``summary_sections`` begins with a Padding title block that
+# ``_section_titles`` filters out, so body lookups must use the filtered
+# ``sections``/``titles`` pair, never raw ``summary_sections`` indices.
 
 
 def _base_content() -> Any:
