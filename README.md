@@ -7,12 +7,12 @@ The project combines ideas and material from [obra/superpowers](https://github.c
 ## What You Get
 
 - 14 Tau-discoverable Agent Skills covering the full design-to-delivery workflow.
-- A `task` tool for single, parallel, and chained Tau subprocesses.
-- Bundled child agents: `general-purpose`, tool-enforced `read-only`, `implementation` (OpenRouter DeepSeek, `high` reasoning), `code-review` and `document-review` (OpenRouter DeepSeek, `xhigh` reasoning, `read` + read-only `bash`, strict `## Code Review`/`## Document Review` + `## Summary` reports). Children inherit the parent session's active provider, model, and thinking effort by default, after call-level, config-file, and agent-definition values.
+- A `task` tool that dispatches one or more isolated Tau subprocesses.
+- Bundled child agents: `general-purpose`, tool-enforced `read-only`, `implementation` (OpenRouter DeepSeek, `high` reasoning), `code-review` and `document-review` (OpenRouter DeepSeek, `xhigh` reasoning, `read` + read-only `bash`, strict `## Code Review`/`## Document Review` reports). Children inherit the parent session's active provider, model, and thinking effort by default, after call-level, config-file, and agent-definition values.
 - User and project agent definitions with deterministic precedence and explicit project-agent approval.
 - A per-subagent config file (`~/.tau/superpowers-subagent.toml` and `<project>/.tau/superpowers-subagent.toml`) that pins provider, model, and `reasoningEffort` globally or per agent; a copy encoding today's defaults ships as `superpowers-subagent.example.toml`.
 - Per-child `reasoningEffort` at call or config-file level, applied as the child's Tau thinking level.
-- Summary-sized parent context with complete child messages retained in structured result details; code-review children relay both the `## Code Review` section and the `## Summary`.
+- Parent-model content is each child's complete final assistant message, with the complete wire messages retained in structured result details.
 
 ## Requirements
 
@@ -86,21 +86,27 @@ Tau initially loads only skill names, descriptions, and paths. It reads the full
 
 The extension launches child `tau --mode json` processes with isolated conversation context. Every delegated task must therefore include all requirements, file paths, relevant command output, and expected response format.
 
-Call `task` with exactly one mode. The snippets below are tool argument objects.
+Dispatch a subagent only for substantive multi-step work that benefits from an isolated context window, or for long-running work that must not block the parent session. Simple reads, searches, commands, and small edits are the parent's own tool calls, and a subagent replaces the parent's tool calls for its task — never duplicate that work.
 
-### Single
+Every call takes a `tasks` array. The snippets below are tool argument objects.
+
+### Task list
+
+`tasks` is required: an array of 1–8 items, each `{agent, task, cwd?}`. One item runs a single child; two or more run in parallel (at most four active) and results keep input order. Conditional sequences — implement → review → fix if needed → re-review, or any loop where a later step depends on an earlier result — require separate calls so the controller can inspect each result.
 
 ```json
 {
-  "agent": "general-purpose",
-  "task": "Implement the cache behavior described below, run the named tests, and report changed files.\n\n[COMPLETE REQUIREMENTS]",
-  "cwd": "/path/to/worktree"
+  "tasks": [
+    {
+      "agent": "general-purpose",
+      "task": "Implement the cache behavior described below, run the named tests, and report changed files.\n\n[COMPLETE REQUIREMENTS]",
+      "cwd": "/path/to/worktree"
+    }
+  ]
 }
 ```
 
-### Parallel
-
-Parallel mode accepts at most eight tasks, runs at most four concurrently, and returns results in input order:
+Two or more items dispatch in parallel — independent work only:
 
 ```json
 {
@@ -118,27 +124,6 @@ Parallel mode accepts at most eight tasks, runs at most four concurrently, and r
 }
 ```
 
-### Chain
-
-Chain mode is sequential. Every `{previous}` occurrence receives the preceding child's complete final assistant text:
-
-```json
-{
-  "chain": [
-    {
-      "agent": "general-purpose",
-      "task": "Investigate the supplied failure and return structured findings."
-    },
-    {
-      "agent": "general-purpose",
-      "task": "Create an implementation plan from these findings:\n\n{previous}"
-    }
-  ]
-}
-```
-
-A chain stops for child process/protocol failure, timeout, or cancellation. Semantic `BLOCKED` or `NEEDS_CONTEXT` status alone does not stop a cleanly exited chain step; use separate calls for conditional review/fix loops.
-
 ### Common Options
 
 | Field | Meaning |
@@ -151,13 +136,15 @@ A chain stops for child process/protocol failure, timeout, or cancellation. Sema
 | `reasoningEffort` | Thinking level for every child: `off`, `minimal`, `low`, `medium`, `high`, or `xhigh`. Overrides the config file and agent definition; otherwise the level falls back to the config file, then the agent definition, then the parent session's thinking level |
 | `timeoutSeconds` | Per-child timeout, greater than 0 and at most 3600; default 3600 |
 
-In single mode, `cwd` is top-level. Parallel and chain items each carry their own optional `cwd`.
+`cwd` is per item, resolved relative to the parent session's working directory.
 
 ### Live TUI visibility
 
 While children run, the tool row refreshes after every child message so you can watch the work happen: status icons (`✓` DONE, `⚠` DONE_WITH_CONCERNS, `✗` BLOCKED, `?` NEEDS_CONTEXT, `…` in flight), each child's streamed tool calls (`→ $ command`, `read path:lines`, `write path (N lines)`, `edit path`) and assistant text, plus usage counters (`turns`, `↑`/`↓` tokens, cache reads/writes, cost, context, model). Collapsed rows show compact per-child previews with accurate live counts (`2/4 succeeded · 1 running · 1 pending`); press `Ctrl+O` to expand the full per-child work stream, delegated task, status hints, and aggregate usage.
 
-The complete argument, status, progress, and schema-v1 result contract is in [the Tau `task` tool reference](skills/using-superpowers/references/tau-tools.md).
+Parent-model content is each child's complete final assistant message — one child produces the bare message (or a concise failure), several produce a `<succeeded>/<total> succeeded` header plus one `[<agent>] (completed|failed)` section per child; the complete wire messages stay in `details.results`.
+
+The complete argument, status, progress, and schema-v2 result contract is in [the Tau `task` tool reference](skills/using-superpowers/references/tau-tools.md).
 
 ## Agents and Tool Profiles
 
@@ -223,8 +210,12 @@ Per-call overrides are separate and map directly to Tau's separate CLI settings:
 
 ```json
 {
-  "agent": "general-purpose",
-  "task": "Complete the delegated task.",
+  "tasks": [
+    {
+      "agent": "general-purpose",
+      "task": "Complete the delegated task."
+    }
+  ],
   "provider": "openai-codex",
   "model": "gpt-5.3-codex"
 }

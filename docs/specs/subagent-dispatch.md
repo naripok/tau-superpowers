@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The `task` tool delegates complete units of work to isolated Tau subprocesses. It supports single, ordered parallel, and sequential chain dispatch while preferring summary-first parent-model content and preserving complete accepted child messages in structured details. When a child returns an exact `## Code Review` heading followed by an exact `## Summary` heading, both sections are relayed; when a child omits the exact summary heading, its complete final assistant output is the documented fallback. Per-subagent provider, model, and thinking-effort values resolve at call, then a `superpowers-subagent.toml` config file (`[agents.<name>]` and `[defaults]` sections), then agent definitions, then the parent session's active provider, model, and thinking level.
+The `task` tool delegates complete units of work to isolated Tau subprocesses through one homogeneous interface: every call takes a `tasks` array, one item runs a single child, and two or more items run in parallel with bounded concurrency and input-ordered results. Parent-model content is each child's complete final assistant message — never tool calls, thinking, or earlier messages, and with no heading extraction — while structured details retain the complete accepted wire messages. Per-subagent provider, model, and thinking-effort values resolve at call, then a `superpowers-subagent.toml` config file (`[agents.<name>]` and `[defaults]` sections), then agent definitions, then the parent session's active provider, model, and thinking level.
 
 This is the canonical description of current behavior. See the [Tau `task` tool reference](../../skills/using-superpowers/references/tau-tools.md) for copyable calls and the [README](../../README.md) for installation.
 
@@ -18,6 +18,14 @@ The package SHALL keep one canonical top-level `skills/` tree and expose it to p
 - WHEN Tau discovers project skills and the extension is explicitly loaded
 - THEN Tau discovers the canonical skills and registers one tool named `task`
 
+#### Scenario: Prompt threshold
+
+- GIVEN the task tool is registered
+- WHEN its always-visible prompt surface (description, snippet, and guidelines) is read
+- THEN it states that subagents exist for substantive multi-step work that benefits from an isolated context window or for long-running work that must not block the parent session
+- AND it forbids dispatching simple reads, searches, commands, and small edits the parent can perform itself
+- AND it forbids dispatching work the parent is about to perform itself, because a subagent replaces the parent's tool calls for its task
+
 #### Scenario: User installation collision
 
 - GIVEN an install destination exists and does not already point to this checkout's resource
@@ -31,50 +39,28 @@ The package SHALL keep one canonical top-level `skills/` tree and expose it to p
 - WHEN Tau starts without a user installation or explicit extension path
 - THEN no executable project extension is discovered from this checkout
 
-### Requirement: task modes and validation
+### Requirement: task interface and validation
 
-A `task` call SHALL select exactly one non-empty mode: single (`agent` and `task`), parallel (`tasks`), or chain (`chain`). Empty arrays SHALL NOT select a mode. Single mode SHALL accept an optional top-level `cwd`; parallel and chain items SHALL accept their own optional `cwd` values. Every mode MAY include an optional `description` string used only as a display label.
+A `task` call SHALL provide a required non-empty `tasks` array of 1–8 items, each `{agent, task, cwd?}` with non-empty `agent` and `task` strings and an optional string `cwd` resolved relative to the parent session working directory, plus the optional common fields (`description`, `agentScope`, `confirmProjectAgents`, `provider`, `model`, `reasoningEffort`, `timeoutSeconds`). One item SHALL run a single child; two or more items SHALL run no more than four child processes concurrently and SHALL preserve input order in results. The removed top-level `agent`, `task`, `cwd`, and `chain` fields SHALL be rejected as unknown fields, as SHALL any other unknown field or item field. `description` SHALL be a display label only.
 
-Parallel mode SHALL accept at most eight items, run no more than four child processes concurrently, and preserve input order. Chain mode SHALL run sequentially, replace every `{previous}` occurrence with the preceding child's complete final assistant text, and assign one-based step numbers.
+An absent or empty `tasks` array, more than eight items, an invalid item (empty agent/task, non-string `cwd`, unknown item field), or an invalid common option SHALL prevent child startup and produce a normal Tau tool result describing the validation error and eligible agents.
 
-Invalid fields, values, mode combinations, or required strings SHALL prevent child startup and produce a normal Tau tool result describing the validation error and eligible agents.
+#### Scenario: Single-item dispatch
 
-#### Scenario: Single dispatch
-
-- GIVEN exactly one non-empty `agent` and `task`
+- GIVEN exactly one valid task item with an item-level `cwd`
 - WHEN `task` executes
-- THEN one child runs with the requested agent and effective working directory
+- THEN one child runs with the requested agent and the effective working directory
 
 #### Scenario: Ordered parallel dispatch
 
-- GIVEN between one and eight valid parallel items
+- GIVEN two to eight valid task items
 - WHEN dispatch completes
 - THEN at most four children were active concurrently
 - AND final results have the same order as the input items
 
-#### Scenario: Chain substitution
-
-- GIVEN a successful chain step returns final assistant text
-- WHEN the next step starts
-- THEN every `{previous}` token in its task is replaced with that complete text rather than only the extracted summary
-
-#### Scenario: Chain process failure
-
-- GIVEN a chain child has a process or protocol failure, times out, or is cancelled
-- WHEN that step ends
-- THEN no later step starts
-- AND details retain every completed or partial step
-
-#### Scenario: Chain semantic status
-
-- GIVEN a chain child exits successfully with `BLOCKED` or `NEEDS_CONTEXT`
-- WHEN the child is finalized
-- THEN the semantic status is recorded
-- AND semantic status alone does not stop the chain
-
 #### Scenario: Invalid request
 
-- GIVEN zero or multiple selected modes, a partial single mode, an empty required string, an oversized parallel array, an unknown field, or an invalid common option
+- GIVEN a missing or empty `tasks` array, more than eight items, an invalid item, a removed mode field (top-level `agent`/`task`/`cwd`/`chain`), or an invalid common option
 - WHEN request validation runs
 - THEN no child starts
 - AND content explains the error
@@ -92,7 +78,7 @@ The extension SHALL discover Markdown agent definitions in three increasing-prec
 
 Definitions SHALL contain scalar YAML frontmatter with non-empty string `name` and `description` values. They MAY contain `profile` (`general-purpose`, `read-only`, or `review`), `provider`, `model`, and `reasoningEffort` (one of `off`, `minimal`, `low`, `medium`, `high`, `xhigh`); profile SHALL default to `general-purpose`. Unknown metadata SHALL be ignored. Malformed, unreadable, incomplete, empty optional, unknown-profile, or unknown-reasoning-effort definitions SHALL be skipped with diagnostics that do not expose the body.
 
-The bundled definitions are `general-purpose`, `read-only`, `implementation` (general-purpose profile, `openrouter:deepseek/deepseek-v4-flash-0731`, `high`), `code-review` (review profile, `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh`, strict `## Code Review` plus `## Summary` report format), and `document-review` (review profile, `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh`, strict `## Document Review` plus `## Summary` report format). These frontmatter pins are the default layer only and are overridable by the subagent configuration file and call-level values described under the overrides requirement.
+The bundled definitions are `general-purpose`, `read-only`, `implementation` (general-purpose profile, `openrouter:deepseek/deepseek-v4-flash-0731`, `high`), `code-review` (review profile, `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh`, strict `## Code Review` report format ending in the status line), and `document-review` (review profile, `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh`, strict `## Document Review` report format ending in the status line). These frontmatter pins are the default layer only and are overridable by the subagent configuration file and call-level values described under the overrides requirement.
 
 #### Scenario: Same-name override
 
@@ -163,7 +149,7 @@ Each child SHALL run as a separate Tau JSON-mode process with safe argv and no s
 
 Tau 0.3 exposes no CLI flag or extension-hook seam for a child's startup thinking level, so the generated extension calls the child session's own `set_thinking_level` API at `session_start`, reaching the bound session through the extension runtime view. The level is validated against the effective provider/model catalog; when it is unavailable, the child SHALL print a `[superpowers-subagent] could not apply reasoning effort ...` diagnostic to `stderr` and continue at its ambient level.
 
-The appended prompt SHALL preserve the selected agent body and state that the child has no controller conversation history. It SHALL tell the child not to invoke ambient user skills. Because Tau cannot independently disable user-global skills, that instruction SHALL be documented as behavioral guidance rather than security enforcement.
+The appended prompt SHALL preserve the selected agent body and state that the child has no controller conversation history. Its response-format instructions SHALL state that the child's complete final assistant message is relayed verbatim to the controller (earlier messages, tool calls, and thinking are not), SHALL require a self-contained final message covering what was accomplished or found, files read or modified, tests, errors, and concerns, and SHALL require it to end with exactly one supported status marker. The prompt SHALL tell the child not to invoke ambient user skills. Because Tau cannot independently disable user-global skills, that instruction SHALL be documented as behavioral guidance rather than security enforcement.
 
 #### Scenario: Safe default arguments
 
@@ -343,40 +329,31 @@ Final assistant output SHALL concatenate every text block in the last accepted a
 - WHEN the runner finalizes the child
 - THEN the result is a protocol failure with default `BLOCKED` status
 
-### Requirement: Summary and code-review extraction, and status
+### Requirement: final-message content and status
 
-The appended response instructions SHALL tell every child to end with an exact `## Summary` heading and one of four status markers: `DONE`, `DONE_WITH_CONCERNS`, `BLOCKED`, or `NEEDS_CONTEXT`. The bundled `code-review` definition additionally mandates an exact `## Code Review` heading directly before the summary so its actionable points are relayed with the summary.
+The appended response instructions SHALL tell every child that its complete final assistant message — the concatenated text blocks of its last accepted assistant message — is relayed verbatim to the controller, that earlier messages, tool calls, and thinking are never relayed, and that the final message must therefore be self-contained and end with exactly one of four status markers: `DONE`, `DONE_WITH_CONCERNS`, `BLOCKED`, or `NEEDS_CONTEXT`. The bundled `code-review` definition SHALL require exactly one `## Code Review` report section (verdict plus Critical/Important/Minor points) ending in the status line; the bundled `document-review` definition SHALL require exactly one `## Document Review` report section likewise. No agent SHALL be required to produce a dedicated summary section, and no heading extraction SHALL occur anywhere.
 
-Summary extraction SHALL recognize only a full line whose horizontal-whitespace-trimmed value is exactly `## Summary`, use the last matching line, and return from that heading through output end unchanged. Content extraction SHALL prefer the last exact review heading (`## Code Review` or `## Document Review`) when an exact `## Summary` heading appears at or after it, returning from the review heading through output end so both sections reach the parent; otherwise it SHALL use the summary rule. Without a matching heading, the complete final assistant output SHALL be the fallback.
+Status parsing SHALL use the last recognized case-insensitive bold or plain supported marker in final assistant output. If no marker exists, a successful child SHALL default to `DONE`; a failed, cancelled, timed-out, or protocol-invalid child SHALL default to `BLOCKED`.
 
-Status parsing SHALL independently use the last recognized case-insensitive bold or plain supported marker in final assistant output. If no marker exists, a successful child SHALL default to `DONE`; a failed, cancelled, timed-out, or protocol-invalid child SHALL default to `BLOCKED`.
+#### Scenario: Verbatim relay
 
-#### Scenario: Last exact summary
+- GIVEN a child's last assistant message contains several text blocks, preceded by tool calls, thinking, and earlier assistant messages
+- WHEN parent-model content is built
+- THEN the complete concatenated last-message text is returned
+- AND tool calls, thinking, and earlier messages are absent
 
-- GIVEN final output contains multiple exact summary headings and similar non-heading text
-- WHEN summary extraction runs
-- THEN the last exact heading wins
-- AND inline or extended heading text is ignored
+#### Scenario: Reviewer report
 
-#### Scenario: Review plus summary
-
-- GIVEN final output contains an exact review heading (`## Code Review` or `## Document Review`) followed by an exact `## Summary` heading
-- WHEN content is constructed
-- THEN content starts at the review heading
-- AND both the actionable points and the summary reach the parent
-
-#### Scenario: Missing summary
-
-- GIVEN final output has no exact summary heading
-- WHEN content is constructed
-- THEN the complete final output is returned as fallback
+- GIVEN a code-review child returns a `## Code Review` report ending in the status line
+- WHEN parent-model content is built
+- THEN the complete report is relayed verbatim
+- AND no section is extracted or rewritten
 
 #### Scenario: Independent status
 
-- GIVEN a valid summary has no supported status marker
-- WHEN summary and status parsing run
-- THEN summary extraction still succeeds
-- AND status uses the process-outcome default
+- GIVEN a valid final message has no supported status marker
+- WHEN status parsing runs
+- THEN status uses the process-outcome default
 
 #### Scenario: Last status
 
@@ -384,32 +361,33 @@ Status parsing SHALL independently use the last recognized case-insensitive bold
 - WHEN status is parsed
 - THEN the last recognized marker determines semantic status
 
-### Requirement: Context-small content and complete details
+### Requirement: Content envelope and complete details
 
-Final `content` SHALL prefer summary-scale text while `details` retains complete accepted child messages. Successful single content SHALL be the extracted summary, the complete final-output fallback when no exact heading exists, or `(no output)` for empty final text; failed single content SHALL be a concise failure. Parallel content SHALL include a success count and one input-ordered `[agent] (completed|failed)` summary/fallback section per item. Successful chain content SHALL be the final step's summary/fallback; failed chain content SHALL identify the stopped step concisely. A child that omits the requested summary can therefore return complete final output to the parent context.
+Final `content` SHALL follow the envelope contract built from child results only. With exactly one result, a successful child SHALL produce its complete final assistant message, or `(no output)` when that message has no text; a failed child SHALL produce `Agent <name> failed: <error>`, or `see details` when no error text exists. With two or more results, content SHALL begin with a `<succeeded>/<total> succeeded` line and contain one `[<agent>] (completed|failed)` section per child in input order; a section body SHALL be that child's complete final assistant message, else its error message, else `(no output)`.
 
-Details SHALL be JSON with `schemaVersion: 1`, mode, scope, project agent directory, discovery diagnostics, and ordered child results; non-empty subagent-config file paths and diagnostics SHALL be included as `configPaths` and `configDiagnostics`; partial results SHALL include `planned`, the intended child count, so live viewers can show accurate counts before every child has produced a message, and renderers SHALL fall back to the result count when `planned` is absent. Each child result SHALL contain `agent`, `agentSource`, effective `task` and `cwd`, `exitCode`, complete accepted wire `messages`, `stderr`, usage fields, `status`, `timedOut`, `cancelled`, and `malformedJsonLines`; applicable `provider`, `model`, `reasoningEffort`, `stopReason`, `errorMessage`, and `step` fields SHALL also be included. Failure SHALL be represented through content and these fields because Tau tool results have no portable `isError` property.
+Details SHALL be JSON with `schemaVersion: 2`, scope, project agent directory, discovery diagnostics, and ordered child results, and SHALL contain no `mode` or `step` fields; non-empty subagent-config file paths and diagnostics SHALL be included as `configPaths` and `configDiagnostics`; partial results SHALL include `planned`, the intended child count, so live viewers can show accurate counts before every child has produced a message, and renderers SHALL fall back to the result count when `planned` is absent. Each child result SHALL contain `agent`, `agentSource`, effective `task` and `cwd`, `exitCode`, complete accepted wire `messages`, `stderr`, usage fields, `status`, `timedOut`, `cancelled`, and `malformedJsonLines`; applicable `provider`, `model`, `reasoningEffort`, `stopReason`, and `errorMessage` fields SHALL also be included. Failure SHALL be represented through content and these fields because Tau tool results have no portable `isError` property.
 
 #### Scenario: Single success
 
-- GIVEN a successful child returns a summary after earlier output
+- GIVEN a successful child returns a final message after earlier output and tool calls
 - WHEN `task` returns
-- THEN parent-model content contains only the summary
+- THEN parent-model content is the complete final assistant message
 - AND details retain every accepted child message
 
 #### Scenario: Parallel mixed outcome
 
-- GIVEN successful and failed parallel children
+- GIVEN successful and failed children in one call
 - WHEN final content and details are built
-- THEN the success count and child sections match input order
+- THEN the success count and per-child sections match input order
+- AND a failed child's section body is its error message when it has no final text
 - AND every child retains complete partial and final messages in details
 
-#### Scenario: Chain failure
+#### Scenario: Single failure
 
-- GIVEN a chain stops on a process or protocol failure, timeout, or cancellation
+- GIVEN exactly one child fails without final text
 - WHEN `task` returns
-- THEN content identifies the stopped step
-- AND details contain completed and partial steps
+- THEN content is the concise `Agent <name> failed: <error>` form
+- AND details retain the child's partial messages and error fields
 
 #### Scenario: Semantic status versus process outcome
 
@@ -420,15 +398,15 @@ Details SHALL be JSON with `schemaVersion: 1`, mode, scope, project agent direct
 
 ### Requirement: Progress, cancellation, timeout, and cleanup
 
-The extension SHALL emit portable partial results after each accepted assistant or tool-result message and after child completion. Single and chain updates SHALL retain accumulated results; parallel updates SHALL use deterministic input-order slots and progress counts.
+The extension SHALL emit portable partial results after each accepted assistant or tool-result message and after child completion, for any item count. Updates SHALL carry `<done>/<planned> done` progress content and SHALL use deterministic input-order slots.
 
-Each child SHALL default to a 3600-second timeout and accept a positive call override no greater than 3600. Cancellation or timeout SHALL terminate the process, wait no more than five seconds, kill it if necessary, preserve partial messages and stderr, and prevent queued parallel or later chain work from starting. A hard cancellation of the task executing the dispatch (for example a print-mode SIGINT) SHALL kill any running child process so no child outlives the dispatch. Every temporary prompt, profile policy file, and thinking-policy file SHALL be removed on success and all failure paths.
+Each child SHALL default to a 3600-second timeout and accept a positive call override no greater than 3600. Cancellation or timeout SHALL terminate the process, wait no more than five seconds, kill it if necessary, preserve partial messages and stderr, and prevent queued work from starting. A hard cancellation of the task executing the dispatch (for example a print-mode SIGINT) SHALL kill any running child process so no child outlives the dispatch. Every temporary prompt, profile policy file, and thinking-policy file SHALL be removed on success and all failure paths.
 
 #### Scenario: Partial message update
 
 - GIVEN a child emits an accepted assistant or tool-result message
 - WHEN the update callback runs
-- THEN it receives content under the same summary/fallback contract and schema-versioned partial details
+- THEN it receives `<done>/<planned> done` content and schema-versioned partial details
 
 #### Scenario: Cancellation before spawn
 
@@ -467,16 +445,16 @@ Each child SHALL default to a 3600-second timeout and accept a positive call ove
 
 The tool MAY provide public string-returning `render_call` and `render_result` callbacks. Rendering SHALL use only public Tau APIs, and generic portable content SHALL remain usable if custom rendering is unavailable or returns no rendering.
 
-Collapsed rendering SHALL stay compact: a mode headline with status icon and live counts, plus per-child headers, short work previews, and usage counters. Expanded rendering SHALL show each child's complete streamed work from details — status icon and hint, error, delegated task, interleaved assistant text and tool calls in message order, and usage counters — plus aggregate usage for multi-child modes. Rendering SHALL distinguish in-flight children (process not yet reaped) from succeeded and failed ones and SHALL map semantic status to icons (`DONE` ✓, `DONE_WITH_CONCERNS` ⚠, `BLOCKED` ✗, `NEEDS_CONTEXT` ?). Because Tau re-renders the tool row after every accepted child message, expanded and collapsed views SHALL update live from the same details payload. Rendering SHALL NOT add or change parent-model content.
+Any child count SHALL render as one frame: a counts headline (`task · <succeeded>/<total> succeeded` with running/failed/pending clauses when positive, icon `…` while any child runs, else `✗` when any failed, else `✓`) followed by one self-contained child component per child in input order: a header, the streamed work (collapsed: the newest items with a truncation hint; expanded: the full stream), status icons/hints, error, delegated task, and usage counters. A `Total:` aggregate usage line SHALL appear only when more than one child exists. The call label SHALL derive from the task count (`1 child`, `N children`). Rendering SHALL distinguish in-flight children (process not yet reaped) from succeeded and failed ones and SHALL map semantic status to icons (`DONE` ✓, `DONE_WITH_CONCERNS` ⚠, `BLOCKED` ✗, `NEEDS_CONTEXT` ?). Because Tau re-renders the tool row after every accepted child message, expanded and collapsed views SHALL update live from the same details payload. Rendering SHALL NOT add or change parent-model content.
 
-#### Scenario: Live single view
+#### Scenario: Live child view
 
 - GIVEN a child is running and has emitted an assistant message with a tool call
 - WHEN the update renders the result
 - THEN the row shows an in-flight marker, the streamed tool call, and partial usage
 - AND the child's final assistant output remains available in subsequent renders
 
-#### Scenario: Live parallel counts
+#### Scenario: Live planned counts
 
 - GIVEN partial details include `planned` and fewer children than planned
 - WHEN the result renders collapsed
@@ -609,10 +587,13 @@ The display of the `subagents` section SHALL fail safe: when the running fronten
 
 ## Intentional Port Differences
 
-The current Tau implementation uses the lowercase `task` tool name and preserves all three dispatch modes, deterministic ordering, agent precedence, summary-first content with complete-output fallback, complete details, timeout, and cancellation. These differences from the historical pre-Tau implementation are intentional:
+The current Tau implementation uses the lowercase `task` tool name and provides one homogeneous tasks-array interface with deterministic ordering, agent precedence, complete-final-message content, complete details, timeout, and cancellation. These differences from the historical pre-Tau implementation are intentional:
 
 | Historical capability | Current Tau behavior |
 | --- | --- |
+| Three dispatch modes | One homogeneous `tasks` array: one item for a single child, two or more for ordered parallel dispatch |
+| Sequential output substitution | Removed; conditional sequences use separate calls so the controller can inspect each result |
+| Summary/review-section extraction | Removed; content is the child's complete final assistant message, with complete accepted messages retained in `details` |
 | Combined provider/model setting | Separate opaque `provider` and `model` values |
 | Per-agent reasoning level | `reasoningEffort` at call, config-file, and definition levels with parent-session thinking inheritance by default, applied by a generated child extension because Tau 0.3 has no thinking-level CLI flag |
 | Arbitrary per-agent tool lists | Fixed `general-purpose`, `read-only`, and `review` profiles |
@@ -628,5 +609,5 @@ The current Tau implementation uses the lowercase `task` tool name and preserves
 - The read-only profile blocks Tau tool calls except `read`, and the review profile permits only `read` and `bash` with instruction-governed read-only bash usage; both are defense in depth at the tool layer only.
 - Ambient user skills can remain visible to children. The instruction not to invoke them is not enforcement.
 - Project-agent approval protects against silently consuming repository-controlled prompt files. It is separate from Tau project trust and extension-code trust.
-- Summary extraction is a context-management feature, not redaction. Complete final output is returned when the exact heading is absent, and complete accepted messages always remain in `details` and may appear in expanded rendering.
+- Parent-model content is the child's complete final assistant message only — tool calls, thinking, and earlier messages are never relayed. Complete accepted messages always remain in `details` and may appear in expanded rendering.
 - Installing or explicitly loading the extension executes Python with the same account privileges as Tau; users must inspect code and use external sandboxing or restricted credentials when stronger isolation is required.

@@ -101,10 +101,10 @@ The full argument and result contract is in the [Tau `task` tool reference](../s
 | Agent | Tool access | Default provider/model/reasoning | Workflow use |
 | --- | --- | --- | --- |
 | `implementation` | Tau's normal built-in coding tools | `openrouter:deepseek/deepseek-v4-flash-0731`, `high` | One implementation task at a time |
-| `code-review` | `read` + read-only `bash`, enforced by a public hook | `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh` | Per-task, checkpoint, and final implementation review of named files; returns strict `## Code Review` + `## Summary` sections |
-| `document-review` | `read` + read-only `bash`, enforced by a public hook | `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh` | Feature-spec and plan review at the design gates; returns strict `## Document Review` + `## Summary` sections |
+| `code-review` | `read` + read-only `bash`, enforced by a public hook | `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh` | Per-task, checkpoint, and final implementation review of named files; returns a strict `## Code Review` report ending in a status line |
+| `document-review` | `read` + read-only `bash`, enforced by a public hook | `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh` | Feature-spec and plan review at the design gates; returns a strict `## Document Review` report ending in a status line |
 | `general-purpose` | Tau's normal built-in coding tools | Parent session's active provider/model/thinking | Unpinned implementation or scouting work |
-| `read-only` | Only the `read` tool, enforced by a public hook | Parent session's active provider/model/thinking | Unpinned inspection of known files |
+| `read-only` | Only the `read` tool, enforced by a public hook | Parent session's active provider/model/thinking | Unpinned substantial read-only investigation of named files |
 
 These are the defaults, not guarantees: the user can override any of them per agent with the subagent config file (`[agents.<name>]` in `superpowers-subagent.toml`). Agents without a pin at any layer inherit the parent session's active provider, model, and thinking level at dispatch time.
 
@@ -112,22 +112,25 @@ A typical reviewer call supplies every readable path and embeds any information 
 
 ```json
 {
-  "agent": "code-review",
-  "task": "Review the named spec against the supplied requirements. Read docs/design/2026-08-14-example-spec.md.\n\n## Required context\n[COMPLETE REQUIREMENTS AND RELEVANT COMMAND OUTPUT]"
+  "tasks": [
+    {
+      "agent": "code-review",
+      "task": "Review the named spec against the supplied requirements. Read docs/design/2026-08-14-example-spec.md.\n\n## Required context\n[COMPLETE REQUIREMENTS AND RELEVANT COMMAND OUTPUT]"
+    }
+  ]
 }
 ```
 
-Review agents may run read-only `bash` themselves (`git diff`/`log`/`status`, `grep`/`rg`/`find`) but must never change repository or environment state; the plain `read-only` agent cannot run commands at all, so searches, `git diff`, and file identification for it come from the controller. Use parallel mode only for independent work and chain mode only for unconditional pipelines; conditional implement/review/fix loops require separate calls so the controller can inspect each result.
+Review agents may run read-only `bash` themselves (`git diff`/`log`/`status`, `grep`/`rg`/`find`) but must never change repository or environment state; the plain `read-only` agent cannot run commands at all, so searches, `git diff`, and file identification for it come from the controller. Multiple items in one call run in parallel and must be independent; conditional implement/review/fix loops require separate calls so the controller can inspect each result.
 
 ### Result and Status Flow
 
 ```text
 child Tau JSONL
     -> accepted message_end messages stored in details.results[*].messages
-    -> final assistant text parsed for last exact ## Summary
-    -> with an exact review heading (## Code Review or ## Document Review)
-       before the summary, both sections are relayed; otherwise
-       summary/fallback is returned in parent-model content
+    -> the complete final assistant message becomes parent content
+       (concatenated text blocks of the last accepted assistant message
+       only; tool calls, thinking, and earlier messages are never relayed)
     -> last supported status marker recorded independently
     -> controller checks semantic status AND process/error fields
 ```
@@ -179,9 +182,9 @@ The feature spec expresses the change from current behavior. Plan tasks and test
 | **Multiple domains** | The feature spec uses one domain section per living spec; sync each independently. |
 | **Implementation diverges from the spec** | Decide whether code or spec is wrong, update the correct artifact, recheck task coverage, and re-review. |
 | **Reviewer lacks context** | Supply named paths plus missing diff/search/command output in a new complete `task` prompt. |
-| **Child reports a semantic blocker** | Do not infer process failure or automatic chain stopping; inspect details and re-dispatch or escalate. |
+| **Child reports a semantic blocker** | Do not infer process failure; inspect details and re-dispatch or escalate. |
 | **Operator never chooses an integration** | The branch and worktree stay untouched; nothing is integrated. |
 
 ## Isolation Boundaries
 
-`task` isolates conversation context and disables discovered child extensions and protected project resources. It is not an operating-system, filesystem, network, credential, provider, or model sandbox. The read-only and review profiles enforce Tau tool calls only (read-only: `read`; review: `read` plus instruction-governed read-only `bash`), and the instruction not to invoke ambient user skills is prompt guidance only. Complete child messages remain in structured details; parent content uses the extracted summary when present and complete final output as fallback when absent.
+`task` isolates conversation context and disables discovered child extensions and protected project resources. It is not an operating-system, filesystem, network, credential, provider, or model sandbox. The read-only and review profiles enforce Tau tool calls only (read-only: `read`; review: `read` plus instruction-governed read-only `bash`), and the instruction not to invoke ambient user skills is prompt guidance only. Parent content is the child's complete final assistant message; complete accepted messages remain in structured details.
