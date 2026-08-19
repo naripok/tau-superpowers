@@ -192,11 +192,11 @@ Bundled agents (R6, R9):
 
 **Verify:** `PYTHONPATH="$TAU_SITE_PACKAGES" uv run pytest && PYTHONPATH="$TAU_SITE_PACKAGES" uv run mypy && uv run ruff check . && uv run ruff format --check .` — expected: all pass.
 
-- [ ] Create the feature branch (`git checkout -b feature/homogeneous-task-interface`) if not already on it
-- [ ] Write the failing tests for the behaviors above; run them and confirm each fails for the expected reason
-- [ ] Implement the interface and behavior changes across the six source files and three agent definitions
-- [ ] Run verification (full suite, mypy, ruff check, ruff format --check)
-- [ ] Commit: `git add extensions/superpowers-subagent && git commit -m "refactor: homogeneous tasks-only interface with final-message results"`
+- [x] Create the feature branch (`git checkout -b feature/homogeneous-task-interface`) if not already on it
+- [x] Write the failing tests for the behaviors above; run them and confirm each fails for the expected reason
+- [x] Implement the interface and behavior changes across the six source files and three agent definitions
+- [x] Run verification (full suite, mypy, ruff check, ruff format --check)
+- [x] Commit: `git add extensions/superpowers-subagent && git commit -m "refactor: homogeneous tasks-only interface with final-message results"`
 
 ---
 
@@ -266,9 +266,9 @@ Bundled agents (R6, R9):
 
 **Verify:** the gates above — expected: clean.
 
-- [ ] Apply the content changes to the twelve skill files
-- [ ] Run the `rg` gates and read each changed file
-- [ ] Commit: `git add skills && git commit -m "docs: align skills with homogeneous task interface and dispatch threshold"`
+- [x] Apply the content changes to the twelve skill files
+- [x] Run the `rg` gates and read each changed file
+- [x] Commit: `git add skills && git commit -m "docs: align skills with homogeneous task interface and dispatch threshold"`
 
 ---
 
@@ -321,9 +321,9 @@ Bundled agents (R6, R9):
 
 **Verify:** the gates above — expected: clean.
 
-- [ ] Apply the content changes to README.md, docs/specs/subagent-dispatch.md, docs/FLOW_DESCRIPTION.md
-- [ ] Run the `rg` gates and read each changed file
-- [ ] Commit: `git add README.md docs && git commit -m "docs: align README and specs with homogeneous task interface"`
+- [x] Apply the content changes to README.md, docs/specs/subagent-dispatch.md, docs/FLOW_DESCRIPTION.md
+- [x] Run the `rg` gates and read each changed file
+- [x] Commit: `git add README.md docs && git commit -m "docs: align README and specs with homogeneous task interface"`
 
 ---
 
