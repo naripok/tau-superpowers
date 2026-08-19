@@ -16,81 +16,82 @@ Each `task` child has a fresh conversation context. The controller must provide 
 
 ## The Big Picture
 
-A **living spec** (`docs/specs/<domain>.md`) is the canonical description of current behavior for a domain. Feature artifacts describe one proposed change; after implementation is verified and accepted, the delta is merged into the living spec.
+A **living spec** (`docs/specs/<domain>.md`) is the canonical description of current behavior for a domain. A **feature spec** describes one proposed change as the delta against the living spec (ADDED/MODIFIED/REMOVED per domain); after implementation is verified and accepted, the feature spec's changes are merged into the living spec.
 
 ```text
 The model selects a skill from metadata (or the user invokes `/skill:<name>`)
     -> brainstorming reads the living spec
-    -> proposal + behavioral feature spec
-    -> writing-plans derives a delta + implementation plan
-    -> implementation follows the plan with review gates
-    -> finishing verifies and syncs the accepted delta
+    -> proposal + behavioral feature spec on a new branch/worktree
+    -> writing-plans maps the spec to contract-based implementation tasks
+    -> implementation follows the plan with per-task review
+    -> finishing verifies, syncs the living spec, and merges or opens a PR
 ```
 
 ## Artifact Chain
 
 | Path | Role | Lifespan |
 | --- | --- | --- |
-| `docs/specs/<domain>.md` | Canonical current behavior | Persistent; updated after accepted work |
+| `docs/specs/<domain>.md` | Canonical current behavior | Persistent; updated at finishing |
 | `docs/design/<date>-<topic>-proposal.md` | Intent, scope, approach, and impact | One feature |
-| `docs/design/<date>-<topic>-spec.md` | Proposed behavioral contract | One feature; drives the delta |
-| `docs/design/<date>-<topic>-delta.md` | ADDED/MODIFIED/REMOVED behavior versus the living spec | One feature; consumed by implementation and sync |
-| `docs/plans/<date>-<topic>.md` | Bite-sized implementation and verification steps | One feature |
+| `docs/design/<date>-<topic>-spec.md` | Behavioral contract and delta against the living spec | One feature; drives plan, review, and sync |
+| `docs/plans/<date>-<topic>.md` | Architecture, interface and behavior contracts, tests to prove | One feature |
 
 ## End-to-End Flow
 
 ```text
 BRAINSTORMING
   1. Read relevant docs/specs/ files (or identify a new domain).
-  2. Explore context and clarify one question at a time.
-  3. Compare 2-3 approaches and get design approval.
-  4. Write proposal and behavioral feature spec.
-  5. task(document-review): review the spec from named files and supplied context; result carries a strict `## Document Review` + `## Summary`.
-  6. Fix and re-dispatch until the reviewer reports DONE.
-  7. Get user approval for both artifacts.
+  2. Explore context; clarify (batch independent questions).
+  3. Compare 2-3 approaches; present the complete design once for approval.
+  4. Set up the branch/worktree — every artifact and all code land here,
+     never on the default branch.
+  5. Write the proposal and the behavioral feature spec
+     (ADDED/MODIFIED/REMOVED relative to the living spec).
+  6. task(document-review): review the spec; fix and re-dispatch until approved.
+  7. Get user approval for both artifacts; commit them to the branch.
 
   HARD GATE: no implementation before reviewer and user approval.
                                   |
                                   v
 WRITING PLANS
-  1. Read proposal, feature spec, and living specs.
-  2. Derive the delta before implementation tasks.
-  3. Map file responsibilities and write TDD-sized tasks.
-  4. Self-review feature -> delta -> plan coverage.
-  5. task(document-review): review the plan, full delta, named files, and supplied output; result carries a strict `## Document Review` + `## Summary`.
-  6. Fix and re-dispatch until the reviewer reports DONE.
-  7. Ask the user to choose subagent-driven or inline executing-plans execution.
+  1. Read the proposal, feature spec, and living specs.
+  2. Map the file structure, then write contract-based tasks: files,
+     interface signatures, expected behavior, tests to prove, exact
+     verification commands — no implementation code in the plan.
+  3. Self-review spec<->plan coverage, placeholders, signature
+     consistency, and standards.
+  4. task(document-review): review the plan; fix and re-dispatch until approved.
+  5. Commit the plan to the branch. Execute with subagent-driven-development
+     (executing-plans inline for trivial plans).
                                   |
                                   v
 IMPLEMENTATION
-  1. Work in an isolated Git worktree, never directly on main/master.
-  2. For each task, use red -> green -> refactor and run named checks.
-  3. If subagent-driven development was selected:
-       a. task(implementation): implement one complete task (openrouter deepseek v4 flash at high by default).
-       b. Inspect summary, process fields, semantic status, tests, and commit.
-       c. task(code-review): spec-compliance review against the full delta.
-       d. Fix and re-review until DONE.
-       e. task(code-review): code-quality review with controller-supplied diff/output.
-       f. Fix and re-review until DONE.
-  4. If inline executing-plans was selected:
-       a. Execute each plan task directly in order and run its named checks.
-       b. Track each checklist item and stop for blockers or failed verification.
-       c. Request code-review at the plan's review checkpoints.
-  5. Run a final whole-change review.
+  1. Work in the branch/worktree — never on the default branch.
+  2. If subagent-driven development:
+       a. task(implementation): implement one task per dispatch, TDD from
+          the task's contracts, commit per task.
+       b. Inspect the report, tests, commit, and semantic status.
+       c. task(code-review): ONE review pass per task; the report carries
+          separate Spec Compliance and Code Quality sections.
+       d. Fix and re-review until both dimensions pass.
+  3. If inline executing-plans:
+       a. Execute each task's contract with TDD and run its named checks;
+          commit per task.
+       b. Checkpoint review each batch with the same implementation reviewer.
+  4. Final whole-change review against the full feature spec.
                                   |
                                   v
 FINISHING
   1. Run fresh repository verification.
   2. Determine the base branch.
-  3. Present merge, pull request, keep, or discard options.
-  4. Execute the selected outcome. If discard was selected, first require typed
-     confirmation, then discard and stop without syncing the living spec.
-  5. After merge/PR/keep, inspect the delta:
-       a. If it has no behavioral changes, skip sync preview, confirmation, update,
-          and sync commit.
-       b. If it changes behavior, show the proposed sync, get confirmation, merge
-          ADDED/MODIFIED/REMOVED requirements into docs/specs/, and commit the sync.
-  6. Clean up the branch/worktree only when the selected outcome requires it.
+  3. Sync the feature spec's ADDED/MODIFIED/REMOVED sections into
+     docs/specs/ (skip when the spec declares "No Behavioral Changes")
+     and commit to the branch — automatically, no confirmation.
+  4. Offer exactly two outcomes: local merge or pull request.
+     Operator silence leaves the branch untouched.
+  5. Execute the choice: merge (verify the merged result, delete the
+     branch, remove the worktree) or PR (push, gh pr create, keep the
+     branch and worktree until it lands).
 ```
 
 ## `task` Dispatch in the Flow
@@ -100,7 +101,7 @@ The full argument and result contract is in the [Tau `task` tool reference](../s
 | Agent | Tool access | Default provider/model/reasoning | Workflow use |
 | --- | --- | --- | --- |
 | `implementation` | Tau's normal built-in coding tools | `openrouter:deepseek/deepseek-v4-flash-0731`, `high` | One implementation task at a time |
-| `code-review` | `read` + read-only `bash`, enforced by a public hook | `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh` | Spec-compliance, code-quality, and final review of named files; returns strict `## Code Review` + `## Summary` sections |
+| `code-review` | `read` + read-only `bash`, enforced by a public hook | `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh` | Per-task, checkpoint, and final implementation review of named files; returns strict `## Code Review` + `## Summary` sections |
 | `document-review` | `read` + read-only `bash`, enforced by a public hook | `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh` | Feature-spec and plan review at the design gates; returns strict `## Document Review` + `## Summary` sections |
 | `general-purpose` | Tau's normal built-in coding tools | Parent session's active provider/model/thinking | Unpinned implementation or scouting work |
 | `read-only` | Only the `read` tool, enforced by a public hook | Parent session's active provider/model/thinking | Unpinned inspection of known files |
@@ -145,16 +146,16 @@ Project-controlled agent definitions require confirmation by default. In headles
 ## Behavioral Requirement Lifecycle
 
 ```text
-feature spec                 delta + plan                 implementation              living spec
+feature spec                 plan                        implementation              living spec
     |                             |                            |                           |
-    | proposed SHALL behavior     | ADDED/MODIFIED/REMOVED     | tests and reviews         |
+    | ADDED/MODIFIED/REMOVED      | contracts + tests to prove | tests and reviews         |
     |---------------------------->|--------------------------->|                           |
     |                             |                            | verified accepted behavior |
     |                             |                            |-------------------------->|
-    |                             |                            | delta merged, not copied   |
+    |                             |                            | merged, not copied         |
 ```
 
-The feature spec expresses desired behavior. The delta expresses only the change from current behavior. Plan tasks and tests trace to the delta. Spec-compliance review checks implementation against the delta while using the proposal and feature spec as context. Finishing merges only accepted changes into the living spec.
+The feature spec expresses the change from current behavior. Plan tasks and tests trace to it. Implementation review checks code against it while using the proposal as context. Finishing merges only accepted changes into the living spec.
 
 ## Gate Enforcement
 
@@ -162,25 +163,24 @@ The feature spec expresses desired behavior. The delta expresses only the change
 | --- | --- | --- |
 | Proposal + feature spec | `brainstorming` | No code before both artifacts exist |
 | Spec reviewer + user approval | `brainstorming` | No planning handoff before behavioral and human approval |
-| Delta-first planning | `writing-plans` | No implementation plan detached from current behavior |
-| Plan reviewer | `writing-plans` | No execution handoff with coverage gaps or placeholders |
-| Worktree baseline | `using-git-worktrees` | No feature work on main/master or from a failing unexplained baseline |
-| Spec compliance before quality | `subagent-driven-development` | No quality approval for behavior that misses the delta |
+| Branch/worktree setup | `using-git-worktrees` | No artifacts or code on the default branch |
+| Plan reviewer | `writing-plans` | No execution with coverage gaps or incomplete contracts |
+| Worktree baseline | `using-git-worktrees` | No feature work from a failing unexplained baseline |
+| Per-task implementation review | `subagent-driven-development` | No task completes with open spec-compliance or code-quality findings |
 | Fresh verification | `verification-before-completion` / `finishing-a-development-branch` | No completion or integration claim without current evidence |
-| Confirmed living-spec sync | `finishing-a-development-branch` | No merge/PR/keep workflow completes without its required sync being confirmed, applied, and committed; discard and no-behavior-change paths do not sync |
+| Living-spec sync | `finishing-a-development-branch` | No merge/PR before the branch carries the synced specs (skipped for no-behavior-change work) |
 
 ## Edge Cases
 
 | Case | Handling |
 | --- | --- |
 | **Cold start** (no living spec) | Feature requirements are all ADDED; finishing creates the domain living spec. |
-| **No behavioral change** | Feature spec and delta say `No Behavioral Changes`; finishing skips living-spec sync. |
-| **Multiple domains** | Feature spec and delta use one domain section per living spec; sync each independently. |
-| **Implementation diverges from delta** | Decide whether code or delta is wrong, update the correct artifact, recheck coverage, and re-run compliance review. |
+| **No behavioral change** | The feature spec declares `No Behavioral Changes`; finishing skips the sync. |
+| **Multiple domains** | The feature spec uses one domain section per living spec; sync each independently. |
+| **Implementation diverges from the spec** | Decide whether code or spec is wrong, update the correct artifact, recheck task coverage, and re-review. |
 | **Reviewer lacks context** | Supply named paths plus missing diff/search/command output in a new complete `task` prompt. |
 | **Child reports a semantic blocker** | Do not infer process failure or automatic chain stopping; inspect details and re-dispatch or escalate. |
-| **User discards the branch** | Do not sync the delta; leave canonical behavior unchanged. |
-| **User keeps the branch** | If behavior changes, sync it first; otherwise skip sync. Preserve the branch/worktree in either case. |
+| **Operator never chooses an integration** | The branch and worktree stay untouched; nothing is integrated. |
 
 ## Isolation Boundaries
 

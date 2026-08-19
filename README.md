@@ -67,17 +67,17 @@ If you intentionally create your own project extension link, Tau requires both p
 | --- | --- |
 | `brainstorming` | Explore requirements and produce an approved proposal and behavioral feature spec |
 | `dispatching-parallel-agents` | Coordinate independent work concurrently |
-| `executing-plans` | Execute a written implementation plan with checkpoints |
-| `finishing-a-development-branch` | Verify, integrate, and sync living specs |
+| `executing-plans` | Execute a written implementation plan inline with checkpoints |
+| `finishing-a-development-branch` | Verify, sync living specs, and merge or open a PR |
 | `receiving-code-review` | Evaluate review feedback with technical verification |
 | `requesting-code-review` | Request focused review before completion |
-| `subagent-driven-development` | Execute plan tasks with fresh implementer and reviewer contexts |
+| `subagent-driven-development` | Execute plan tasks with fresh implementer and reviewer contexts, one two-dimension review per task |
 | `systematic-debugging` | Diagnose root causes before changing code |
 | `test-driven-development` | Apply red-green-refactor discipline |
 | `using-git-worktrees` | Isolate feature work in Git worktrees |
 | `using-superpowers` | Discover and apply the workflow skills |
 | `verification-before-completion` | Require fresh evidence before completion claims |
-| `writing-plans` | Derive delta specs and bite-sized implementation plans |
+| `writing-plans` | Turn a feature spec into contract-based implementation plans |
 | `writing-skills` | Author and test Tau Agent Skills |
 
 Tau initially loads only skill names, descriptions, and paths. It reads the full `SKILL.md` when a skill matches the task. Use `/skill:<name>` to invoke one explicitly.
@@ -244,27 +244,26 @@ A living spec at `docs/specs/<domain>.md` describes current behavior. Feature wo
 
 ```text
 living spec
-  -> proposal + behavioral feature spec
-  -> delta spec + implementation plan
-  -> TDD implementation + spec/code review
+  -> proposal + behavioral feature spec (the delta against the living spec)
+  -> contract-based implementation plan
+  -> TDD implementation + combined spec/quality review
   -> verified integration
-  -> delta merged back into the living spec
+  -> feature spec merged back into the living spec
 ```
 
 The main flow is:
 
-1. **Brainstorm:** read living specs, clarify requirements, compare approaches, and write an approved proposal and feature spec.
-2. **Plan:** derive an ADDED/MODIFIED/REMOVED delta against current behavior and map every requirement to implementation and tests.
-3. **Execute:** use a fresh implementer context per task, then spec-compliance and code-quality review loops.
-4. **Finish:** run fresh verification, choose an integration outcome, and sync accepted deltas into living specs.
+1. **Brainstorm:** read living specs, clarify requirements, compare approaches, and write an approved proposal and feature spec. All artifacts and code live on a branch or worktree, never on the default branch.
+2. **Plan:** map every feature-spec requirement to tasks defining architecture, interface signatures, expected behavior, and the tests to prove it — the exact implementation is the implementer's decision.
+3. **Execute:** use a fresh implementer context per task, then a single review pass per task covering spec compliance and code quality, plus a final whole-change review.
+4. **Finish:** run fresh verification, sync the accepted feature-spec changes into living specs, and merge the branch or open a PR.
 
 | Artifact | Role |
 | --- | --- |
 | `docs/specs/<domain>.md` | Canonical current behavior |
 | `docs/design/YYYY-MM-DD-<topic>-proposal.md` | Intent, scope, and approach |
-| `docs/design/YYYY-MM-DD-<topic>-spec.md` | Behavioral contract |
-| `docs/design/YYYY-MM-DD-<topic>-delta.md` | Change against the living spec |
-| `docs/plans/YYYY-MM-DD-<topic>.md` | TDD implementation steps |
+| `docs/design/YYYY-MM-DD-<topic>-spec.md` | Behavioral contract and delta against the living spec |
+| `docs/plans/YYYY-MM-DD-<topic>.md` | Interface and behavior contracts, tests to prove |
 
 ## Repository Layout
 
