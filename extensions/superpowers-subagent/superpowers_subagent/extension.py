@@ -19,6 +19,8 @@ from .dispatch import TaskDispatcher
 from .models import THINKING_LEVELS
 from .rendering import render_task_call, render_task_result
 from .runner import RECURSION_GUARD, TauChildRunner
+from .sidebar import install as install_sidebar_section
+from .usage import SubagentUsageTracker
 
 _TASK_ITEM_SCHEMA: dict[str, JSONValue] = {
     "type": "object",
@@ -132,13 +134,34 @@ def _parent_thinking_level(tau: ExtensionAPI) -> str | None:
     return level
 
 
+#: Tau session lifecycle reasons that re-scope the session: totals reset on
+#: rebinds, but not at startup or /reload (a fresh setup already starts empty).
+_REBIND_REASONS: frozenset[str] = frozenset({"new", "resume", "branch"})
+
+
+def _reset_tracker_on_rebind(tracker: SubagentUsageTracker, event: object) -> None:
+    """Reset session-scoped totals when the session rebinds."""
+    if getattr(event, "reason", None) in _REBIND_REASONS:
+        tracker.reset()
+
+
 def setup(tau: ExtensionAPI) -> None:
     """Register the task tool unless this process is a child."""
 
     if os.environ.get(RECURSION_GUARD):
         return
 
+    tracker = SubagentUsageTracker()
+    install_sidebar_section(tracker)
     runner = TauChildRunner()
+
+    def on_session_start(event: object, _context: object) -> None:
+        _reset_tracker_on_rebind(tracker, event)
+
+    # Explicit handler form: ``ExtensionAPI.on``'s return type is a union that
+    # includes the two-argument handler itself, so mypy strict rejects the
+    # decorator form; passing the handler directly type-checks cleanly.
+    tau.on("session_start", on_session_start)
 
     async def execute_task(
         tool_call_id: str,
@@ -155,8 +178,12 @@ def setup(tau: ExtensionAPI) -> None:
             parent_model=tau.context.model or None,
             parent_reasoning_effort=_parent_thinking_level(tau),
             config=load_subagent_config(tau.context.cwd),
+            usage_observer=tracker.update,
         )
-        return await dispatcher.execute(arguments, signal=signal, on_update=on_update)
+        try:
+            return await dispatcher.execute(arguments, signal=signal, on_update=on_update)
+        finally:
+            tracker.discard_pending()
 
     tau.register_tool(
         AgentTool(
