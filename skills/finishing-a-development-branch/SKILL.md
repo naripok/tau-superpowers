@@ -1,15 +1,11 @@
 ---
 name: finishing-a-development-branch
-description: Use when implementation is complete, all tests pass, and you need to decide how to integrate the work
+description: Use when implementation is complete, all tests pass, and you need to integrate the work
 ---
 
 # Finishing a Development Branch
 
-## Overview
-
-Guide completion of development work by presenting clear options and handling chosen workflow.
-
-**Core principle:** Verify tests → Present options → Execute choice → Sync living specs → Clean up.
+Verify tests, sync living specs onto the branch, then merge locally or open a PR.
 
 **Announce at start:** "I'm using the finishing-a-development-branch skill to complete this work."
 
@@ -17,53 +13,66 @@ Guide completion of development work by presenting clear options and handling ch
 
 ### Step 1: Verify Tests
 
-**Before presenting options, verify tests pass:**
+Run the project's full test suite, fresh:
 
 ```bash
-# Run project's test suite
 npm test / cargo test / pytest / go test ./...
 ```
 
-**If tests fail:**
-```
-Tests failing (<N> failures). Must fix before completing:
+**If tests fail:** report the failures and stop. Do not proceed until tests pass.
 
-[Show failures]
-
-Cannot proceed with merge/PR until tests pass.
-```
-
-Stop. Don't proceed to Step 2.
-
-**If tests pass:** Continue to Step 2.
-
-### Step 2: Determine Base Branch
+### Step 2: Determine the Base Branch
 
 ```bash
-# Try common base branches
 git merge-base HEAD main 2>/dev/null || git merge-base HEAD master 2>/dev/null
 ```
 
-Or ask: "This branch split from main - is that correct?"
+If ambiguous, ask: "This branch split from <base> — is that correct?"
 
-### Step 3: Present Options
+### Step 3: Sync Living Specs
 
-Present exactly these 4 options:
+Read the feature spec at `docs/design/<date>-<topic>-spec.md`.
+
+**If it declares "No Behavioral Changes":** skip this step.
+
+**Otherwise**, for each `## Domain: <name>` section, update `docs/specs/<name>.md`:
+
+- **ADDED requirements:**
+  - Requirement not present → append the full requirement block under `## Requirements`
+  - Requirement already present → treat as MODIFIED
+  - Living spec file missing → create it with `# <Domain>`, a brief `## Purpose` section, and a `## Requirements` section holding the ADDED requirements
+- **MODIFIED requirements:**
+  - Find the requirement by name
+  - Add new scenarios; replace same-named scenarios; apply description changes
+  - Preserve existing content the feature-spec section doesn't mention
+- **REMOVED requirements:**
+  - Delete the entire requirement block (description + all scenarios). Already gone → no-op
+
+The sync is idempotent: running it twice produces the same result.
+
+Commit the sync to the branch:
+
+```bash
+git add docs/specs/
+git commit -m "sync: update <domain> spec(s)"
+```
+
+### Step 4: Present the Options
+
+Present exactly these two options:
 
 ```
-Implementation complete. What would you like to do?
+Implementation complete. How should I integrate it?
 
-1. Merge back to <base-branch> locally
+1. Merge <feature-branch> into <base-branch> locally
 2. Push and create a Pull Request
-3. Keep the branch as-is (I'll handle it later)
-4. Discard this work
 
-Which option?
+Or do nothing — the branch stays as-is.
 ```
 
-**Don't add explanation** - keep options concise.
+No other options. If the operator never answers, the work remains on the branch untouched.
 
-### Step 4: Execute Choice
+### Step 5: Execute the Choice
 
 #### Option 1: Merge Locally
 
@@ -71,14 +80,10 @@ Which option?
 BASE_BRANCH="replace-with-base-branch"
 FEATURE_BRANCH="replace-with-feature-branch"
 TEST_COMMAND="replace-with-project-test-command"
+WORKTREE_PATH="replace-with-worktree-path"  # if the work happened in a worktree
 
-# Switch to base branch
 git checkout "$BASE_BRANCH"
-
-# Pull latest
 git pull
-
-# Merge feature branch
 git merge "$FEATURE_BRANCH"
 
 # Verify the merged result; delete the feature branch only on success.
@@ -87,20 +92,18 @@ if bash -lc "$TEST_COMMAND"; then
 else
   echo "Merged-result tests failed; keeping $FEATURE_BRANCH" >&2
 fi
+
+# Remove the worktree if one was used (run from outside the worktree).
+git worktree remove "$WORKTREE_PATH"
 ```
 
-Then: Sync living specs (Step 4.5), then Cleanup worktree (Step 5)
-
-#### Option 2: Push and Create PR
+#### Option 2: Push and Create a PR
 
 ```bash
 FEATURE_BRANCH="$(git branch --show-current)"
 PR_TITLE="replace-with-pull-request-title"
 
-# Push branch
 git push -u origin "$FEATURE_BRANCH"
-
-# Create PR after replacing the body placeholders.
 gh pr create --title "$PR_TITLE" --body "$(cat <<'EOF'
 ## Summary
 <2-3 bullets of what changed>
@@ -111,173 +114,27 @@ EOF
 )"
 ```
 
-Then: Sync living specs (Step 4.5), then Cleanup worktree (Step 5)
-
-#### Option 3: Keep As-Is
-
-Sync living specs (Step 4.5).
-
-Then report: "Keeping branch <name>. Worktree preserved at <path>."
-
-**Don't cleanup worktree.**
-
-#### Option 4: Discard
-
-**Confirm first:**
-```
-This will permanently delete:
-- Branch <name>
-- All commits: <commit-list>
-- Worktree at <path>
-
-Type 'discard' to confirm.
-```
-
-Wait for exact confirmation.
-
-If confirmed:
-```bash
-BASE_BRANCH="replace-with-base-branch"
-FEATURE_BRANCH="replace-with-feature-branch"
-git checkout "$BASE_BRANCH"
-git branch -D "$FEATURE_BRANCH"
-```
-
-**Do NOT sync living specs** — the work is being discarded.
-
-Then: Cleanup worktree (Step 5)
-
-### Step 4.5: Sync Living Specs
-
-**For Options 1, 2, 3 only.** (Skip for Option 4 — discard.)
-
-Read the delta spec from `docs/design/<date>-<topic>-delta.md` and merge it into the living specs in `docs/specs/`.
-
-The delta spec was derived during planning by comparing the feature spec (proposed behavior) against the living spec (current behavior). The sync step merges the approved changes back into the living spec, completing the cycle.
-
-#### If the delta declares "No Behavioral Changes"
-
-Skip the sync entirely. Commit a note if appropriate: `note: <topic> had no behavioral changes`.
-
-#### If the delta has domain changes
-
-For each `## Domain: <name>` section in the delta:
-
-1. **Read** `docs/specs/<name>.md` (may not exist yet)
-2. **Read** the delta's domain section
-3. **Apply changes:**
-
-   **ADDED Requirements:**
-   - If the requirement doesn't exist in the living spec → append the full requirement block under `## Requirements`
-   - If the requirement already exists → treat as MODIFIED (merge scenarios)
-   - If the living spec file doesn't exist → create it with `# <Domain>`, a `## Purpose` section (brief), and a `## Requirements` section with the ADDED requirements
-
-   **MODIFIED Requirements:**
-   - Find the requirement by name in the living spec
-   - For each scenario in the delta: if it's a new scenario name → add it; if it's an existing scenario name → replace it
-   - If the delta includes a description change → update the description
-   - **Preserve** any existing scenarios or content not mentioned in the delta
-
-   **REMOVED Requirements:**
-   - Remove the entire requirement block (description + all scenarios)
-
-4. **Show summary** of what changed and get user confirmation before committing:
-
-```
-## Living Spec Sync Summary
-
-Updated: docs/specs/notifications.md
-  + Added requirement: push-delivery
-  ~ Modified requirement: email-delivery (added 1 scenario)
-
-Confirm sync? (y/n)
-```
-
-5. **Commit** the sync: `sync: update <domain> spec(s)`
-
-#### Sync Algorithm Notes
-
-- The sync is **idempotent** — running it twice produces the same result
-- ADDED requirements that already exist are treated as MODIFIED
-- REMOVED requirements that are already gone are no-ops
-- The delta represents *intent*, not a wholesale replacement — use judgment to merge changes sensibly
-- For multi-domain deltas, iterate over each domain section and update the corresponding `docs/specs/<domain>.md`
-
-### Step 5: Cleanup Worktree
-
-**For Options 1, 2, 4:**
-
-Check if in worktree:
-```bash
-git worktree list | grep $(git branch --show-current)
-```
-
-If yes:
-```bash
-WORKTREE_PATH="replace-with-worktree-path"
-git worktree remove "$WORKTREE_PATH"
-```
-
-**For Option 3:** Keep worktree.
-
-## Quick Reference
-
-| Option | Merge | Push | Keep Worktree | Sync Specs | Cleanup Branch |
-|--------|-------|------|---------------|------------|----------------|
-| 1. Merge locally | ✓ | - | - | ✓ | ✓ |
-| 2. Create PR | - | ✓ | ✓ | ✓ | - |
-| 3. Keep as-is | - | - | ✓ | ✓ | - |
-| 4. Discard | - | - | - | ✗ | ✓ (force) |
-
-## Common Mistakes
-
-**Skipping test verification**
-- **Problem:** Merge broken code, create failing PR
-- **Fix:** Always verify tests before offering options
-
-**Open-ended questions**
-- **Problem:** "What should I do next?" → ambiguous
-- **Fix:** Present exactly 4 structured options
-
-**Automatic worktree cleanup**
-- **Problem:** Remove worktree when might need it (Option 2, 3)
-- **Fix:** Only cleanup for Options 1 and 4
-
-**No confirmation for discard**
-- **Problem:** Accidentally delete work
-- **Fix:** Require typed "discard" confirmation
-
-**Syncing living specs for discarded work**
-- **Problem:** Living spec describes behavior that doesn't exist (branch was discarded)
-- **Fix:** Only sync for Options 1, 2, 3. Never sync for Option 4.
-
-**Syncing before user confirmation**
-- **Problem:** Sync changes that the user doesn't want
-- **Fix:** Always show sync summary and get confirmation before committing
+Keep the branch and worktree until the PR is merged.
 
 ## Red Flags
 
 **Never:**
-- Proceed with failing tests
-- Merge without verifying tests on result
-- Delete work without confirmation
-- Force-push without explicit request
-- Sync living specs for discarded work (Option 4)
-- Commit sync changes without showing the summary first
+- Merge or open a PR with failing tests
+- Delete the feature branch when the merged result fails tests
+- Force-push without an explicit request
+- Skip the living-spec sync for behavioral changes
+- Present options other than merge or PR
 
 **Always:**
-- Verify tests before offering options
-- Present exactly 4 options
-- Get typed confirmation for Option 4
-- Clean up worktree for Options 1 & 4 only
-- Sync living specs for Options 1, 2, 3 (before merge/PR/keep)
-- Show sync summary and get user confirmation before committing
+- Run the full test suite fresh before anything else
+- Sync and commit living specs to the branch BEFORE merging or opening the PR
+- Run the test suite on the merged result before deleting the branch
 
 ## Integration
 
 **Called by:**
-- **subagent-driven-development** (Step 7) - After all tasks complete
-- **executing-plans** (Step 5) - After all batches complete
+- **subagent-driven-development** — after the final review passes
+- **executing-plans** — after all tasks complete
 
 **Pairs with:**
-- **using-git-worktrees** - Cleans up worktree created by that skill
+- **using-git-worktrees** — removes the worktree that skill created
