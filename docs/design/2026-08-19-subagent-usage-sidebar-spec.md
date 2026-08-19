@@ -5,7 +5,7 @@
 ### ADDED Requirements
 
 #### Requirement: Session-scoped subagent usage aggregation
-The extension SHALL accumulate each child result's reported token usage and cost into session-scoped totals across task calls. Live partial results SHALL update an in-flight snapshot of the current call's children that replaces the call's previous snapshot. Committing a call's final result SHALL fold it into the committed totals exactly once and SHALL clear that call's in-flight snapshot. The displayed totals at any moment SHALL equal the committed totals plus the latest in-flight snapshot. A run SHALL be a child result that reports token usage or cost. Children whose results report no token usage or cost SHALL contribute nothing, including the run count. The accumulation SHALL reset to zero when the active session rebinds to a new, resumed, or branched session. The aggregation SHALL NOT alter task result content, details, per-child usage reporting, or the tool's portable rendering.
+The extension SHALL accumulate each child result's reported token usage and cost into session-scoped totals across task calls. Live partial results SHALL update an in-flight snapshot of the current call's children that replaces the call's previous snapshot. Committing a call's final result SHALL fold it into the committed totals exactly once and SHALL clear that call's in-flight snapshot. A call that ends without a final result being committed SHALL discard that call's in-flight snapshot. The displayed totals at any moment SHALL equal the committed totals plus the latest in-flight snapshot. A run SHALL be a child result that reports non-zero token usage or cost. Children whose results report no token usage or cost SHALL contribute nothing, including the run count. The accumulation SHALL reset to zero when the active session rebinds to a new, resumed, or branched session. The aggregation SHALL NOT alter task result content, details, per-child usage reporting, or the tool's portable rendering.
 
 ##### Scenario: No double counting across live updates
 - GIVEN a running call emits multiple live updates whose per-child usage accumulates over the child's messages
@@ -16,6 +16,11 @@ The extension SHALL accumulate each child result's reported token usage and cost
 - GIVEN a call has committed and no later call has started
 - WHEN the displayed totals are read
 - THEN they equal the committed totals with no contribution from the committed call's snapshot
+
+##### Scenario: Snapshot discarded without commit
+- GIVEN a call is aborted before its final result is committed
+- WHEN the displayed totals are read before any later call emits
+- THEN they equal the committed totals alone
 
 ##### Scenario: Sequential calls accumulate
 - GIVEN two calls complete successfully in the same session
@@ -43,7 +48,7 @@ The extension SHALL accumulate each child result's reported token usage and cost
 - THEN they are identical to the same call without aggregation
 
 #### Requirement: Sidebar subagent usage section
-In a frontend that shows a sidebar summary, the extension SHALL display the current totals (committed plus in-flight) in a `subagents` section positioned immediately below the `usage` section. The section SHALL be omitted when no child has reported token usage or cost. The section SHALL present the number of runs and the accumulated input, output, and cost using the same token and cost formatting as the `usage` section, and SHALL show a cost value only when at least one child reported a non-zero cost. The section SHALL NOT appear in the narrow-layout session summary. Whenever the sidebar summary is rebuilt, the section SHALL reflect the latest committed or in-flight totals.
+In a frontend that shows a sidebar summary, the extension SHALL display the current totals (committed plus in-flight) in a `subagents` section positioned immediately below the `usage` section. The section SHALL be omitted when no child has reported non-zero token usage or cost. When the summary contains no `usage` section, the `subagents` section SHALL NOT be injected. The section SHALL present the number of runs and the accumulated input, output, and cost using the same token and cost formatting as the `usage` section, and SHALL show a cost value only when at least one child reported a non-zero cost. The section SHALL NOT appear in the narrow-layout session summary. Whenever the sidebar summary is rebuilt, the section SHALL reflect the latest committed or in-flight totals.
 
 ##### Scenario: Rebuild shows the section
 - GIVEN a task call with child usage completed
