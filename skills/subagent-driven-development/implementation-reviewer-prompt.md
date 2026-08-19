@@ -8,8 +8,12 @@ This is a template for constructing the `task` string of the Tau `task` tool. Ca
 
 ```json
 {
-  "agent": "code-review",
-  "task": "[FILLED PROMPT BELOW]"
+  "tasks": [
+    {
+      "agent": "code-review",
+      "task": "[FILLED PROMPT BELOW]"
+    }
+  ]
 }
 ```
 
@@ -85,8 +89,9 @@ This is a template for constructing the `task` string of the Tau `task` tool. Ca
 
     ## Output Format (strict)
 
-    Return exactly two sections with the exact headings `## Code Review` and
-    `## Summary`, in that order:
+    Return exactly one section with the exact heading `## Code Review`. Your
+    complete final message is relayed verbatim to the controller, so every
+    finding must be self-contained:
 
     ## Code Review
 
@@ -109,11 +114,6 @@ This is a template for constructing the `task` string of the Tau `task` tool. Ca
 
     **Minor (nice to have):**
     - [file:line] what could be improved
-
-    ## Summary
-
-    [One short paragraph covering BOTH dimensions: what was reviewed, the key
-    findings, and the verdict. Self-contained — it is relayed to the parent session.]
 
     End with exactly one status line: **Status: DONE**, **Status: DONE_WITH_CONCERNS**,
     **Status: BLOCKED**, or **Status: NEEDS_CONTEXT**.

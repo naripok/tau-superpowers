@@ -26,8 +26,12 @@ A `task` child does not inherit this conversation. Discovered child resources ar
 
 ```json
 {
-  "agent": "read-only",
-  "task": "This is an isolated behavior test. Do not use any skill. Read the pressure scenario below, choose one offered action, and explain the choice. Do not perform the action.\n\n[PASTE SCENARIO]"
+  "tasks": [
+    {
+      "agent": "read-only",
+      "task": "This is an isolated behavior test. Do not use any skill. Read the pressure scenario below, choose one offered action, and explain the choice. Do not perform the action.\n\n[PASTE SCENARIO]"
+    }
+  ]
 }
 ```
 
@@ -35,12 +39,16 @@ A `task` child does not inherit this conversation. Discovered child resources ar
 
 ```json
 {
-  "agent": "read-only",
-  "task": "This is an isolated behavior test. Follow the candidate skill exactly, then read the pressure scenario, choose one offered action, and explain the choice. Do not perform the action.\n\n## Candidate Skill\n[PASTE COMPLETE SKILL.md]\n\n## Scenario\n[PASTE THE SAME SCENARIO]"
+  "tasks": [
+    {
+      "agent": "read-only",
+      "task": "This is an isolated behavior test. Follow the candidate skill exactly, then read the pressure scenario, choose one offered action, and explain the choice. Do not perform the action.\n\n## Candidate Skill\n[PASTE COMPLETE SKILL.md]\n\n## Scenario\n[PASTE THE SAME SCENARIO]"
+    }
+  ]
 }
 ```
 
-Use the same provider/model settings and exact scenario in both calls. Do not use chain mode: baseline and skill-present trials must be independent, not inherit `{previous}`. `task` content is summary-sized, so inspect `details.results[0].messages` when recording the child's exact wording, and verify process fields plus semantic `status` before counting a trial. Re-dispatch a complete prompt if the result is `NEEDS_CONTEXT`; do not continue an old child conversation.
+Use the same provider/model settings and exact scenario in both calls. Give baseline and skill-present trials separate `task` calls so they stay independent. `task` content is the child's complete final message; inspect `details.results[0].messages` when you need tool calls or earlier messages, and verify process fields plus semantic `status` before counting a trial. Re-dispatch a complete prompt if the result is `NEEDS_CONTEXT`; do not continue an old child conversation.
 
 Before deployment, also verify real Tau discovery in the parent TUI: put the skill in one of Tau's discovery directories, run `/reload`, confirm its metadata appears, and invoke `/skill:<name>` explicitly. This discovery smoke test complements behavior trials; it does not replace them.
 

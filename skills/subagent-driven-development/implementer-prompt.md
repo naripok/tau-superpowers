@@ -6,8 +6,12 @@ This is a template for constructing the `task` string of the Tau `task` tool. Ca
 
 ```json
 {
-  "agent": "implementation",
-  "task": "[FILLED PROMPT BELOW]"
+  "tasks": [
+    {
+      "agent": "implementation",
+      "task": "[FILLED PROMPT BELOW]"
+    }
+  ]
 }
 ```
 

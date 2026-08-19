@@ -1,6 +1,6 @@
 # Tau `task` Tool Reference
 
-The `superpowers-subagent` Tau extension registers one tool named `task`. It launches isolated `tau` subprocesses for single, parallel, or chained work. The extension must be installed under `~/.tau/extensions/superpowers-subagent` or explicitly loaded with:
+The `superpowers-subagent` Tau extension registers one tool named `task`. It launches isolated `tau` subprocesses for one or more delegated tasks. The extension must be installed under `~/.tau/extensions/superpowers-subagent` or explicitly loaded with:
 
 ```bash
 tau -e extensions/superpowers-subagent
@@ -8,23 +8,25 @@ tau -e extensions/superpowers-subagent
 
 ## task Tool API
 
-Call `task` with exactly one non-empty mode. The examples below are the JSON argument objects for the tool call.
+Every `task` call takes a `tasks` array. The examples below are the JSON argument objects for the tool call.
 
-### Single mode
+### Task list
 
-Use `agent` plus `task` for one child. Top-level `cwd` is optional and applies only to single mode.
+`tasks` is required: an array of 1–8 items, each `{agent, task, cwd?}`. One item runs a single child; two or more run in parallel (at most four active) and results keep input order. Each item may carry its own `cwd`.
 
 ```json
 {
-  "agent": "general-purpose",
-  "task": "Implement the caching layer as described in the supplied requirements.",
-  "cwd": "/path/to/worktree"
+  "tasks": [
+    {
+      "agent": "general-purpose",
+      "task": "Implement the caching layer as described in the supplied requirements.",
+      "cwd": "/path/to/worktree"
+    }
+  ]
 }
 ```
 
-### Parallel mode
-
-Use `tasks` for independent work. The extension accepts at most eight items, runs at most four children concurrently, and returns results in input order. Each item may have its own `cwd`.
+Two or more items dispatch in parallel — independent work only:
 
 ```json
 {
@@ -41,34 +43,15 @@ Use `tasks` for independent work. The extension accepts at most eight items, run
 }
 ```
 
-### Chain mode
+Every task in one call must be independent: items share no state and cannot see each other's progress. Conditional sequences — implement → review → fix if needed → re-review, or any loop where a later step depends on an earlier result — require separate `task` calls so the controller can inspect each result.
 
-Use `chain` for unconditional sequential work. Every `{previous}` occurrence is replaced with the preceding child's complete final assistant text, not only its summary.
+### When to dispatch
 
-```json
-{
-  "chain": [
-    {
-      "agent": "general-purpose",
-      "task": "Investigate the authentication code and return structured findings."
-    },
-    {
-      "agent": "general-purpose",
-      "task": "Create an implementation plan from these findings:\n\n{previous}"
-    },
-    {
-      "agent": "general-purpose",
-      "task": "Implement this plan:\n\n{previous}"
-    }
-  ]
-}
-```
-
-A chain stops on child process/protocol failure, timeout, or cancellation. A successful child whose semantic status is `BLOCKED` or `NEEDS_CONTEXT` does not automatically stop the chain, so use separate `task` calls for conditional review or repair loops.
+Dispatch a subagent only for substantive multi-step work that benefits from an isolated context window, or for long-running work that must not block the parent session. Simple reads, searches, commands, and small edits are the parent's own tool calls. A subagent replaces the parent's tool calls for its task: never dispatch a subagent and then perform the same work yourself.
 
 ## Common Options
 
-These optional top-level fields work with every mode:
+These optional top-level fields work with every call:
 
 | Field | Meaning |
 |---|---|
@@ -80,14 +63,14 @@ These optional top-level fields work with every mode:
 | `reasoningEffort` | Thinking level for every child: `off`, `minimal`, `low`, `medium`, `high`, or `xhigh`. A call-level value overrides the config file and the selected agent definition; otherwise the level falls back to the config file, then the agent definition, then the parent session's thinking level. Applied as the child's Tau thinking level at session start; if the level is unsupported for the effective provider/model, the child logs a `[superpowers-subagent] could not apply reasoning effort ...` diagnostic on its `stderr` (visible in `details.results[].stderr`) and runs at its ambient level. |
 | `timeoutSeconds` | Per-child timeout, greater than 0 and at most 3600; default 3600. |
 
-A relative `cwd` is resolved from the parent Tau session's working directory. In parallel and chain modes, put `cwd` on each item rather than at the top level.
+A relative `cwd` is resolved from the parent Tau session's working directory; `cwd` lives on each item.
 
 ## Bundled Agent Profiles
 
 | Agent | Tau tool policy | Default provider/model/reasoning | Use for |
 |---|---|---|---|
 | `general-purpose` | Normal built-in coding tools | Parent session's active provider, model, and thinking effort | Implementation, scouting, exploration, and tasks requiring commands or edits |
-| `read-only` | Only `read` is permitted | Parent session's active provider, model, and thinking effort | Inspection of known files without a pinned review model |
+| `read-only` | Only `read` is permitted | Parent session's active provider, model, and thinking effort | Substantial multi-file investigation and review of named files |
 | `implementation` | Normal built-in coding tools | `openrouter:deepseek/deepseek-v4-flash-0731` at `high` | Implementation tasks, TDD, running verification |
 | `code-review` | `read` + read-only `bash` | `openrouter:deepseek/deepseek-v4-flash-0731` at `xhigh` | Code quality review, spec compliance review, final review |
 | `document-review` | `read` + read-only `bash` | `openrouter:deepseek/deepseek-v4-flash-0731` at `xhigh` | Feature-spec review and plan review at the design workflow gates |
@@ -98,7 +81,7 @@ Review-profile agents (`code-review`, `document-review`) may call `read` and `ba
 
 The plain `read-only` agent remains stricter: only `read` is permitted, no `bash` at all. Its controller must provide command and search output in the task prompt and identify every file it should read.
 
-`code-review` returns a strict `## Code Review` section followed by a `## Summary`; `document-review` returns a strict `## Document Review` section followed by a `## Summary`. The `task` result relays both sections to the controller.
+`code-review` returns a strict `## Code Review` report ending in the status line; `document-review` returns a strict `## Document Review` report ending in the status line. The child's complete final assistant message is the result content: the full report is relayed verbatim, with no heading extraction.
 
 Agent definitions may pin `provider`, `model`, and `reasoningEffort` in their frontmatter. **Do not override pinned values** unless a skill, the config file, or the user explicitly prescribes the override: `implementation` is pinned to `provider: "openrouter"`, `model: "deepseek/deepseek-v4-flash-0731"`, `reasoningEffort: "high"`, and `code-review`/`document-review` to the same model at `reasoningEffort: "xhigh"`.
 
@@ -148,8 +131,12 @@ The fields are independent and map directly to Tau's separate provider and model
 
 ```json
 {
-  "agent": "implementation",
-  "task": "Complete the delegated task.",
+  "tasks": [
+    {
+      "agent": "implementation",
+      "task": "Complete the delegated task."
+    }
+  ],
   "reasoningEffort": "high"
 }
 ```
@@ -164,33 +151,32 @@ Children run with discovered extensions and project resources disabled. Tau cann
 
 ## Results and Status
 
-Parent-model `content` stays summary-sized:
+Parent-model `content` is the child's complete final assistant message — the concatenated text blocks of the last accepted assistant message only, never tool calls, thinking, or earlier messages, with no heading extraction anywhere:
 
-- when final output contains an exact review heading (`## Code Review` or `## Document Review`) followed by an exact `## Summary` heading, successful single mode returns both sections (all actionable points plus the summary) instead of only the summary; otherwise it returns the final `## Summary` section, or the complete final output if no exact summary heading exists; failed single mode returns a concise failure message;
-- parallel mode returns a success count and one ordered summary/fallback section per child;
-- successful chain mode returns the final child's summary/fallback; a failed chain returns a concise stop message.
+- one result: success returns the complete final message (or `(no output)` when empty); failure returns `Agent <name> failed: <error>`.
+- several results: a `<succeeded>/<total> succeeded` header plus one `[<agent>] (completed|failed)` section per child in input order; a section body is that child's complete final message, else its error message, else `(no output)`.
 
 Structured `details` uses this versioned shape (fields marked `?` are optional):
 
 ```text
 {
-  schemaVersion: 1,
-  mode: "single" | "parallel" | "chain",
+  schemaVersion: 2,
   agentScope: "user" | "project" | "both",
   projectAgentsDir: string | null,
   discoveryDiagnostics: string[],
+  planned?: number,
   configPaths?: string[],
   configDiagnostics?: string[],
   results: [{
     agent, agentSource, task, cwd, exitCode, messages, stderr,
     usage: { input, output, cacheRead, cacheWrite, cost, contextTokens, turns },
-    provider?, model?, reasoningEffort?, stopReason?, errorMessage?, status, step?,
+    provider?, model?, reasoningEffort?, stopReason?, errorMessage?, status,
     timedOut, cancelled, malformedJsonLines
   }]
 }
 ```
 
-Inspect `details.results` for semantic status and process state; `messages` contains the complete accepted Tau wire messages even though parent-model content is summary-sized. Failures are represented in content and details; Tau tool results do not have an `isError` field.
+Inspect `details.results` for semantic status, process state, and each child's complete accepted Tau wire messages — including tool calls and earlier turns. Failures are represented in content and details; Tau tool results do not have an `isError` field.
 
 Supported semantic statuses are:
 
@@ -209,9 +195,13 @@ A typical review call embeds the controller-provided diff while letting the revi
 
 ```json
 {
-  "agent": "code-review",
-  "task": "Review the named modified files for code quality. The controller-provided git diff follows; you may run read-only bash (git diff/log/status, grep/rg/find) to verify, but never change the repository state.\n\n## Git Diff\n[PASTE COMPLETE DIFF HERE]\n\n## Requirements\n[PASTE REQUIREMENTS HERE]\n\nReturn the strict two-section format: exact `## Code Review` heading (verdict, Critical/Important/Minor points — review adversarially, no praise), then exact `## Summary` heading, ending with the status line."
+  "tasks": [
+    {
+      "agent": "code-review",
+      "task": "Review the named modified files for code quality. The controller-provided git diff follows; you may run read-only bash (git diff/log/status, grep/rg/find) to verify, but never change the repository state.\n\n## Git Diff\n[PASTE COMPLETE DIFF HERE]\n\n## Requirements\n[PASTE REQUIREMENTS HERE]\n\nReturn the strict report format: exact `## Code Review` heading (verdict, Critical/Important/Minor points — review adversarially, no praise), ending with the status line."
+    }
+  ]
 }
 ```
 
-Use chain mode only for unconditional pipelines. For conditional loops such as implement → review → fix if needed → re-review, inspect each result and make separate `task` calls.
+For conditional loops such as implement → review → fix if needed → re-review, inspect each result and make separate `task` calls.

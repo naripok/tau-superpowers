@@ -10,12 +10,16 @@ This is a template for constructing the `task` string of the Tau `task` tool. Ca
 
 ```json
 {
-  "agent": "document-review",
-  "task": "[FILLED PROMPT BELOW]"
+  "tasks": [
+    {
+      "agent": "document-review",
+      "task": "[FILLED PROMPT BELOW]"
+    }
+  ]
 }
 ```
 
-The child has no controller conversation history. Name the plan, feature spec, and proposal paths explicitly and include any required command or search output. The result contains a `## Document Review` section (verdict + findings) followed by a `## Summary`.
+The child has no controller conversation history. Name the plan, feature spec, and proposal paths explicitly and include any required command or search output. The result content is the reviewer's complete final message: the `## Document Review` report (verdict + findings) ending in the status line.
 
 ```markdown
     You are a plan document reviewer. Verify this plan is complete and ready for implementation.
@@ -54,8 +58,9 @@ The child has no controller conversation history. Name the plan, feature spec, a
 
     ## Output Format
 
-    Return exactly two sections with the exact headings `## Document Review` and
-    `## Summary`, in that order:
+    Return exactly one section with the exact heading `## Document Review`. Your
+    complete final message is relayed verbatim to the controller, so every
+    finding must be self-contained:
 
     ## Document Review
 
@@ -70,7 +75,6 @@ The child has no controller conversation history. Name the plan, feature spec, a
     **Minor (nice to have):**
     - [suggestions for improvement]
 
-    ## Summary
-
-    [One short paragraph: what was reviewed, key findings, verdict. Self-contained — it is relayed to the parent session.]
+    End with exactly one status line: **Status: DONE**, **Status: DONE_WITH_CONCERNS**,
+    **Status: BLOCKED**, or **Status: NEEDS_CONTEXT**.
 ```

@@ -1,6 +1,6 @@
 ---
 name: dispatching-parallel-agents
-description: Use when facing 2+ independent tasks that can be worked on without shared state or sequential dependencies
+description: Use when facing 2+ independent substantive tasks that can be worked on without shared state or sequential dependencies
 ---
 
 # Dispatching Parallel Agents
@@ -67,7 +67,7 @@ Each agent gets:
 
 ### 3. Dispatch in Parallel
 
-Call the Tau `task` tool with one `tasks` argument object. It accepts at most eight items, runs at most four children concurrently, and preserves input order in the result:
+Call the Tau `task` tool with one `tasks` argument object. The same `tasks` shape with a single item dispatches one child; two or more items run at most four children concurrently and preserve input order in the result:
 
 ```json
 {

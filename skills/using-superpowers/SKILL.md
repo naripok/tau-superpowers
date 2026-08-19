@@ -25,6 +25,8 @@ These are tool calls, not tasks. Dispatch subagents only for work that is:
 - **Risk-bearing:** could introduce bugs if done incorrectly
 - **Time-consuming:** more than a handful of tool calls
 
+Subagents earn their isolated context window when the work is substantive (many steps or a deep investigation that would bloat this session's context) or long-running (duration that must not block this session). Never dispatch a subagent and then perform the same read or command yourself — the dispatch replaces your tool calls for that work.
+
 ## Instruction Priority
 
 1. **User's explicit instructions** (AGENTS.md, direct requests) — highest priority

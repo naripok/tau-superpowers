@@ -43,12 +43,16 @@ git diff "$BASE_SHA".."$HEAD_SHA"
 
 ```json
 {
-  "agent": "code-review",
-  "task": "[FILLED PROMPT]"
+  "tasks": [
+    {
+      "agent": "code-review",
+      "task": "[FILLED PROMPT]"
+    }
+  ]
 }
 ```
 
-Embed the complete diff, verification output, and every relevant file path. The result contains a `## Code Review` section (verdict + findings) followed by a `## Summary`.
+Embed the complete diff, verification output, and every relevant file path. The result content is the reviewer's complete final message: the strict `## Code Review` report (verdict + findings) ending in the status line.
 
 **4. Act on feedback:**
 

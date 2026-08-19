@@ -6,8 +6,12 @@ Fill every placeholder, then dispatch with:
 
 ```json
 {
-  "agent": "code-review",
-  "task": "[FILLED PROMPT BELOW]"
+  "tasks": [
+    {
+      "agent": "code-review",
+      "task": "[FILLED PROMPT BELOW]"
+    }
+  ]
 }
 ```
 
@@ -84,9 +88,10 @@ Fill every placeholder, then dispatch with:
 
     ## Output Format (strict)
 
-    Return exactly two sections with the exact headings `## Code Review` and
-    `## Summary`, in that order. Every actionable point must be self-contained:
-    file:line, what's wrong, why it matters, how to fix.
+    Return exactly one section with the exact heading `## Code Review`. Your
+    complete final message is relayed verbatim to the controller, so every
+    actionable point must be self-contained: file:line, what's wrong, why it
+    matters, how to fix.
 
     ## Code Review
 
@@ -100,11 +105,6 @@ Fill every placeholder, then dispatch with:
 
     **Minor (nice to have):**
     - [file:line] What could be improved
-
-    ## Summary
-
-    [One short paragraph: what was reviewed, the key findings, the verdict.
-    Self-contained — it is relayed to the parent session.]
 
     End with exactly one status line: **Status: DONE**, **Status: DONE_WITH_CONCERNS**,
     **Status: BLOCKED**, or **Status: NEEDS_CONTEXT**.

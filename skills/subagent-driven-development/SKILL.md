@@ -127,7 +127,7 @@ Reviewer:
   Verdict: Needs fixes
   ### Spec Compliance — ❌ missing progress reporting (spec requires it)
   ### Code Quality — Important: magic number at reporter.py:42
-  ## Summary ...
+  **Status: DONE_WITH_CONCERNS**
 
 [Re-dispatch implementer with the original task, current state, and findings]
 Implementer: DONE — added progress reporting, extracted PROGRESS_INTERVAL
