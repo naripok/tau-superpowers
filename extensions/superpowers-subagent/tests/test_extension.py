@@ -111,7 +111,16 @@ def test_task_tool_prompt_states_threshold_and_homogeneous_tasks(monkeypatch: An
         for guideline in guidelines
     )
     assert any("replaces your own tool calls" in guideline for guideline in guidelines)
-    assert any("Always pass `tasks`" in guideline for guideline in guidelines)
+    assert any("Always pass the `tasks` array" in guideline for guideline in guidelines)
+    # The always-visible prompt must carry its own context: agent names are
+    # quoted, and the BLOCKED/NEEDS_CONTEXT statuses are defined, not jargon.
+    assert any(
+        "`implementation`" in guideline and "`code-review`" in guideline for guideline in guidelines
+    )
+    assert any(
+        "BLOCKED means" in guideline and "NEEDS_CONTEXT means" in guideline
+        for guideline in guidelines
+    )
     blob = tool.description + " " + " ".join(guidelines)
     assert "chain" not in blob
     assert "single mode" not in blob

@@ -194,23 +194,35 @@ def setup(tau: ExtensionAPI) -> None:
             execute_fn=execute_task,
             prompt_snippet="Dispatch substantive work to an isolated Tau subagent.",
             prompt_guidelines=(
-                "Dispatch only substantive multi-step work that benefits from an "
-                "isolated context window, or long-running work that must not block "
-                "this session; never dispatch simple reads, searches, commands, or "
-                "small edits — those are your own tool calls.",
-                "A subagent replaces your own tool calls for its task; never dispatch "
-                "a subagent and then perform the same work yourself.",
-                "Always pass `tasks`, even for a single child: one item for one "
-                "child, several items for parallel work; use separate calls for "
-                "conditional sequences.",
-                "Include all required context because subagents cannot see this conversation.",
-                "Use implementation for implementation work, code-review for reviews, "
-                "and read-only for substantial read-only investigation of named files.",
-                "Do not set provider, model, or reasoningEffort unless the user "
-                "requests an override or a skill prescribes it; subagents inherit "
-                "the parent session's model and thinking effort by default and can "
-                "be pinned per agent in a superpowers-subagent.toml config file.",
-                "Handle BLOCKED and NEEDS_CONTEXT reports explicitly.",
+                "When using the task tool, delegate only substantive multi-step work "
+                "that benefits from an isolated context window, or long-running work "
+                "that must not block this session; never delegate simple reads, "
+                "searches, commands, or small edits — those are your own tool calls.",
+                "Each dispatched subagent replaces your own tool calls for its "
+                "delegated task; never dispatch a subagent and then perform the same "
+                "work yourself.",
+                "Always pass the `tasks` array, even for a single child: one item "
+                "runs one child, several items run in parallel; use separate "
+                "task-tool calls for conditional sequences where a later step "
+                "depends on an earlier result.",
+                "Make each delegated task prompt self-contained: children run in "
+                "isolated sessions with no access to this conversation, so include "
+                "all requirements, file paths, and relevant command output in the "
+                "prompt.",
+                "Pick the agent by task type: `implementation` for implementation "
+                "work, `code-review` or `document-review` for reviews, `read-only` "
+                "for substantial read-only investigation of named files, and "
+                "`general-purpose` for everything else.",
+                "Do not pass provider, model, or reasoningEffort in task-tool calls "
+                "unless the user requests an override or a skill prescribes it; "
+                "children inherit the parent session's provider, model, and "
+                "thinking effort by default, and durable per-agent pins belong in "
+                "the superpowers-subagent.toml config file.",
+                "Handle BLOCKED and NEEDS_CONTEXT child results explicitly: BLOCKED "
+                "means the task could not be completed as dispatched — address the "
+                "blocker or change the approach; NEEDS_CONTEXT means required "
+                "information was missing — supply it in a new complete task-tool "
+                "call.",
             ),
             render_call=render_task_call,
             render_result=render_task_result,
