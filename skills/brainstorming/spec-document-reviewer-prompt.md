@@ -4,7 +4,7 @@ Use this template when dispatching a spec document reviewer subagent.
 
 **Purpose:** Verify the feature spec is complete, truly behavioral, and ready for implementation planning.
 
-**Dispatch after:** Feature spec is written to `docs/design/`
+**Dispatch after:** The feature spec is written to `docs/design/`.
 
 This is a template for constructing the `task` string of the Tau `task` tool. Call it with this argument shape after replacing every placeholder:
 
@@ -15,7 +15,7 @@ This is a template for constructing the `task` string of the Tau `task` tool. Ca
 }
 ```
 
-The child has no controller conversation history. Name the spec and proposal paths explicitly and include any required command or search output. The `document-review` agent may run read-only `bash` (git diff/log/status, grep/rg/find) in addition to `read`, but must never change the state of the repository or environment — no git writes, no file creation or deletion, no installs, no test or build runs, no background processes. `write`, `edit`, and other state-changing Tau tools are blocked by the tool policy. This tool policy is not an OS, filesystem, network, credential, model, or provider sandbox. Do not add `provider`, `model`, or `reasoningEffort` unless the user explicitly requested or approved the override; the agent runs its bundled pinned setup (overridable per agent in the subagent config file), and its result carries a strict `## Document Review` section plus a `## Summary` that the `task` result relays to the controller.
+The child has no controller conversation history. Name the spec and proposal paths explicitly and include any required command or search output. The result contains a `## Document Review` section (verdict + findings) followed by a `## Summary`.
 
 ```markdown
     You are reviewing whether a feature spec is complete, truly behavioral, and ready for implementation planning.
@@ -41,8 +41,8 @@ The child has no controller conversation history. Name the spec and proposal pat
 
     Assume the spec is flawed until proven otherwise. Question the author's decisions:
     why this requirement, why this scope, why this omission. Do not acknowledge
-    strengths, do not give praise, and do not soften findings. This spec is the
-    behavioral contract for everything that follows — every finding must be actionable.
+    strengths, do not give praise, and do not soften findings. Every finding must be
+    actionable: what is wrong, why it blocks planning, how to fix it.
 
     ## Critical: Architecture in Disguise
 
@@ -60,12 +60,12 @@ The child has no controller conversation history. Name the spec and proposal pat
     **Only flag issues that would cause real problems during implementation planning or spec compliance review.**
     A missing scenario, a contradictory requirement, or an implementation detail masquerading as a behavioral requirement — those are issues. Minor wording improvements and stylistic preferences are not.
 
-    **Reject specs that have zero scenarios or use no RFC 2119 keywords.** These are not behavioral specs — they are architecture documents in disguise.
+    **Reject specs that have zero scenarios or use no RFC 2119 keywords.**
 
     ## Output Format
 
     Return exactly two sections with the exact headings `## Document Review` and
-    `## Summary`, in that order, so the controller can relay both to the parent.
+    `## Summary`, in that order:
 
     ## Document Review
 
@@ -82,7 +82,5 @@ The child has no controller conversation history. Name the spec and proposal pat
 
     ## Summary
 
-    [One short paragraph: what was reviewed, key findings, verdict. Self-contained because it is relayed to the parent session.]
+    [One short paragraph: what was reviewed, key findings, verdict. Self-contained — it is relayed to the parent session.]
 ```
-
-**Reviewer returns:** `## Document Review` (verdict, findings by severity) plus `## Summary` — both relayed to the controller.

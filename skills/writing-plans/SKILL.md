@@ -7,13 +7,15 @@ description: Use when you have a spec or requirements for a multi-step task, bef
 
 ## Overview
 
-Write comprehensive implementation plans assuming the engineer has zero context for our codebase and questionable taste. Document everything they need to know: which files to touch for each task, code, testing, docs they might need to check, how to test it. Give them the whole plan as bite-sized tasks. DRY. YAGNI. TDD. Frequent commits.
+Write an implementation plan that defines **architecture, interfaces, and expected behavior** — and stops there. The implementer (a skilled subagent or inline executor) decides the exact implementation within those contracts.
 
-Assume they are a skilled developer, but know almost nothing about our toolset or problem domain. Assume they don't know good test design very well.
+A plan task specifies: which files to touch, the signatures and behavior contracts of new or changed functions and types, which behaviors tests must prove, and the exact verification commands. It does NOT contain implementation code or test code.
+
+Assume the implementer is a skilled developer with zero context for our codebase. Give them complete contracts and exact commands; trust them to write the code. DRY. YAGNI. TDD. One commit per task.
 
 **Announce at start:** "I'm using the writing-plans skill to create the implementation plan."
 
-**Context:** This should be run in a dedicated worktree (created by brainstorming skill).
+**Context:** Run inside the worktree created during brainstorming. Never plan or implement on the default branch.
 
 **Save plans to:** `docs/plans/YYYY-MM-DD-<topic>.md`
 - (User preferences for plan location override this default)
@@ -24,122 +26,28 @@ If the spec covers multiple independent subsystems, it should have been broken i
 
 ## Step 1: Read Inputs
 
-Read these three artifacts before writing anything:
+Read these artifacts before writing anything:
 
 1. **The proposal** (`docs/design/YYYY-MM-DD-<topic>-proposal.md`) — intent, scope, approach, impact
-2. **The feature spec** (`docs/design/YYYY-MM-DD-<topic>-spec.md`) — behavioral requirements with SHALL/MUST/SHOULD and GIVEN/WHEN/THEN scenarios
+2. **The feature spec** (`docs/design/YYYY-MM-DD-<topic>-spec.md`) — the behavioral contract: ADDED/MODIFIED/REMOVED requirements with SHALL/MUST/SHOULD and GIVEN/WHEN/THEN scenarios
 3. **The living specs** (`docs/specs/<domain>.md`) — current system behavior for affected domains (may not exist yet)
 
-These are your source material. Every task in the plan must trace back to a requirement in the feature spec.
+Every task in the plan must trace back to a requirement in the feature spec.
 
-## Step 2: Write the Delta Spec
-
-Write the delta spec FIRST, before the file structure and tasks. The delta spec is derived by comparing the feature spec (proposed behavior) against the living spec (current behavior). It declares what behavioral requirements are changing.
-
-Save to: `docs/design/YYYY-MM-DD-<topic>-delta.md`
-
-**Why delta spec before tasks:** The delta spec is the behavioral contract. Tasks implement it. Writing tasks first and backfilling the delta spec produces a spec that mirrors the implementation rather than driving it. The delta spec must stand on its own as a complete statement of behavioral change — tasks are the execution plan, not the specification.
-
-### Delta Spec Format
-
-```markdown
-# Delta: <Feature Name>
-
-## Domain: <domain-name>
-
-### ADDED Requirements
-
-#### Requirement: <requirement-name>
-The system SHALL do something new.
-
-##### Scenario: <scenario-name>
-- GIVEN <precondition>
-- WHEN <trigger>
-- THEN <expected outcome>
-
-### MODIFIED Requirements
-
-#### Requirement: <existing-requirement-name>
-##### Scenario: <new-or-changed-scenario>
-- GIVEN <precondition>
-- WHEN <trigger>
-- THEN <expected outcome>
-
-### REMOVED Requirements
-
-#### Requirement: <deprecated-requirement-name>
-(Brief explanation of why.)
-```
-
-### How to Derive the Delta
-
-- **If a living spec exists for the domain:** Compare the feature spec against it. Requirements that are new → ADDED. Requirements that already exist but are changing → MODIFIED (include only the changed parts). Requirements being removed → REMOVED.
-- **If no living spec exists (new domain):** Everything in the feature spec is ADDED. Copy the requirements from the feature spec into ADDED sections.
-- **If the feature spec declares "No Behavioral Changes":** The delta spec also declares "No Behavioral Changes."
-
-### Multi-Domain Deltas
-
-If the feature touches multiple domains, include a section for each:
-
-```markdown
-# Delta: <Feature Name>
-
-## Domain: auth
-### ADDED Requirements
-...
-
-## Domain: notifications
-### MODIFIED Requirements
-...
-```
-
-### Non-Behavioral Changes
-
-If the change has no behavioral impact (refactoring, bug fix that doesn't change requirements, performance improvement), declare it explicitly:
-
-```markdown
-# Delta: <Feature Name>
-
-## No Behavioral Changes
-
-<Brief description of the internal change.>
-No requirements added, modified, or removed.
-```
-
-The sync step in finishing-a-development-branch skips living spec updates when this is declared.
-
-### Delta Spec Conventions
-
-- **ADDED:** A new behavioral requirement. The full requirement text + all scenarios.
-- **MODIFIED:** Only the changed parts (a new scenario, a changed description). The sync process preserves existing content not mentioned in the delta.
-- **REMOVED:** The requirement is deprecated. Brief explanation required.
-- Use SHALL/MUST/SHOULD keywords (RFC 2119) for requirement strength.
-- Scenarios use GIVEN/WHEN/THEN format.
-- **No implementation details** — class names, library choices, file paths belong in the proposal, not the delta.
-
-## Step 3: File Structure
+## Step 2: File Structure
 
 Map out which files will be created or modified and what each one is responsible for. This is where decomposition decisions get locked in.
 
-- Design units with clear boundaries and well-defined interfaces. Each file should have one clear responsibility.
-- You reason best about code you can hold in context at once, and your edits are more reliable when files are focused. Prefer smaller, focused files over large ones that do too much.
-- Files that change together should live together. Split by responsibility, not by technical layer.
-- In existing codebases, follow established patterns. If the codebase uses large files, don't unilaterally restructure - but if a file you're modifying has grown unwieldy, including a split in the plan is reasonable.
+- Design units with clear boundaries and well-defined interfaces. Each file has one clear responsibility.
+- Prefer smaller, focused files over large ones that do too much.
+- Files that change together live together. Split by responsibility, not by technical layer.
+- In existing codebases, follow established patterns. If a file you're modifying has grown unwieldy, including a split in the plan is reasonable.
 
-This structure informs the task decomposition. Each task should produce self-contained changes that make sense independently.
+This structure informs task decomposition. Each task produces one self-contained commit.
 
-## Step 4: Write Tasks
+## Step 3: Write Tasks
 
-Write bite-sized tasks that implement the delta spec. Every task must trace to a requirement in the delta spec.
-
-### Bite-Sized Task Granularity
-
-**Each step is one action (2-5 minutes):**
-- "Write the failing test" - step
-- "Run it to make sure it fails" - step
-- "Implement the minimal code to make the test pass" - step
-- "Run the tests and make sure they pass" - step
-- "Commit" - step
+Write tasks that implement the feature spec. **Task sizing:** one task = one implementer dispatch = one commit — a coherent component (or one aspect of one) plus its tests, small enough to hold in context at once.
 
 ### Plan Document Header
 
@@ -158,12 +66,12 @@ Write bite-sized tasks that implement the delta spec. Every task must trace to a
 
 **Standards:** Apply the shared code standards in every task: DRY, low cyclomatic complexity, type safety, no unnecessary abstractions or fallbacks, no hacks or workarounds, informative docstrings, documentation of current state only.
 
-**Feature spec:** `docs/design/YYYY-MM-DD-<topic>-spec.md`
-
-**Delta spec:** `docs/design/YYYY-MM-DD-<topic>-delta.md`
+**Feature spec:** `docs/design/YYYY-MM-DD-<topic>-spec.md` (the behavioral contract)
 
 ---
 ```
+
+Follow the header with a **commands section** giving the exact project commands implementers must run (test a single file, run the full suite, lint, format-check, type-check), including any environment setup they need. Implementers do not guess commands.
 
 ### Task Structure
 
@@ -171,65 +79,52 @@ Write bite-sized tasks that implement the delta spec. Every task must trace to a
 ### Task N: [Component Name]
 
 **Files:**
-- Create: `exact/path/to/file.py`
-- Modify: `exact/path/to/existing.py:123-145`
+- Create: `exact/path/to/file.py` — [one-line responsibility]
+- Modify: `exact/path/to/existing.py` — [what changes]
 - Test: `tests/exact/path/to/test.py`
 
-**Delta requirement:** [Which ADDED/MODIFIED/REMOVED requirement this task implements]
+**Spec requirement:** [Which ADDED/MODIFIED/REMOVED requirement this task implements]
 
-- [ ] **Step 1: Write the failing test**
+**Interface:**
+- `new_function(arg: Type, opt: Type = default) -> ReturnType` — [contract: what it does, what it returns, errors raised, edge cases]
+- `ExistingClass.method(...)` — [signature and/or behavior change: before → after]
+- [Any new types, dataclasses, or constants: fields and meaning]
 
-```python
-def test_specific_behavior():
-    result = function(input)
-    assert result == expected
-```
+**Behavior:**
+- [Observable behavior: inputs → outputs, error and boundary cases, interactions with existing code]
 
-- [ ] **Step 2: Run test to verify it fails**
+**Tests must prove:**
+- [Behavior 1 — one named test per behavior]
+- [Behavior 2]
 
-Run: `pytest tests/path/test.py::test_name -v`
-Expected: FAIL with "function not defined"
+**Verify:** `[exact commands]` — expected: all pass
 
-- [ ] **Step 3: Write minimal implementation**
-
-```python
-def function(input):
-    return expected
-```
-
-- [ ] **Step 4: Run test to verify it passes**
-
-Run: `pytest tests/path/test.py::test_name -v`
-Expected: PASS
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add tests/path/test.py src/path/file.py
-git commit -m "feat: add specific feature"
-```
+- [ ] Write the failing tests for the behaviors above; run them and confirm each fails for the expected reason
+- [ ] Implement the interface and behavior
+- [ ] Run verification (tests, lint, type check)
+- [ ] Commit: `git add <files> && git commit -m "feat: <specific change>"`
 ````
 
-### No Placeholders
+### Contract Completeness (No Placeholders)
 
-Every step must contain the actual content an engineer needs. These are **plan failures** — never write them:
+Every task must contain complete contracts. These are **plan failures** — never write them:
+
+- Missing or vague signatures ("add a helper function", "update the method")
+- Unspecified behavior ("handle errors appropriately", "add validation")
+- Test lists like "write tests for the above" without naming the behaviors to prove
 - "TBD", "TODO", "implement later", "fill in details"
-- "Add appropriate error handling" / "add validation" / "handle edge cases"
-- "Write tests for the above" (without actual test code)
-- "Similar to Task N" (repeat the code — the engineer may be reading tasks out of order)
-- Steps that describe what to do without showing how (code blocks required for code steps)
+- "Similar to Task N" — repeat the contract; tasks may be read out of order
 - References to types, functions, or methods not defined in any task
+- Tasks without verification commands
 
-### Remember
-- Exact file paths always
-- Complete code in every step — if a step changes code, show the code
-- Exact commands with expected output
-- DRY, YAGNI, TDD, frequent commits
-- Every task traces to a delta spec requirement
+The plan does NOT contain:
+
+- Implementation code or test code
+- Step-by-step coding instructions (the implementer follows TDD on their own)
 
 ## Implementation Standards (Include in Every Plan)
 
-Every plan embeds the shared code standards so implementers and reviewers apply them consistently. They appear in the plan header and must hold for every task's code and tests:
+Every plan embeds the shared code standards in its header so implementers and reviewers apply them consistently:
 
 - **DRY** — duplicated logic and repeated test patterns exist once.
 - **Low cyclomatic complexity** — code should encode a single valid path whenever possible; keep branches shallow and conditionals honest.
@@ -240,41 +135,41 @@ Every plan embeds the shared code standards so implementers and reviewers apply 
 - **Informative docstrings** — application code: what the code does and why, not how; tests: what behavior the test proves and why the test is needed.
 - **Documentation of current state only** — docs describe the current implemented behavior and why it is that way; never old system states or removed behavior.
 
-## Step 5: Self-Review
+## Step 4: Self-Review
 
-After writing the complete plan and delta spec, look at everything with fresh eyes. This is a checklist you run yourself — not a subagent dispatch.
+After writing the complete plan, check it yourself before dispatching the reviewer:
 
-**1. Feature spec coverage (spec → delta):** For each requirement in the feature spec, can you point to a corresponding ADDED/MODIFIED/REMOVED entry in the delta spec? List any gaps. A feature spec requirement with no delta entry is a plan failure.
+**1. Spec coverage (spec → plan):** For each ADDED/MODIFIED requirement in the feature spec, is there a task whose "Tests must prove" list covers its scenarios? A requirement without a task and tests is a plan failure.
 
-**2. Delta coverage (delta → plan):** For each ADDED/MODIFIED requirement in the delta spec, can you point to a task with a corresponding failing test? List any gaps. A requirement without a test is a plan failure.
+**2. Reverse coverage (plan → spec):** Does every task map to a feature-spec requirement? Tasks that don't are scope creep.
 
-**3. Reverse coverage (plan → delta + spec):** Does every task in the plan map to something in the delta spec or the feature spec? Tasks that don't map to either are scope creep.
+**3. Placeholder scan:** Search for the patterns from "Contract Completeness" above. Fix them.
 
-**4. Placeholder scan:** Search your plan for red flags — any of the patterns from the "No Placeholders" section above. Fix them.
+**4. Signature consistency:** Do the types, signatures, and names used in later tasks match what earlier tasks define? A function named `clearLayers()` in Task 3 but `clearFullLayers()` in Task 7 is a bug.
 
-**5. Type consistency:** Do the types, method signatures, and property names you used in later tasks match what you defined in earlier tasks? A function called `clearLayers()` in Task 3 but `clearFullLayers()` in Task 7 is a bug.
+**5. Standards coverage:** Does every contract respect the Implementation Standards? A task that prescribes a workaround, a silent fallback, or an unnecessary abstraction is a plan failure.
 
-**6. Standards coverage:** Does every task's code and test snippets follow the Implementation Standards (DRY, low complexity, type safety, no unnecessary abstractions/fallbacks/hacks, informative docstrings, current-state-only documentation)? A task that bakes in a workaround, a silent fallback, or a docstring that explains the old behavior is a plan failure.
+Fix issues inline and move on. Add missing tasks; add missing test behaviors.
 
-If you find issues, fix them inline. No need to re-review — just fix and move on. If you find a spec requirement with no task, add the task. If you find a delta requirement with no test, add the test step.
+## Step 5: Plan Review
 
-**Dispatch plan reviewer.** After the self-review passes, dispatch a `document-review` subagent using `plan-document-reviewer-prompt.md` to verify plan completeness and spec alignment. This is required — the self-review catches what you can see, the plan reviewer catches what you miss. The `document-review` agent runs its bundled pinned setup (overridable in the subagent config file) and returns a strict `## Document Review` section (verdict + findings) followed by a `## Summary`; the `task` result relays both to you.
+Dispatch a `document-review` subagent using `plan-document-reviewer-prompt.md` to verify plan completeness and spec alignment.
 
-**If the reviewer finds issues:** Fix the plan, then re-dispatch the reviewer. Loop until the reviewer approves.
+- **Issues found:** fix the plan, re-dispatch. Loop until the reviewer approves.
+- Do NOT proceed to execution until the reviewer approves.
 
-**Do NOT proceed to the execution handoff until the plan reviewer approves.**
+## Step 6: Commit and Execute
 
-## Execution Handoff
+Commit the approved plan to the branch:
 
-After saving the plan and delta spec, ask the user which execution approach to use:
+```bash
+git add docs/plans/
+git commit -m "docs: implementation plan for <topic>"
+```
 
-1. **Subagent-Driven (recommended)** - Dispatch a fresh subagent per task, review between tasks, fast iteration
-2. **Inline Execution** - Execute tasks in this session using executing-plans, batch execution with checkpoints
+Then execute:
 
-**If Subagent-Driven chosen:**
-- **REQUIRED SUB-SKILL:** Use subagent-driven-development
-- Fresh subagent per task + two-stage review
+- **Default:** invoke subagent-driven-development — fresh implementer subagent per task, one review pass per task
+- **Trivial plans** (1-2 small tasks): executing-plans inline is acceptable
 
-**If Inline Execution chosen:**
-- **REQUIRED SUB-SKILL:** Use executing-plans
-- Batch execution with checkpoints for review
+State which you are using; do not ask the operator to choose.
