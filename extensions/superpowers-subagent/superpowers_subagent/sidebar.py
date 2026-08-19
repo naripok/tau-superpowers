@@ -53,8 +53,9 @@ def _make_wrapper(
     default_theme = widgets.TAU_DARK_THEME
 
     @functools.wraps(original)
-    def wrapped(session: object, *, theme: object = default_theme) -> Any:
-        content = original(session, theme=theme)
+    def wrapped(session: object, *args: Any, **kwargs: Any) -> Any:
+        content = original(session, *args, **kwargs)
+        theme = kwargs.get("theme", default_theme)
         try:
             return _inject_section(content, tracker.totals, theme, widgets)
         except Exception:
@@ -109,5 +110,6 @@ def _section_body(totals: SubagentUsageTotals, theme: Any, widgets: Any) -> Any:
     body.append(f"{widgets._compact_usage_count(totals.output_tokens)} out")
     if totals.cost > 0:
         body.append(" · ")
+        # Provider-reported value: no estimation tilde, matching the per-child widget.
         body.append(widgets._format_cost(totals.cost))
     return body

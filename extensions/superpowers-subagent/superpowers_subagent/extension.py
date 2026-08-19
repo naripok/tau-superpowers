@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 
 from tau_agent.tools import (
     AgentTool,
@@ -16,7 +16,7 @@ from tau_coding.extensions import ExtensionAPI
 
 from .config import load_subagent_config
 from .dispatch import TaskDispatcher
-from .models import THINKING_LEVELS
+from .models import THINKING_LEVELS, ChildResult
 from .rendering import render_task_call, render_task_result
 from .runner import RECURSION_GUARD, TauChildRunner
 from .sidebar import install as install_sidebar_section
@@ -169,7 +169,10 @@ def setup(tau: ExtensionAPI) -> None:
         signal: ToolCancellationToken | None = None,
         on_update: ToolUpdateCallback | None = None,
     ) -> AgentToolResult:
-        del tool_call_id
+
+        def observe(children: Sequence[ChildResult], final: bool) -> None:
+            tracker.update(tool_call_id, children, final)
+
         dispatcher = TaskDispatcher(
             default_cwd=tau.context.cwd,
             ui=tau.context.ui,
@@ -178,12 +181,12 @@ def setup(tau: ExtensionAPI) -> None:
             parent_model=tau.context.model or None,
             parent_reasoning_effort=_parent_thinking_level(tau),
             config=load_subagent_config(tau.context.cwd),
-            usage_observer=tracker.update,
+            usage_observer=observe,
         )
         try:
             return await dispatcher.execute(arguments, signal=signal, on_update=on_update)
         finally:
-            tracker.discard_pending()
+            tracker.discard_pending(tool_call_id)
 
     tau.register_tool(
         AgentTool(

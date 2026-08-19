@@ -115,7 +115,7 @@ def test_injection_places_section_below_usage() -> None:
     """Prove the injected section sits directly below the usage section and
     shows the run count plus accumulated totals in the usage section's style."""
     tracker = SubagentUsageTracker()
-    tracker.update([_child(input=16000, output=4000, cost=0.05)], final=True)
+    tracker.update("call-1", [_child(input=16000, output=4000, cost=0.05)], final=True)
 
     content = _inject_section(_base_content(), tracker.totals, TAU_DARK_THEME, widgets)
 
@@ -132,8 +132,8 @@ def test_injection_counts_in_flight_runs() -> None:
     """Prove totals include the running call's latest snapshot with its runs
     counted, per the in-flight display contract."""
     tracker = SubagentUsageTracker()
-    tracker.update([_child(input=16000, output=4000)], final=True)
-    tracker.update([_child(input=10000, output=2000)], final=False)
+    tracker.update("call-1", [_child(input=16000, output=4000)], final=True)
+    tracker.update("call-1", [_child(input=10000, output=2000)], final=False)
 
     content = _inject_section(_base_content(), tracker.totals, TAU_DARK_THEME, widgets)
 
@@ -147,7 +147,7 @@ def test_injection_omits_cost_when_unreported() -> None:
     """Prove the section keeps runs and tokens but no cost value when no child
     reported a cost."""
     tracker = SubagentUsageTracker()
-    tracker.update([_child(input=16000, output=4000)], final=True)
+    tracker.update("call-1", [_child(input=16000, output=4000)], final=True)
 
     content = _inject_section(_base_content(), tracker.totals, TAU_DARK_THEME, widgets)
 
@@ -175,7 +175,7 @@ def test_no_usage_section_prevents_injection() -> None:
         extensions=Text(""),
     )
     tracker = SubagentUsageTracker()
-    tracker.update([_child(input=100, output=50)], final=True)
+    tracker.update("call-1", [_child(input=100, output=50)], final=True)
 
     assert _inject_section(content, tracker.totals, TAU_DARK_THEME, widgets) is content
 
@@ -185,7 +185,7 @@ def test_narrow_layout_omits_section() -> None:
     section even with the seam installed: it is rendered by core's own
     renderer, which the seam does not touch."""
     tracker = SubagentUsageTracker()
-    tracker.update([_child(input=100, output=50)], final=True)
+    tracker.update("call-1", [_child(input=100, output=50)], final=True)
     try:
         install(tracker)
 
@@ -204,7 +204,7 @@ def test_install_wraps_builder_and_injects() -> None:
     builds, reading the tracker's current totals on every call rather than
     snapshotting them at install time."""
     tracker = SubagentUsageTracker()
-    tracker.update([_child(input=16000, output=4000, cost=0.05)], final=True)
+    tracker.update("call-1", [_child(input=16000, output=4000, cost=0.05)], final=True)
     try:
         install(tracker)
 
@@ -213,7 +213,7 @@ def test_install_wraps_builder_and_injects() -> None:
         body = _section_body(content, "subagents")
         assert "$0.05" in body.plain
 
-        tracker.update([_child(input=16000, output=4000, cost=0.05)], final=True)
+        tracker.update("call-1", [_child(input=16000, output=4000, cost=0.05)], final=True)
         content = widgets._build_sidebar_content(FakeSession(), theme=TAU_DARK_THEME)
 
         body = _section_body(content, "subagents")
@@ -277,7 +277,7 @@ def test_display_failure_during_rebuild_returns_original(monkeypatch: Any) -> No
     import superpowers_subagent.sidebar as sidebar_module
 
     tracker = SubagentUsageTracker()
-    tracker.update([_child(input=100, output=50)], final=True)
+    tracker.update("call-1", [_child(input=100, output=50)], final=True)
     try:
         install(tracker)
 

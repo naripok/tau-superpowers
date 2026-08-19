@@ -59,8 +59,8 @@ def test_live_updates_replace_the_snapshot() -> None:
     without double counting."""
     tracker = SubagentUsageTracker()
 
-    tracker.update([_child(input=100, output=50)], final=False)
-    tracker.update([_child(input=150, output=80)], final=False)
+    tracker.update("call-1", [_child(input=100, output=50)], final=False)
+    tracker.update("call-1", [_child(input=150, output=80)], final=False)
 
     totals = tracker.totals
     assert totals.runs == 1
@@ -73,8 +73,9 @@ def test_commit_folds_each_call_once() -> None:
     accumulate across the session."""
     tracker = SubagentUsageTracker()
 
-    tracker.update([_child(input=100, output=50, cost=0.01)], final=True)
+    tracker.update("call-1", [_child(input=100, output=50, cost=0.01)], final=True)
     tracker.update(
+        "call-2",
         [_child(input=200, output=100), _child(input=50, output=25)],
         final=True,
     )
@@ -92,8 +93,8 @@ def test_snapshot_cleared_on_commit() -> None:
     tracker = SubagentUsageTracker()
     child = _child(input=100, output=50)
 
-    tracker.update([child], final=False)
-    tracker.update([child], final=True)
+    tracker.update("call-1", [child], final=False)
+    tracker.update("call-1", [child], final=True)
 
     assert tracker.totals.input_tokens == 100
     assert tracker.totals.runs == 1
@@ -103,10 +104,10 @@ def test_discard_pending_drops_snapshot() -> None:
     """Prove a call that ends without committing discards its in-flight
     snapshot, leaving only the committed totals."""
     tracker = SubagentUsageTracker()
-    tracker.update([_child(input=100, output=50)], final=True)
+    tracker.update("call-1", [_child(input=100, output=50)], final=True)
 
-    tracker.update([_child(input=500, output=250)], final=False)
-    tracker.discard_pending()
+    tracker.update("call-2", [_child(input=500, output=250)], final=False)
+    tracker.discard_pending("call-2")
 
     totals = tracker.totals
     assert totals.input_tokens == 100
@@ -120,7 +121,7 @@ def test_zero_usage_children_contribute_nothing() -> None:
     tracker = SubagentUsageTracker()
     empty = _child()
 
-    tracker.update([_child(input=100, output=50), empty], final=True)
+    tracker.update("call-1", [_child(input=100, output=50), empty], final=True)
 
     totals = tracker.totals
     assert totals.runs == 1
@@ -132,7 +133,7 @@ def test_partial_usage_children_are_included() -> None:
     consumed even though the child never completed."""
     tracker = SubagentUsageTracker()
 
-    tracker.update([_child(input=60, output=30, timed_out=True)], final=True)
+    tracker.update("call-1", [_child(input=60, output=30, timed_out=True)], final=True)
 
     assert tracker.totals.input_tokens == 60
     assert tracker.totals.runs == 1
@@ -142,8 +143,8 @@ def test_reset_clears_everything() -> None:
     """Prove a session-rebind reset returns the tracker to its initial state,
     committed totals and in-flight snapshot alike."""
     tracker = SubagentUsageTracker()
-    tracker.update([_child(input=100, output=50)], final=True)
-    tracker.update([_child(input=10, output=5)], final=False)
+    tracker.update("call-1", [_child(input=100, output=50)], final=True)
+    tracker.update("call-2", [_child(input=10, output=5)], final=False)
 
     tracker.reset()
 
@@ -155,7 +156,7 @@ def test_prompt_tokens_include_cached_and_written() -> None:
     tokens, mirroring the session usage section's input definition."""
     tracker = SubagentUsageTracker()
 
-    tracker.update([_child(input=100, cache_read=50, cache_write=10)], final=True)
+    tracker.update("call-1", [_child(input=100, cache_read=50, cache_write=10)], final=True)
 
     assert tracker.totals.prompt_tokens == 160
     assert tracker.totals.input_tokens == 100
@@ -166,8 +167,44 @@ def test_cost_reported_only_when_nonzero() -> None:
     tracker = SubagentUsageTracker()
 
     tracker.update(
+        "call-1",
         [_child(input=100, output=50, cost=0.0), _child(input=200, output=100, cost=0.5)],
         final=True,
     )
 
     assert tracker.totals.cost == 0.5
+
+
+def test_concurrent_calls_keep_separate_snapshots() -> None:
+    """Prove two in-flight calls each keep their own snapshot: committing or
+    discarding one call never drops the other call's in-flight display."""
+    tracker = SubagentUsageTracker()
+
+    tracker.update("call-a", [_child(input=100, output=50)], final=False)
+    tracker.update("call-b", [_child(input=200, output=100)], final=False)
+
+    totals = tracker.totals
+    assert totals.runs == 2
+    assert totals.input_tokens == 300
+
+    tracker.update("call-a", [_child(input=150, output=80)], final=True)
+
+    totals = tracker.totals
+    assert totals.input_tokens == 350
+    assert totals.runs == 2
+
+    tracker.discard_pending("call-b")
+
+    assert tracker.totals.input_tokens == 150
+    assert tracker.totals.runs == 1
+
+
+def test_discard_unknown_call_is_a_noop() -> None:
+    """Prove discarding an unknown call key leaves all snapshots intact."""
+    tracker = SubagentUsageTracker()
+    tracker.update("call-a", [_child(input=100, output=50)], final=False)
+
+    tracker.discard_pending("unknown-call")
+
+    assert tracker.totals.input_tokens == 100
+    assert tracker.totals.runs == 1

@@ -53,39 +53,41 @@ def _add_child(totals: SubagentUsageTotals, child: ChildResult) -> SubagentUsage
 class SubagentUsageTracker:
     """Aggregate child usage across task calls within the active session.
 
-    Live updates replace an in-flight snapshot of the current call's children
-    (per-child usage is cumulative, so a snapshot is never additive); a call's
-    final result commits once and clears the snapshot. A call that ends without
-    committing, such as a hard cancellation, discards its snapshot through
-    ``discard_pending``, and a session rebind resets everything.
+    Each in-flight call keeps its own snapshot of the latest child results
+    (per-child usage is cumulative, so a snapshot is never additive); tool call
+    ids are unique, so concurrent dispatch calls cannot collide. A call's final
+    result commits once and drops that call's snapshot, an uncommitted call
+    discards its own snapshot through ``discard_pending``, and a session rebind
+    resets everything.
     """
 
     def __init__(self) -> None:
         self._committed = SubagentUsageTotals()
-        self._active: tuple[ChildResult, ...] = ()
+        self._active: dict[str, tuple[ChildResult, ...]] = {}
 
-    def update(self, children: Sequence[ChildResult], final: bool) -> None:
-        """Replace the in-flight snapshot, or commit the call's children once."""
+    def update(self, call_key: str, children: Sequence[ChildResult], final: bool) -> None:
+        """Replace a call's in-flight snapshot, or commit its children once."""
         if final:
             for child in children:
                 self._committed = _add_child(self._committed, child)
-            self._active = ()
+            self._active.pop(call_key, None)
         else:
-            self._active = tuple(children)
+            self._active[call_key] = tuple(children)
 
-    def discard_pending(self) -> None:
-        """Drop the in-flight snapshot of a call that ended without committing."""
-        self._active = ()
+    def discard_pending(self, call_key: str) -> None:
+        """Drop one call's in-flight snapshot; committed totals are untouched."""
+        self._active.pop(call_key, None)
 
     def reset(self) -> None:
         """Clear all totals for a new, resumed, or branched session."""
         self._committed = SubagentUsageTotals()
-        self._active = ()
+        self._active = {}
 
     @property
     def totals(self) -> SubagentUsageTotals:
-        """Committed totals plus the latest in-flight snapshot."""
+        """Committed totals plus every active call's latest snapshot."""
         totals = self._committed
-        for child in self._active:
-            totals = _add_child(totals, child)
+        for children in self._active.values():
+            for child in children:
+                totals = _add_child(totals, child)
         return totals

@@ -298,6 +298,7 @@ def test_reset_tracker_on_rebind_reasons() -> None:
 
     tracker = SubagentUsageTracker()
     tracker.update(
+        "call-1",
         [
             ChildResult(
                 agent="a",
@@ -357,10 +358,12 @@ async def test_execute_task_discards_pending_on_hard_cancellation(monkeypatch: A
     tau = FakeTau()
     setup(tau)  # type: ignore[arg-type]
     tracker = installed["tracker"]
-    # The dispatcher is built per call, so one benign call binds and captures
-    # the observer before it can feed the pending snapshot.
+    # The dispatcher is built per call, so one benign call under the same tool
+    # call id binds and captures the observer that later feeds the pending
+    # snapshot; its hard-cancelled twin must be the same call so the finally
+    # drops exactly that call's snapshot.
     await tau.tools[0].execute_fn(  # type: ignore[attr-defined]
-        "warmup", {"agent": "read-only", "task": "work"}, None, None
+        "call", {"agent": "read-only", "task": "work"}, None, None
     )
     captured["usage_observer"](
         [
