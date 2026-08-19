@@ -23,7 +23,7 @@ from tau_coding.session_stats import SessionStats
 from tau_coding.tui.config import TAU_DARK_THEME
 
 from superpowers_subagent.models import ChildResult, UsageStats
-from superpowers_subagent.sidebar import _inject_section, install
+from superpowers_subagent.sidebar import _WRAPPER_MARK, _inject_section, install
 from superpowers_subagent.usage import SubagentUsageTotals, SubagentUsageTracker
 
 
@@ -83,7 +83,12 @@ def _section_titles(content: Any) -> list[str]:
 
 
 def _section_body(content: Any, title: str) -> Text:
-    """Body text of the sidebar section with the given title."""
+    """Body text of the sidebar section with the given title.
+
+    The ``summary_sections`` tuple begins with a Padding title block that has
+    no ``renderables``, so body lookups must index the filtered
+    ``sections``/``titles`` pair rather than raw ``summary_sections`` indices.
+    """
     sections = [
         section for section in content.summary_sections if getattr(section, "renderables", None)
     ]
@@ -101,7 +106,7 @@ def _base_content() -> Any:
 def _pristine_builder() -> Any:
     """The true core builder, unwrapping a wrapper left by an earlier test."""
     original = widgets._build_sidebar_content
-    if getattr(original, "_superpowers_subagent_wrapper", False):
+    if getattr(original, _WRAPPER_MARK, False):
         return original.__wrapped__
     return original
 
@@ -196,7 +201,8 @@ def test_narrow_layout_omits_section() -> None:
 
 def test_install_wraps_builder_and_injects() -> None:
     """Prove the installed wrapper injects the section into real sidebar
-    builds, reading the tracker's current totals."""
+    builds, reading the tracker's current totals on every call rather than
+    snapshotting them at install time."""
     tracker = SubagentUsageTracker()
     tracker.update([_child(input=16000, output=4000, cost=0.05)], final=True)
     try:
@@ -206,6 +212,13 @@ def test_install_wraps_builder_and_injects() -> None:
 
         body = _section_body(content, "subagents")
         assert "$0.05" in body.plain
+
+        tracker.update([_child(input=16000, output=4000, cost=0.05)], final=True)
+        content = widgets._build_sidebar_content(FakeSession(), theme=TAU_DARK_THEME)
+
+        body = _section_body(content, "subagents")
+        assert "2 runs" in body.plain
+        assert "$0.10" in body.plain
     finally:
         widgets._build_sidebar_content = _pristine_builder()
 
@@ -250,7 +263,9 @@ def test_install_import_failure_degrades_silently(monkeypatch: Any) -> None:
 
     pristine = _pristine_builder()
     monkeypatch.setattr(builtins, "__import__", deny_tui)
+    before = widgets._build_sidebar_content
     install(SubagentUsageTracker())
+    assert widgets._build_sidebar_content is before
     widgets._build_sidebar_content = pristine
 
 

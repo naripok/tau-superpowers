@@ -38,7 +38,10 @@ def install(tracker: SubagentUsageTracker) -> None:
         return
     if getattr(original, _WRAPPER_MARK, False):
         original = getattr(original, "__wrapped__", original)
-    widgets._build_sidebar_content = _make_wrapper(original, tracker, widgets)
+    try:
+        widgets._build_sidebar_content = _make_wrapper(original, tracker, widgets)
+    except Exception:
+        return
 
 
 def _make_wrapper(
