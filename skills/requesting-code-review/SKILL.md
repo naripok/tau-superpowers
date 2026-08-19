@@ -5,117 +5,67 @@ description: Use when completing tasks, implementing major features, or before m
 
 # Requesting Code Review
 
-Dispatch read-only subagent to catch issues before they cascade. The reviewer gets precisely crafted context for evaluation — never your session's history. This keeps the reviewer focused on the work product, not your thought process, and preserves your own context for continued work.
+Dispatch a read-only reviewer subagent with precisely crafted context: the diff, the verification output, the requirements, and every relevant file path.
 
 **Core principle:** Review early, review often.
 
-See the [Tau `task` tool reference](../using-superpowers/references/tau-tools.md) for the complete argument, isolation, approval, and result contract.
+See the [Tau `task` tool reference](../using-superpowers/references/tau-tools.md) for the call schema and result contract.
 
 ## When to Request Review
 
 **Mandatory:**
-- After each task in subagent-driven development
-- After completing major feature
-- Before merge to main
+- After each task in subagent-driven development (via the implementation reviewer)
+- At executing-plans checkpoints
+- After completing a major feature
+- Before merging to the default branch
 
 **Optional but valuable:**
 - When stuck (fresh perspective)
 - Before refactoring (baseline check)
-- After fixing complex bug
+- After fixing a complex bug
 
 ## How to Request
 
-**1. Get the git diff (recommended context — the reviewer can also run read-only bash itself):**
+**1. Collect the diff and verification output:**
 
 ```bash
-BASE_SHA=$(git rev-parse HEAD~1)  # or origin/main
+BASE_SHA=$(git rev-parse HEAD~1)  # or origin/main, or the checkpoint's start
 HEAD_SHA=$(git rev-parse HEAD)
-DIFF_OUTPUT=$(git diff "$BASE_SHA".."$HEAD_SHA")
+git diff "$BASE_SHA".."$HEAD_SHA"
 ```
 
-Supplying the diff keeps the reviewer fast and focused. The `code-review` agent can additionally run read-only `bash` (`git diff`/`log`/`status`, `grep`/`rg`/`find`) to verify and search on its own, but must never change repo state.
+**2. Choose the template:**
 
-**2. Dispatch the code reviewer:**
+- Plan-driven work (a feature spec exists): use `../subagent-driven-development/implementation-reviewer-prompt.md` — one pass covering spec compliance and code quality
+- Ad-hoc work (no feature spec): use `code-reviewer.md` in this directory — code quality against stated requirements
 
-The bundled `code-review` agent is a read-only reviewer with its own pinned default provider/model/reasoning setup (overridable per agent in the subagent config file, `superpowers-subagent.toml`), and it returns a strict `## Code Review` section (verdict + severity-ordered actionable points) followed by a `## Summary`. The `task` result relays **both** sections to you, so the actionable points stay in your context alongside the summary. Do not pass `provider`, `model`, or `reasoningEffort` overrides.
-
-Read `code-reviewer.md`, fill its placeholders, and embed the complete diff, verification output, and paths of modified files in the delegated prompt. Then call the Tau `task` tool with this argument shape:
+**3. Fill the template and dispatch:**
 
 ```json
 {
   "agent": "code-review",
-  "task": "Review the named modified files for code quality.\n\n## Modified Files\n[LIST EVERY FILE THE REVIEWER MAY NEED TO READ]\n\n## Git Diff\n[PASTE DIFF_OUTPUT]\n\n## Verification Output\n[PASTE TEST, LINT, AND TYPE-CHECK OUTPUT]\n\n## Context\nWHAT_WAS_IMPLEMENTED: [WHAT YOU BUILT]\nPLAN_OR_REQUIREMENTS: [WHAT IT SHOULD DO]\nDESCRIPTION: [BRIEF SUMMARY]\n\nRead the named files for full context, then return the required review format."
+  "task": "[FILLED PROMPT]"
 }
 ```
 
-Replace every bracketed placeholder before dispatch. The child may verify with read-only `bash` (git read commands, grep/rg/find) but must never change the state of the repo; `write`, `edit`, and other state-changing Tau tools are blocked by the tool policy. The policy is not an OS, filesystem, network, credential, model, or provider sandbox.
+Embed the complete diff, verification output, and every relevant file path. The result contains a `## Code Review` section (verdict + findings) followed by a `## Summary`.
 
-**The result contains the `## Code Review` section (actionable points) plus the `## Summary`. Act on the points; treat the summary as the digest.**
+**4. Act on feedback:**
 
-**3. Act on feedback:**
 - Fix Critical issues immediately
 - Fix Important issues before proceeding
 - Note Minor issues for later
-- Push back if reviewer is wrong (with reasoning)
-
-## Example
-
-```
-[Just completed Task 2: Add verification function]
-
-You: Let me request code review before proceeding.
-
-BASE_SHA=$(git log --oneline | grep "Task 1" | head -1 | awk '{print $1}')
-HEAD_SHA=$(git rev-parse HEAD)
-DIFF_OUTPUT=$(git diff "$BASE_SHA".."$HEAD_SHA")
-
-[Call `task` with `agent: "code-review"`; include the complete diff, verification output, requirements, and modified-file paths in `task`]
-  WHAT_WAS_IMPLEMENTED: Verification and repair functions for conversation index
-  PLAN_OR_REQUIREMENTS: Task 2 from docs/plans/deployment-plan.md
-  DESCRIPTION: Added verifyIndex() and repairIndex() with 4 issue types
-
-[Subagent returns]:
-  ## Code Review
-  Verdict: Approved with fixes
-  Issues:
-    Important: Missing progress indicators
-    Minor: Magic number (100) for reporting interval
-
-  ## Summary
-  Reviewed verifyIndex()/repairIndex(); core logic works, but the reporting loop is unmonitored and the interval is a magic number. Fix before merge.
-
-[You receive BOTH sections in the task result and act on the issues]
-
-You: [Fix progress indicators]
-[Continue to Task 3]
-```
-
-## Integration with Workflows
-
-**Subagent-Driven Development:**
-- Review after EACH task
-- Catch issues before they compound
-- Fix before moving to next task
-
-**Executing Plans:**
-- Review after each batch (3 tasks)
-- Get feedback, apply, continue
-
-**Ad-Hoc Development:**
-- Review before merge
-- Review when stuck
+- Push back with technical reasoning if the reviewer is wrong (see receiving-code-review)
 
 ## Red Flags
 
 **Never:**
 - Skip review because "it's simple"
-- Ignore Critical issues
-- Proceed with unfixed Important issues
+- Proceed with unfixed Critical or Important issues
 - Argue with valid technical feedback
 
-**If reviewer wrong:**
-- Push back with technical reasoning
-- Show code/tests that prove it works
-- Request clarification
+## Integration
 
-See template: [`code-reviewer.md`](code-reviewer.md)
+- **subagent-driven-development** — per-task and final reviews use the implementation reviewer template
+- **executing-plans** — checkpoint review after each batch of tasks
+- **Ad-hoc** — before merge, when stuck
