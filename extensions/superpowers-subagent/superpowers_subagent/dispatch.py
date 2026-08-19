@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol, cast
@@ -34,6 +34,8 @@ from .utils import content_section, final_output, parse_status, resolve_child_cw
 MAX_PARALLEL_TASKS = 8
 MAX_CONCURRENCY = 4
 DEFAULT_TIMEOUT_SECONDS = 3600.0
+
+UsageObserver = Callable[[Sequence[ChildResult], bool], None]
 
 
 class ConfirmationUi(Protocol):
@@ -82,6 +84,7 @@ class TaskDispatcher:
         parent_model: str | None = None,
         parent_reasoning_effort: str | None = None,
         config: SubagentConfig | None = None,
+        usage_observer: UsageObserver | None = None,
     ) -> None:
         self.default_cwd = default_cwd
         self.ui = ui
@@ -91,6 +94,7 @@ class TaskDispatcher:
         self.parent_model = parent_model
         self.parent_reasoning_effort = parent_reasoning_effort
         self.config = config
+        self.usage_observer = usage_observer
 
     async def execute(
         self,
@@ -162,6 +166,9 @@ class TaskDispatcher:
             results = await self._run_parallel(request, discovery, agents, signal, on_update)
         else:
             results = await self._run_chain(request, discovery, agents, signal, on_update)
+
+        if self.usage_observer is not None:
+            self.usage_observer(results, True)
         return _final_result(
             request,
             discovery,
@@ -211,6 +218,7 @@ class TaskDispatcher:
                 [result],
                 config=self.config,
                 config_diagnostics=self._config_diagnostics,
+                usage_observer=self.usage_observer,
             )
 
         result = await self._run_item(
@@ -228,6 +236,7 @@ class TaskDispatcher:
             [result],
             config=self.config,
             config_diagnostics=self._config_diagnostics,
+            usage_observer=self.usage_observer,
         )
         return [result]
 
@@ -257,6 +266,7 @@ class TaskDispatcher:
                 results,
                 config=self.config,
                 config_diagnostics=self._config_diagnostics,
+                usage_observer=self.usage_observer,
             )
 
         async def worker() -> None:
@@ -349,6 +359,7 @@ class TaskDispatcher:
                     [*results, result],
                     config=self.config,
                     config_diagnostics=self._config_diagnostics,
+                    usage_observer=self.usage_observer,
                 )
 
             result = await self._run_item(
@@ -368,6 +379,7 @@ class TaskDispatcher:
                 results,
                 config=self.config,
                 config_diagnostics=self._config_diagnostics,
+                usage_observer=self.usage_observer,
             )
             if not result.succeeded:
                 break
@@ -661,7 +673,11 @@ def _emit_update(
     *,
     config: SubagentConfig | None = None,
     config_diagnostics: tuple[str, ...] | None = None,
+    usage_observer: UsageObserver | None = None,
 ) -> None:
+    """Feed a live usage snapshot, then deliver the update to the frontend."""
+    if usage_observer is not None:
+        usage_observer(results, False)
     if callback is None:
         return
     callback(
