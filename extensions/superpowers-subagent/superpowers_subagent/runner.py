@@ -36,10 +36,13 @@ skills. That instruction is behavioral guidance, not a security boundary.
 
 ## Response Format
 
-End your response with an exact `## Summary` heading and a concise summary covering
-what you accomplished or found, files read or modified, tests, errors, and concerns.
+Your complete final assistant message is relayed verbatim to the controller: the
+text blocks of your last assistant message become the result content. Earlier
+messages, tool calls, and thinking are never relayed, so end with a self-contained
+final message covering what you accomplished or found, files read or modified,
+tests, errors, and concerns.
 
-End the summary with exactly one supported status marker:
+End your final message with exactly one supported status marker:
 
 - **Status: DONE**
 - **Status: DONE_WITH_CONCERNS**
@@ -168,7 +171,6 @@ class TauChildRunner:
         parent_reasoning_effort: str | None = None,
         timeout_seconds: float,
         signal: ToolCancellationToken | None,
-        step: int | None = None,
         on_message: ChildUpdate | None = None,
     ) -> ChildResult:
         """Launch and collect one child, retaining partial state on every exit path."""
@@ -198,7 +200,6 @@ class TauChildRunner:
             provider=provider,
             model=model,
             reasoning_effort=reasoning_effort,
-            step=step,
         )
         if _is_cancelled(signal):
             result.cancelled = True

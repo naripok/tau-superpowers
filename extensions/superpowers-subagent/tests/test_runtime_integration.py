@@ -129,7 +129,7 @@ def load_task_tool(
 
 def child_results(result: AgentToolResult) -> list[dict[str, Any]]:
     assert isinstance(result.details, dict)
-    assert result.details["schemaVersion"] == 1
+    assert result.details["schemaVersion"] == 2
     children = result.details["results"]
     assert isinstance(children, list)
     return children  # type: ignore[return-value]
@@ -207,42 +207,54 @@ def test_real_tau_cli_loads_directory_extension_and_registers_task(tmp_path: Pat
     )
 
     assert completed.returncode == 0, completed.stderr
-    assert "- task: Dispatch work to an isolated Tau subagent." in completed.stdout
+    assert "- task: Dispatch substantive work to an isolated Tau subagent." in completed.stdout
     assert completed.stderr == ""
 
 
 @pytest.mark.asyncio
-async def test_real_runtime_executes_single_parallel_and_chain_with_ordered_updates(
+async def test_real_runtime_executes_single_and_parallel_with_ordered_updates(
     tmp_path: Path,
     fake_tau_environment: tuple[Path, Path],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _executable, log_path = fake_tau_environment
     runtime, tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
-    assert runtime.render_tool_call("task", {"agent": "general-purpose", "task": "alpha"})
+    assert runtime.render_tool_call(
+        "task", {"tasks": [{"agent": "general-purpose", "task": "alpha"}]}
+    )
 
     single_updates: list[AgentToolResult] = []
     single = await tool.execute(
         "single",
-        {"agent": "general-purpose", "task": "alpha"},
+        {"tasks": [{"agent": "general-purpose", "task": "alpha"}]},
         on_update=single_updates.append,
     )
-    assert single.text == "## Summary\nsummary for alpha\n**Status: DONE**"
-    assert "full output" not in single.text
+    # A one-item call relays the child's complete final assistant message
+    # verbatim: both text blocks, no tool-call output, no extraction.
+    assert single.text == "full output for alpha\n## Summary\nsummary for alpha\n**Status: DONE**"
+    assert "tool output" not in single.text
     single_child = child_results(single)[0]
     assert single_child["malformedJsonLines"] == 2
     assert len(single_child["messages"]) == 2
-    assert len(single_updates) == 3
-    assert all(update.details["schemaVersion"] == 1 for update in single_updates)
+    # Updates: the toolResult and final assistant messages, the worker
+    # completion, and the final backfill — the slot-based path any count takes.
+    assert len(single_updates) == 4
+    assert all(update.details["schemaVersion"] == 2 for update in single_updates)
+    assert [update.text for update in single_updates] == [
+        "0/1 done",
+        "0/1 done",
+        "1/1 done",
+        "1/1 done",
+    ]
     collapsed = runtime.render_tool_result("task", single, expanded=False)
     expanded = runtime.render_tool_result("task", single, expanded=True)
-    # Collapsed keeps the pi-style header and previews the streamed work;
-    # expanded shows the full output and the delegated task.
-    assert collapsed is not None and "general-purpose" in collapsed
-    assert "(bundled · DONE)" in collapsed
+    # The frame shows one self-contained child component: header, streamed
+    # work, delegated task, usage.
+    assert collapsed is not None and "─── general-purpose" in collapsed
+    assert "[bold]task[/bold] · 1/1 succeeded" in collapsed
     assert "full output for alpha" in collapsed
     assert expanded is not None and "full output for alpha" in expanded
-    assert "─── Task ───" in expanded
+    assert "[dim]Task:[/dim] alpha" in expanded
 
     parallel_updates: list[AgentToolResult] = []
     parallel = await tool.execute(
@@ -256,9 +268,9 @@ async def test_real_runtime_executes_single_parallel_and_chain_with_ordered_upda
         },
         on_update=parallel_updates.append,
     )
-    assert parallel.text.startswith("Parallel: 3/3 succeeded")
+    assert parallel.text.startswith("3/3 succeeded")
     assert [child["task"] for child in child_results(parallel)] == ["one", "two", "three"]
-    assert "full output" not in parallel.text
+    assert "tool output" not in parallel.text
     assert parallel_updates
     assert [child["task"] for child in child_results(parallel_updates[-1])] == [
         "one",
@@ -266,36 +278,17 @@ async def test_real_runtime_executes_single_parallel_and_chain_with_ordered_upda
         "three",
     ]
 
-    chain_updates: list[AgentToolResult] = []
-    chain = await tool.execute(
-        "chain",
-        {
-            "chain": [
-                {"agent": "general-purpose", "task": "first"},
-                {"agent": "read-only", "task": "review\n{previous}"},
-            ]
-        },
-        on_update=chain_updates.append,
-    )
-    assert chain.text == "## Summary\nsummary for review\n**Status: DONE**"
-    chain_children = child_results(chain)
-    assert [child["step"] for child in chain_children] == [1, 2]
-    assert chain_children[1]["task"] == (
-        "review\nfull output for first\n## Summary\nsummary for first\n**Status: DONE**"
-    )
-    assert any(len(child_results(update)) == 2 for update in chain_updates)
-
     starts = [item for item in read_log(log_path) if item["event"] == "start"]
-    assert len(starts) == 6
+    assert len(starts) == 4
     read_only = [item for item in starts if item["policyPath"] is not None]
-    assert {item["task"].splitlines()[0] for item in read_only} == {"two", "review"}
+    assert {item["task"].splitlines()[0] for item in read_only} == {"two"}
     assert all(item["guard"] == "1" for item in starts)
     assert all(not Path(item["promptPath"]).exists() for item in starts)
     assert all(not Path(item["policyPath"]).exists() for item in read_only)
 
 
 @pytest.mark.asyncio
-async def test_coding_session_propagates_task_partial_updates_and_small_result_context(
+async def test_coding_session_propagates_task_partial_updates_and_final_message_content(
     tmp_path: Path,
     fake_tau_environment: tuple[Path, Path],
     monkeypatch: pytest.MonkeyPatch,
@@ -306,7 +299,7 @@ async def test_coding_session_propagates_task_partial_updates_and_small_result_c
     monkeypatch.delenv(RECURSION_GUARD, raising=False)
     provider = FakeProvider(
         [
-            tool_call_stream({"agent": "general-purpose", "task": "session-child"}),
+            tool_call_stream({"tasks": [{"agent": "general-purpose", "task": "session-child"}]}),
             final_stream(),
         ]
     )
@@ -334,15 +327,19 @@ async def test_coding_session_propagates_task_partial_updates_and_small_result_c
 
     updates = [event for event in events if isinstance(event, ToolExecutionUpdateEvent)]
     ended = next(event for event in events if isinstance(event, ToolExecutionEndEvent))
-    assert len(updates) == 3
-    assert all(update.partial_result.details["schemaVersion"] == 1 for update in updates)
+    assert len(updates) == 4
+    assert all(update.partial_result.details["schemaVersion"] == 2 for update in updates)
     assert ended.tool_name == "task"
-    assert ended.result.text == "## Summary\nsummary for session-child\n**Status: DONE**"
-    assert "full output" not in ended.result.text
+    # The controller sees the child's complete final message as result content.
+    assert ended.result.text == (
+        "full output for session-child\n## Summary\nsummary for session-child\n**Status: DONE**"
+    )
+    assert "tool output" not in ended.result.text
     assert "full output for session-child" in json.dumps(ended.result.details)
     controller_tool_result = provider.calls[1][2][-1]
     assert controller_tool_result.role == "toolResult"
-    assert "full output" not in controller_tool_result.text
+    assert "full output for session-child" in controller_tool_result.text
+    assert "tool output" not in controller_tool_result.text
 
 
 @pytest.mark.asyncio
@@ -354,16 +351,18 @@ async def test_runtime_retains_partial_data_for_nonzero_and_protocol_failures(
     del fake_tau_environment
     _runtime, tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
 
-    failed = await tool.execute("failed", {"agent": "general-purpose", "task": "fail"})
+    failed = await tool.execute("failed", {"tasks": [{"agent": "general-purpose", "task": "fail"}]})
     failed_child = child_results(failed)[0]
-    assert "failed" in failed.text
+    assert "Agent general-purpose failed" in failed.text
     assert failed_child["exitCode"] == 7
     assert failed_child["status"] == "BLOCKED"
     assert len(failed_child["messages"]) == 2
     assert failed_child["malformedJsonLines"] == 2
     assert "stderr for fail" in failed_child["stderr"]
 
-    protocol = await tool.execute("protocol", {"agent": "general-purpose", "task": "no-message"})
+    protocol = await tool.execute(
+        "protocol", {"tasks": [{"agent": "general-purpose", "task": "no-message"}]}
+    )
     protocol_child = child_results(protocol)[0]
     assert "without a valid assistant message" in protocol_child["errorMessage"]
     assert protocol_child["status"] == "BLOCKED"
@@ -381,8 +380,7 @@ async def test_runtime_terminates_child_on_timeout_or_cancellation_and_retains_p
     _runtime, tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
     token = CancellationToken()
     arguments: dict[str, JSONValue] = {
-        "agent": "general-purpose",
-        "task": "sleep",
+        "tasks": [{"agent": "general-purpose", "task": "sleep"}],
         "timeoutSeconds": 2 if cancel else 0.1,
     }
 
@@ -415,8 +413,7 @@ async def test_project_agent_approval_uses_headless_fail_closed_and_public_ui_co
         encoding="utf-8",
     )
     arguments: dict[str, JSONValue] = {
-        "agent": "project-worker",
-        "task": "approved",
+        "tasks": [{"agent": "project-worker", "task": "approved"}],
         "agentScope": "project",
     }
 
@@ -437,7 +434,7 @@ async def test_project_agent_approval_uses_headless_fail_closed_and_public_ui_co
         tmp_path, monkeypatch=monkeypatch, ui=approved_ui
     )
     approved = await approved_tool.execute("approved", arguments)
-    assert approved.text.startswith("## Summary")
+    assert approved.text.startswith("full output for approved")
     assert child_results(approved)[0]["agentSource"] == "project"
     assert len([item for item in read_log(log_path) if item["event"] == "start"]) == 1
 
@@ -476,7 +473,7 @@ async def test_real_runtime_inherits_parent_thinking_level_and_config_overrides(
     tool = runtime.extension_tools[0]
 
     inherited = await tool.execute(
-        "inherited", {"agent": "general-purpose", "task": "inherit-thinking"}
+        "inherited", {"tasks": [{"agent": "general-purpose", "task": "inherit-thinking"}]}
     )
     child = child_results(inherited)[0]
     assert child["reasoningEffort"] == "medium"
@@ -497,7 +494,9 @@ async def test_real_runtime_inherits_parent_thinking_level_and_config_overrides(
     )
     monkeypatch.setattr(Path, "home", classmethod(lambda _cls: config_home))
 
-    pinned = await tool.execute("pinned", {"agent": "general-purpose", "task": "config-pinned"})
+    pinned = await tool.execute(
+        "pinned", {"tasks": [{"agent": "general-purpose", "task": "config-pinned"}]}
+    )
     pinned_child = child_results(pinned)[0]
     assert pinned_child["model"] == "cfg/model"
     assert pinned_child["reasoningEffort"] == "high"
@@ -514,7 +513,9 @@ async def test_real_runtime_inherits_parent_thinking_level_and_config_overrides(
     # Agents the config never mentions stay unconfigured: the read-only agent
     # falls through to parent model and thinking level.
     config_path.write_text("", encoding="utf-8")
-    unpinned = await tool.execute("unpinned", {"agent": "read-only", "task": "unpinned-work"})
+    unpinned = await tool.execute(
+        "unpinned", {"tasks": [{"agent": "read-only", "task": "unpinned-work"}]}
+    )
     unpinned_child = child_results(unpinned)[0]
     assert unpinned_child["model"] == "outer-model"
     assert unpinned_child["reasoningEffort"] == "medium"

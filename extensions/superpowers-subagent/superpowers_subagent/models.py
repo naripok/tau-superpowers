@@ -12,7 +12,6 @@ from tau_agent.types import JSONValue
 AgentScope = Literal["user", "project", "both"]
 AgentSource = Literal["bundled", "user", "project", "unknown"]
 AgentProfile = Literal["general-purpose", "read-only", "review"]
-DispatchMode = Literal["single", "parallel", "chain"]
 SubagentStatus = Literal["DONE", "DONE_WITH_CONCERNS", "BLOCKED", "NEEDS_CONTEXT"]
 
 #: Tau thinking levels, mirrored from Tau's own catalog vocabulary so the
@@ -98,7 +97,6 @@ class ChildResult:
     stop_reason: str | None = None
     error_message: str | None = None
     status: SubagentStatus = "BLOCKED"
-    step: int | None = None
     timed_out: bool = False
     cancelled: bool = False
     malformed_json_lines: int = 0
@@ -145,14 +143,11 @@ class ChildResult:
             result["stopReason"] = self.stop_reason
         if self.error_message is not None:
             result["errorMessage"] = self.error_message
-        if self.step is not None:
-            result["step"] = self.step
         return result
 
 
 def details_dict(
     *,
-    mode: DispatchMode,
     agent_scope: AgentScope,
     project_agents_dir: Path | None,
     discovery_diagnostics: tuple[str, ...],
@@ -172,8 +167,7 @@ def details_dict(
     """
 
     details: dict[str, JSONValue] = {
-        "schemaVersion": 1,
-        "mode": mode,
+        "schemaVersion": 2,
         "agentScope": agent_scope,
         "projectAgentsDir": str(project_agents_dir) if project_agents_dir else None,
         "discoveryDiagnostics": list(discovery_diagnostics),

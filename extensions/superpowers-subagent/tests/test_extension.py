@@ -65,18 +65,24 @@ def test_setup_registers_exactly_one_task(monkeypatch: Any) -> None:
     assert [tool.name for tool in tau.tools] == ["task"]
     tool = tau.tools[0]
     assert tool.label == "task"
-    assert tool.parameters["properties"]["tasks"]["maxItems"] == 8
+    assert tool.parameters["required"] == ["tasks"]
+    properties = tool.parameters["properties"]
+    assert properties["tasks"]["minItems"] == 1
+    assert properties["tasks"]["maxItems"] == 8
+    # The removed mode fields no longer exist anywhere in the schema.
+    for removed in ("agent", "task", "cwd", "chain"):
+        assert removed not in properties
     assert tool.execution_mode == "parallel"
     assert tool.render_call is not None
     assert tool.render_result is not None
 
 
-def test_task_tool_prompt_states_mode_exclusivity(monkeypatch: Any) -> None:
-    """Pin the always-visible tool prompt: the runtime rejects calls that combine
-    single, parallel, and chain fields, so the description, parameter docs, and
-    guidelines must state the exactly-one-mode rule explicitly. Agents see only
-    this prompt at call time; without it they combine modes and then misread the
-    rejection as contradicting the instructions."""
+def test_task_tool_prompt_states_threshold_and_homogeneous_tasks(monkeypatch: Any) -> None:
+    """Pin the always-visible tool prompt: dispatch exists only for substantive
+    isolated-context or long-running work, never for trivial tool calls the
+    parent can perform itself and never as duplicate work, and every call takes
+    a homogeneous `tasks` array. Agents see only this prompt at call time, so
+    the threshold must live here rather than in the runtime validation."""
 
     monkeypatch.delenv(RECURSION_GUARD, raising=False)
     import superpowers_subagent.extension as extension_module
@@ -87,14 +93,29 @@ def test_task_tool_prompt_states_mode_exclusivity(monkeypatch: Any) -> None:
     setup(tau)  # type: ignore[arg-type]
 
     tool = tau.tools[0]
-    assert "exactly one mode" in tool.description
-    assert "mutually exclusive" in tool.description
-    assert any("exactly one dispatch mode" in guideline for guideline in tool.prompt_guidelines)
-    properties = tool.parameters["properties"]
-    assert "never combines" in properties["agent"]["description"]
-    assert "never combines" in properties["task"]["description"]
-    assert "never combine" in properties["tasks"]["description"]
-    assert "Never combine" in properties["chain"]["description"]
+    # Threshold: substantive work with an isolated context window, or
+    # long-running work that must not block the session.
+    assert "isolated context" in tool.description
+    assert "long-running" in tool.description
+    # Prohibitions: no trivial tool-call dispatches, no duplicated work.
+    assert "simple reads, searches, commands, and small edits" in tool.description.lower()
+    assert "never dispatch work" in tool.description
+    # Homogeneous contract: every call takes a tasks array.
+    assert "tasks" in tool.description
+    assert "one item runs a single child" in tool.description
+    assert "two or more run in parallel" in tool.description
+    assert tool.prompt_snippet == "Dispatch substantive work to an isolated Tau subagent."
+    guidelines = tool.prompt_guidelines
+    assert any(
+        "isolated context window" in guideline and "long-running" in guideline
+        for guideline in guidelines
+    )
+    assert any("replaces your own tool calls" in guideline for guideline in guidelines)
+    assert any("Always pass `tasks`" in guideline for guideline in guidelines)
+    blob = tool.description + " " + " ".join(guidelines)
+    assert "chain" not in blob
+    assert "single mode" not in blob
+    assert "mutually exclusive" not in blob
 
 
 def test_setup_refuses_recursive_registration(monkeypatch: Any) -> None:
@@ -148,7 +169,7 @@ async def test_execute_task_loads_config_per_call(monkeypatch: Any) -> None:
     setup(tau)  # type: ignore[arg-type]
     for _ in range(2):
         await tau.tools[0].execute_fn(  # type: ignore[attr-defined]
-            "call", {"agent": "read-only", "task": "work"}, None, None
+            "call", {"tasks": [{"agent": "read-only", "task": "work"}]}, None, None
         )
 
     assert loads == [Path.cwd(), Path.cwd()]
@@ -186,7 +207,7 @@ async def test_execute_task_passes_parent_session_provider_and_model(
 
     setup(tau)  # type: ignore[arg-type]
     await tau.tools[0].execute_fn(  # type: ignore[attr-defined]
-        "call-1", {"agent": "general-purpose", "task": "work"}, None, None
+        "call-1", {"tasks": [{"agent": "general-purpose", "task": "work"}]}, None, None
     )
 
     assert captured["parent_provider"] == "openai"
@@ -197,7 +218,7 @@ async def test_execute_task_passes_parent_session_provider_and_model(
     tau.context.provider_name = ""
     tau.context.model = ""
     await tau.tools[0].execute_fn(  # type: ignore[attr-defined]
-        "call-2", {"agent": "general-purpose", "task": "work"}, None, None
+        "call-2", {"tasks": [{"agent": "general-purpose", "task": "work"}]}, None, None
     )
 
     assert captured["parent_provider"] is None
@@ -233,7 +254,7 @@ async def test_execute_task_reads_parent_session_thinking_level(monkeypatch: Any
 
     setup(tau)  # type: ignore[arg-type]
     await tau.tools[0].execute_fn(  # type: ignore[attr-defined]
-        "call-1", {"agent": "read-only", "task": "work"}, None, None
+        "call-1", {"tasks": [{"agent": "read-only", "task": "work"}]}, None, None
     )
 
     assert captured["parent_reasoning_effort"] == "medium"
@@ -241,7 +262,7 @@ async def test_execute_task_reads_parent_session_thinking_level(monkeypatch: Any
     # A Tau version without the runtime seam yields None instead of crashing.
     del tau._runtime
     await tau.tools[0].execute_fn(  # type: ignore[attr-defined]
-        "call-2", {"agent": "read-only", "task": "work"}, None, None
+        "call-2", {"tasks": [{"agent": "read-only", "task": "work"}]}, None, None
     )
     assert captured["parent_reasoning_effort"] is None
 
@@ -283,7 +304,7 @@ async def test_execute_task_wires_tracker_as_usage_observer(monkeypatch: Any) ->
     # The dispatcher is constructed per call, so a call must run before the
     # captured kwargs exist.
     await tau.tools[0].execute_fn(  # type: ignore[attr-defined]
-        "call", {"agent": "general-purpose", "task": "work"}, None, None
+        "call", {"tasks": [{"agent": "general-purpose", "task": "work"}]}, None, None
     )
 
     assert callable(captured["usage_observer"])
@@ -389,7 +410,7 @@ async def test_execute_task_discards_pending_on_hard_cancellation(monkeypatch: A
     # snapshot; its hard-cancelled twin must be the same call so the finally
     # drops exactly that call's snapshot.
     await tau.tools[0].execute_fn(  # type: ignore[attr-defined]
-        "call", {"agent": "read-only", "task": "work"}, None, None
+        "call", {"tasks": [{"agent": "read-only", "task": "work"}]}, None, None
     )
     captured["usage_observer"](
         [
@@ -408,7 +429,7 @@ async def test_execute_task_discards_pending_on_hard_cancellation(monkeypatch: A
 
     with pytest.raises(asyncio.CancelledError):
         await tau.tools[0].execute_fn(  # type: ignore[attr-defined]
-            "call", {"agent": "read-only", "task": "work"}, None, None
+            "call", {"tasks": [{"agent": "read-only", "task": "work"}]}, None, None
         )
 
     assert tracker.totals.runs == 0

@@ -653,6 +653,19 @@ def test_compose_prompt_preserves_agent_body_as_prefix(tmp_path: Path) -> None:
     prompt = compose_child_prompt(agent)
     assert prompt.startswith(agent.system_prompt)
     assert "## Response Format" in prompt
+    # The child contract: the complete final assistant message is relayed
+    # verbatim to the controller, so it must be self-contained and end in
+    # exactly one status marker; no `## Summary` mandate remains.
+    assert "relayed verbatim" in prompt
+    assert "last assistant message" in prompt
+    for marker in (
+        "**Status: DONE**",
+        "**Status: DONE_WITH_CONCERNS**",
+        "**Status: BLOCKED**",
+        "**Status: NEEDS_CONTEXT**",
+    ):
+        assert marker in prompt
+    assert "## Summary" not in prompt
     assert "Enforced Read-Only Profile" not in prompt
     assert "Review Profile Tool Usage" not in prompt
 

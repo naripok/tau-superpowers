@@ -11,17 +11,6 @@ from tau_agent.messages import AgentMessage, AssistantMessage, TextContent
 from .config import AgentOverrides
 from .models import AgentConfig, SubagentStatus
 
-_SUMMARY_HEADING = re.compile(r"^[\t ]*## Summary[\t ]*\r?$", re.MULTILINE)
-#: Exact review-section headings that, when followed by an exact `## Summary`,
-#: are relayed to the parent together with it. Kept as a set so future review
-#: kinds only extend this list.
-_REVIEW_HEADINGS: frozenset[str] = frozenset({"## Code Review", "## Document Review"})
-_REVIEW_HEADING = re.compile(
-    r"^[\t ]*(?:"
-    + "|".join(re.escape(heading) for heading in sorted(_REVIEW_HEADINGS))
-    + r")[\t ]*\r?$",
-    re.MULTILINE,
-)
 _STATUS_MARKER = re.compile(
     r"(?:\*\*)?Status:\s*"
     r"(DONE_WITH_CONCERNS|NEEDS_CONTEXT|BLOCKED|DONE)"
@@ -39,34 +28,6 @@ def final_output(messages: list[AgentMessage]) -> str:
                 block.text for block in message.content if isinstance(block, TextContent)
             )
     return ""
-
-
-def summary_section(text: str) -> str:
-    """Return the last exact `## Summary` section, or all output as fallback."""
-
-    matches = list(_SUMMARY_HEADING.finditer(text))
-    if not matches:
-        return text
-    return text[matches[-1].start() :]
-
-
-def content_section(text: str) -> str:
-    """Return the parent-facing content for one child's final output.
-
-    Reviewers return actionable points under an exact review heading (e.g.
-    `## Code Review` or `## Document Review`) followed by an exact
-    `## Summary` heading; both sections are needed by the controller, so when
-    both headings exist with the summary at or after the review, content
-    starts at the last review heading. Otherwise the regular
-    summary-or-fallback rule applies.
-    """
-
-    review_matches = list(_REVIEW_HEADING.finditer(text))
-    summary_matches = list(_SUMMARY_HEADING.finditer(text))
-    if review_matches and summary_matches:
-        if summary_matches[-1].start() >= review_matches[-1].start():
-            return text[review_matches[-1].start() :]
-    return summary_section(text)
 
 
 def parse_status(text: str, *, failed: bool) -> SubagentStatus:

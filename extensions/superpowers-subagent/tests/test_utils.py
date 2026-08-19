@@ -6,12 +6,10 @@ from superpowers_subagent.config import AgentOverrides
 from superpowers_subagent.models import AgentConfig
 from superpowers_subagent.utils import (
     build_tau_argv,
-    content_section,
     effective_provider_model,
     effective_reasoning_effort,
     final_output,
     parse_status,
-    summary_section,
 )
 
 
@@ -31,76 +29,6 @@ def test_final_output_uses_last_assistant_and_all_text_blocks() -> None:
     ]
 
     assert final_output(messages) == "first second"
-
-
-def test_summary_section_uses_last_exact_heading_and_preserves_text() -> None:
-    output = (
-        "## Summary details\nnot a heading match\n"
-        "## Summary\nold\n"
-        "  ## Summary\t\nfinal\n**Status: DONE**"
-    )
-
-    assert summary_section(output) == "  ## Summary\t\nfinal\n**Status: DONE**"
-
-
-def test_summary_section_falls_back_to_complete_output() -> None:
-    output = "Prefix with inline ## Summary text\n### Summary\nbody"
-    assert summary_section(output) == output
-    assert summary_section("") == ""
-
-
-def test_summary_section_accepts_crlf_heading_lines() -> None:
-    assert summary_section("analysis\r\n## Summary\r\ndone") == "## Summary\r\ndone"
-
-
-def test_content_section_includes_review_section_with_following_summary() -> None:
-    output = (
-        "analysis\n"
-        "## Code Review\n"
-        "**Verdict:** Needs fixes\n- point\n"
-        "## Summary\n"
-        "short summary\n**Status: DONE**"
-    )
-
-    assert content_section(output) == output[len("analysis\n") :]
-
-
-def test_content_section_uses_last_review_heading_and_ignores_inline_lookalikes() -> None:
-    output = (
-        "## Code Review details\nnot a heading\n"
-        "## Code Review\n"
-        "second review\n"
-        "## Summary\n"
-        "summary\n"
-    )
-
-    assert content_section(output) == "## Code Review\nsecond review\n## Summary\nsummary\n"
-
-
-def test_content_section_falls_back_to_summary_or_full_output() -> None:
-    # Summary without a code-review heading: summary wins.
-    assert content_section("work\n## Summary\nfinal") == "## Summary\nfinal"
-    # Neither heading: complete output is the fallback.
-    assert content_section("plain output") == "plain output"
-    assert content_section("") == ""
-
-
-def test_content_section_includes_document_review_section_with_summary() -> None:
-    output = (
-        "analysis\n"
-        "## Document Review\n"
-        "**Verdict:** Approved with fixes\n- gap\n"
-        "## Summary\n"
-        "short summary\n**Status: DONE**"
-    )
-
-    assert content_section(output) == output[len("analysis\n") :]
-
-
-def test_content_section_ignores_review_heading_after_the_summary() -> None:
-    # A stray review heading after the summary keeps the summary rule dominant.
-    output = "## Summary\nsummary text\n## Code Review\nlate review\n"
-    assert content_section(output) == output
 
 
 def test_parse_status_uses_last_case_insensitive_bold_or_plain_marker() -> None:

@@ -3,8 +3,10 @@
 ``render_task_result`` mirrors the historical pi extension's live visibility:
 while children run, Tau re-renders the tool row after every accepted child
 message, and this renderer turns the accumulated details into a streaming view
-of each child's status, tool calls, and usage. Collapsed output stays compact;
-expanded output shows each child's full work stream.
+of each child's status, tool calls, and usage. Any child count renders as one
+frame: a counts headline plus one self-contained child component per child.
+Collapsed output stays compact; expanded output shows each child's full work
+stream.
 """
 
 from __future__ import annotations
@@ -18,7 +20,6 @@ from rich.markup import escape
 from tau_agent.tools import AgentToolResult
 from tau_agent.types import JSONValue
 
-COLLAPSED_ITEM_COUNT = 10
 COLLAPSED_CHILD_ITEM_COUNT = 5
 _TEXT_PREVIEW_LINES = 3
 _TOOL_PREVIEW_LIMIT = 60
@@ -63,27 +64,24 @@ def render_task_call(arguments: Mapping[str, JSONValue]) -> str:
 
 
 def render_task_result(result: AgentToolResult, *, expanded: bool) -> str | None:
-    """Render live Task progress and final results from schema-v1 details."""
+    """Render live Task progress and final results from schema-v2 details."""
 
     details = result.details
-    if not isinstance(details, dict) or details.get("schemaVersion") != 1:
+    if not isinstance(details, dict) or details.get("schemaVersion") != 2:
         return None
-    mode = details.get("mode")
     raw_results = details.get("results")
-    if not isinstance(mode, str) or not isinstance(raw_results, list):
+    if not isinstance(raw_results, list):
         return None
 
     children = [child for child in raw_results if isinstance(child, dict)]
     if not children:
-        return _empty_render(result, mode)
-    if mode == "single":
-        return _collapsed_single(children[0]) if not expanded else _expanded_single(children[0])
+        return _empty_render(result)
 
     planned = _planned_count(details, len(children))
-    headline = _headline(mode, children, planned)
+    headline = _headline(children, planned)
     if not expanded:
-        return _collapsed_multi(headline, children)
-    return _expanded_multi(headline, children)
+        return _collapsed_frame(headline, children)
+    return _expanded_frame(headline, children)
 
 
 # ---------------------------------------------------------------------------
@@ -91,18 +89,18 @@ def render_task_result(result: AgentToolResult, *, expanded: bool) -> str | None
 # ---------------------------------------------------------------------------
 
 
-def _empty_render(result: AgentToolResult, mode: str) -> str:
+def _empty_render(result: AgentToolResult) -> str:
     """Render the update/final content when details carry no child results.
 
-    Live multi-child updates sometimes precede the first child result, and
-    validation or approval failures never produce children; in both cases
-    ``content`` is the authoritative text.
+    Live updates sometimes precede the first child result, and validation or
+    approval failures never produce children; in both cases ``content`` is the
+    authoritative text.
     """
 
     fallback = result.text.strip()
     if fallback:
         return escape(fallback)
-    return f"[yellow]•[/yellow] [bold]Task[/bold] · {escape(mode)}"
+    return "[yellow]•[/yellow] [bold]Task[/bold]"
 
 
 def _planned_count(details: Mapping[str, object], known: int) -> int | None:
@@ -112,7 +110,7 @@ def _planned_count(details: Mapping[str, object], known: int) -> int | None:
     return None
 
 
-def _headline(mode: str, children: Sequence[Mapping[str, object]], planned: int | None) -> str:
+def _headline(children: Sequence[Mapping[str, object]], planned: int | None) -> str:
     states = [_child_state(child) for child in children]
     total = planned if planned is not None else len(children)
     running = states.count("running")
@@ -120,19 +118,8 @@ def _headline(mode: str, children: Sequence[Mapping[str, object]], planned: int 
     failed = states.count("failed")
     pending = max(total - len(children), 0) if planned is not None else 0
 
-    if mode == "chain":
-        icon = _RUNNING_ICON if running else ("[red]✗[/red]" if failed else "[green]✓[/green]")
-        text = f"{icon} [bold]chain[/bold] · {succeeded + failed}/{total} steps"
-        if running:
-            text += f" · step {_last_running_step(children)}/{total} running"
-        elif failed:
-            stopped = _failed_step(children)
-            if stopped is not None:
-                text += f" · stopped at step {stopped}"
-        return text
-
-    icon = "[red]✗[/red]" if failed else (_RUNNING_ICON if running else "[green]✓[/green]")
-    text = f"{icon} [bold]parallel[/bold] · {succeeded}/{total} succeeded"
+    icon = _RUNNING_ICON if running else ("[red]✗[/red]" if failed else "[green]✓[/green]")
+    text = f"{icon} [bold]task[/bold] · {succeeded}/{total} succeeded"
     if failed:
         text += f" · {failed} failed"
     if running:
@@ -142,137 +129,89 @@ def _headline(mode: str, children: Sequence[Mapping[str, object]], planned: int 
     return text
 
 
-def _last_running_step(children: Sequence[Mapping[str, object]]) -> int:
-    for index in range(len(children) - 1, -1, -1):
-        if _child_state(children[index]) == "running":
-            step = children[index].get("step")
-            return step if isinstance(step, int) else index + 1
-    return len(children)
-
-
-def _failed_step(children: Sequence[Mapping[str, object]]) -> int | None:
-    for index, child in enumerate(children):
-        if _child_state(child) == "failed":
-            step = child.get("step")
-            return step if isinstance(step, int) else index + 1
-    return None
-
-
 # ---------------------------------------------------------------------------
-# Collapsed rendering
+# Frame rendering
 # ---------------------------------------------------------------------------
 
 
-def _collapsed_single(child: Mapping[str, object]) -> str:
-    state = _child_state(child)
-    lines = [_child_header(child, state)]
-    items = _display_items(child.get("messages"))
-    truncated = False
-    if items:
-        body, truncated = _render_items(items, COLLAPSED_ITEM_COUNT, expanded=False)
+def _collapsed_frame(headline: str, children: Sequence[Mapping[str, object]]) -> str:
+    lines = [headline]
+    any_truncated = False
+    for index, child in enumerate(children, start=1):
+        body, truncated = _child_component(child, index, expanded=False)
         lines.append(body)
-    else:
-        error = _error_text(child)
-        if error:
-            lines.append(f"[red]{escape(error)}[/red]")
-        else:
-            lines.append("[dim](no output)[/dim]")
-    usage = _usage_line(child.get("usage"), child.get("model"), child.get("reasoningEffort"))
-    if usage:
-        lines.append(usage)
-    if truncated:
+        any_truncated = any_truncated or truncated
+    if len(children) > 1:
+        total = _aggregate_usage(children)
+        if total:
+            lines.append(f"[dim]Total: {total}[/dim]")
+    if any_truncated:
         lines.append(_EXPAND_HINT)
     return "\n".join(lines)
 
 
-def _collapsed_multi(headline: str, children: Sequence[Mapping[str, object]]) -> str:
-    lines = [headline]
-    any_truncated = False
+def _expanded_frame(headline: str, children: Sequence[Mapping[str, object]]) -> str:
+    sections = [headline]
     for index, child in enumerate(children, start=1):
-        state = _child_state(child)
-        lines.append(
-            f"[dim]─── {escape(_child_label(child, index))}[/dim] {_status_icon(child, state)}"
-        )
-        items = _display_items(child.get("messages"))
+        body, _ = _child_component(child, index, expanded=True)
+        sections.append(body)
+    if len(children) > 1:
+        total = _aggregate_usage(children)
+        if total:
+            sections.append(f"[dim]Total: {total}[/dim]")
+    return "\n\n".join(sections)
+
+
+# ---------------------------------------------------------------------------
+# Child component
+# ---------------------------------------------------------------------------
+
+
+def _child_component(
+    child: Mapping[str, object],
+    index: int,
+    *,
+    expanded: bool,
+) -> tuple[str, bool]:
+    """Render one self-contained child component; ``True`` means the collapsed
+    work stream was truncated and the frame should offer the expand hint."""
+
+    state = _child_state(child)
+    header = f"[dim]─── {escape(_child_label(child, index))}[/dim] {_status_icon(child, state)}"
+    if state == "running":
+        header += " [dim](running)[/dim]"
+    lines = [header]
+    truncated = False
+    items = _display_items(child.get("messages"))
+    if expanded:
+        hint = _status_hint(child.get("status"))
+        if hint and state != "running":
+            lines.append(f"[dim]Status: {hint}[/dim]")
+        error = _error_text(child)
+        if error:
+            lines.append(f"[red]Error: {escape(error)}[/red]")
+        task = child.get("task")
+        if isinstance(task, str) and task.strip():
+            lines.append(f"[dim]Task:[/dim] {escape(task.strip())}")
+        if items:
+            body, _ = _render_items(items, None, expanded=True)
+            lines.append(body)
+        else:
+            lines.append("[dim](no output)[/dim]")
+    else:
         if items:
             body, truncated = _render_items(items, COLLAPSED_CHILD_ITEM_COUNT, expanded=False)
             lines.append(body)
-            any_truncated = any_truncated or truncated
         else:
             error = _error_text(child)
             if error:
                 lines.append(f"[red]{escape(error)}[/red]")
             else:
                 lines.append("[dim](no output)[/dim]")
-        usage = _usage_line(child.get("usage"), child.get("model"), child.get("reasoningEffort"))
-        if usage:
-            lines.append(usage)
-    total = _aggregate_usage(children)
-    if total:
-        lines.append(f"[dim]Total: {total}[/dim]")
-    if any_truncated:
-        lines.append(_EXPAND_HINT)
-    return "\n".join(lines)
-
-
-# ---------------------------------------------------------------------------
-# Expanded rendering
-# ---------------------------------------------------------------------------
-
-
-def _expanded_single(child: Mapping[str, object]) -> str:
-    state = _child_state(child)
-    lines = [_child_header(child, state)]
-    hint = _status_hint(child.get("status"))
-    if hint and state != "running":
-        lines.append(f"[dim]Status: {hint}[/dim]")
-    error = _error_text(child)
-    if error:
-        lines.append(f"[red]Error: {escape(error)}[/red]")
-    task = child.get("task")
-    if isinstance(task, str) and task.strip():
-        lines.append("[dim]─── Task ───[/dim]")
-        lines.append(escape(task.strip()))
-    lines.append("[dim]─── Output ───[/dim]")
-    items = _display_items(child.get("messages"))
-    if items:
-        body, _ = _render_items(items, None, expanded=True)
-        lines.append(body)
-    else:
-        lines.append("[dim](no output)[/dim]")
     usage = _usage_line(child.get("usage"), child.get("model"), child.get("reasoningEffort"))
     if usage:
         lines.append(usage)
-    return "\n".join(lines)
-
-
-def _expanded_multi(headline: str, children: Sequence[Mapping[str, object]]) -> str:
-    sections = [headline]
-    for index, child in enumerate(children, start=1):
-        state = _child_state(child)
-        parts = [
-            f"[dim]─── {escape(_child_label(child, index))}[/dim] {_status_icon(child, state)}"
-        ]
-        task = child.get("task")
-        if isinstance(task, str) and task.strip():
-            parts.append(f"[dim]Task:[/dim] {escape(task.strip())}")
-        error = _error_text(child)
-        if error:
-            parts.append(f"[red]Error: {escape(error)}[/red]")
-        items = _display_items(child.get("messages"))
-        if items:
-            body, _ = _render_items(items, None, expanded=True)
-            parts.append(body)
-        else:
-            parts.append("[dim](no output)[/dim]")
-        usage = _usage_line(child.get("usage"), child.get("model"), child.get("reasoningEffort"))
-        if usage:
-            parts.append(usage)
-        sections.append("\n".join(parts))
-    total = _aggregate_usage(children)
-    if total:
-        sections.append(f"[dim]Total: {total}[/dim]")
-    return "\n\n".join(sections)
+    return "\n".join(lines), truncated
 
 
 # ---------------------------------------------------------------------------
@@ -331,29 +270,7 @@ def _status_hint(status: object) -> str:
     return ""
 
 
-def _child_header(child: Mapping[str, object], state: ChildState) -> str:
-    name = _agent_name(child, 1)
-    header = f"{_status_icon(child, state)} [bold]{escape(name)}[/bold]"
-    if state == "running":
-        return f"{header} [dim](running)[/dim]"
-    labels = []
-    source = child.get("agentSource")
-    if isinstance(source, str) and source:
-        labels.append(escape(source))
-    status = child.get("status")
-    if isinstance(status, str) and status:
-        labels.append(escape(status))
-    if labels:
-        header += f" [dim]({' · '.join(labels)})[/dim]"
-    if _terminal_stop_reason(child):
-        header += f" [red][{escape(str(child.get('stopReason')))}][/red]"
-    return header
-
-
 def _child_label(child: Mapping[str, object], index: int) -> str:
-    step = child.get("step")
-    if isinstance(step, int):
-        return f"Step {step}: {_agent_name(child, index)}"
     return _agent_name(child, index)
 
 
@@ -565,14 +482,8 @@ def _format_tokens(count: float) -> str:
 def _call_label(arguments: Mapping[str, JSONValue]) -> str:
     tasks = arguments.get("tasks")
     if isinstance(tasks, list):
-        return f"parallel · {len(tasks)} children"
-    chain = arguments.get("chain")
-    if isinstance(chain, list):
-        noun = "step" if len(chain) == 1 else "steps"
-        return f"chain · {len(chain)} {noun}"
-    agent = arguments.get("agent")
-    if isinstance(agent, str) and agent.strip():
-        return f"single · {agent.strip()}"
+        count = len(tasks)
+        return "1 child" if count == 1 else f"{count} children"
     return "dispatch"
 
 

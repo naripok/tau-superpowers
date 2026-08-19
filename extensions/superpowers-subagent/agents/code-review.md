@@ -1,6 +1,6 @@
 ---
 name: code-review
-description: Adversarial read-only code reviewer with a strict `## Code Review` plus `## Summary` report format. Use for code quality review, spec compliance review, and inspection of named files.
+description: Adversarial read-only code reviewer with a strict `## Code Review` report format. Use for code quality review, spec compliance review, and inspection of named files.
 profile: review
 provider: openrouter
 model: deepseek/deepseek-v4-flash-0731
@@ -37,7 +37,7 @@ Review the named files against the controller-provided diff, verification output
 
 ## Required Response Format
 
-You MUST end your response with exactly two sections, in this order, using these exact headings (each `##` heading on its own line, nothing after the status line). The controller extracts both sections mechanically and relays them to the parent session, so keep every actionable point self-contained.
+You MUST end your response with exactly one `## Code Review` section using this exact heading (on its own line, nothing after the status line). Your complete final message is relayed verbatim to the controller, so keep every actionable point self-contained.
 
 ## Code Review
 
@@ -54,9 +54,5 @@ You MUST end your response with exactly two sections, in this order, using these
 **Minor (nice to have):**
 
 - [file:line] What could be improved
-
-## Summary
-
-One short paragraph: what was reviewed, the key findings, and the verdict. This is relayed to the parent session alongside the `## Code Review` section.
 
 **Status: DONE** (or **DONE_WITH_CONCERNS** when the review completed with caveats, **BLOCKED** when it cannot be completed, **NEEDS_CONTEXT** when the controller must supply missing input)

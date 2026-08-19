@@ -36,32 +36,11 @@ _TASK_ITEM_SCHEMA: dict[str, JSONValue] = {
 _TASK_PARAMETERS: dict[str, JSONValue] = {
     "type": "object",
     "additionalProperties": False,
+    "required": ["tasks"],
     "properties": {
         "description": {
             "type": "string",
             "description": "Short orchestration description for display.",
-        },
-        "agent": {
-            "type": "string",
-            "minLength": 1,
-            "description": (
-                "Agent name for single mode; requires task and never combines with tasks or chain."
-            ),
-        },
-        "task": {
-            "type": "string",
-            "minLength": 1,
-            "description": (
-                "Complete delegated prompt for single mode; requires agent and "
-                "never combines with tasks or chain."
-            ),
-        },
-        "cwd": {
-            "type": "string",
-            "description": (
-                "Child working directory for single mode; parallel and chain "
-                "items carry their own cwd."
-            ),
         },
         "tasks": {
             "type": "array",
@@ -69,17 +48,9 @@ _TASK_PARAMETERS: dict[str, JSONValue] = {
             "maxItems": 8,
             "items": _TASK_ITEM_SCHEMA,
             "description": (
-                "Independent parallel tasks (at most eight); never combine "
-                "with agent + task or chain."
-            ),
-        },
-        "chain": {
-            "type": "array",
-            "minItems": 1,
-            "items": _TASK_ITEM_SCHEMA,
-            "description": (
-                "Sequential tasks; {previous} receives complete prior output. "
-                "Never combine with agent + task or tasks."
+                "Delegated tasks, one child per item; each item runs as an "
+                "isolated child. One item runs a single child, two or more "
+                "run in parallel (max eight, four active)."
             ),
         },
         "agentScope": {
@@ -207,26 +178,34 @@ def setup(tau: ExtensionAPI) -> None:
             name="task",
             label="task",
             description=(
-                "Dispatch complete tasks to isolated Tau subagents. Pass exactly one "
-                "mode per call: agent + task for single mode, tasks for ordered "
-                "parallel mode (max eight, four active), or chain for sequential work "
-                "with {previous}. The mode fields are mutually exclusive: never pass "
-                "agent + task together with tasks or chain; use separate calls for "
-                "additional or conditional work. Bundled agents include "
+                "Dispatch substantive work to isolated Tau subagents: multi-step "
+                "tasks that benefit from an isolated context window, or long-running "
+                "work that must not block this session. Simple reads, searches, "
+                "commands, and small edits are your own tool calls, and you never "
+                "dispatch work you are about to perform yourself. Every call takes "
+                "a tasks array: one item runs a single child, two or more run in "
+                "parallel (max eight, four active) preserving input order; use "
+                "separate calls for conditional sequences. Bundled agents include "
                 "general-purpose, implementation, code-review and document-review "
                 "(read plus read-only bash), and the enforced read-only profile. "
                 "Project-controlled agent prompts require explicit approval."
             ),
             parameters=_TASK_PARAMETERS,
             execute_fn=execute_task,
-            prompt_snippet="Dispatch work to an isolated Tau subagent.",
+            prompt_snippet="Dispatch substantive work to an isolated Tau subagent.",
             prompt_guidelines=(
+                "Dispatch only substantive multi-step work that benefits from an "
+                "isolated context window, or long-running work that must not block "
+                "this session; never dispatch simple reads, searches, commands, or "
+                "small edits — those are your own tool calls.",
+                "A subagent replaces your own tool calls for its task; never dispatch "
+                "a subagent and then perform the same work yourself.",
+                "Always pass `tasks`, even for a single child: one item for one "
+                "child, several items for parallel work; use separate calls for "
+                "conditional sequences.",
                 "Include all required context because subagents cannot see this conversation.",
-                "Pass exactly one dispatch mode per call: agent + task, or tasks, or "
-                "chain. Mode fields never combine; use separate calls for conditional "
-                "sequences.",
                 "Use implementation for implementation work, code-review for reviews, "
-                "and read-only for plain file inspection.",
+                "and read-only for substantial read-only investigation of named files.",
                 "Do not set provider, model, or reasoningEffort unless the user "
                 "requests an override or a skill prescribes it; subagents inherit "
                 "the parent session's model and thinking effort by default and can "

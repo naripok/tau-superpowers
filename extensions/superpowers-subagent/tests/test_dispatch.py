@@ -81,7 +81,6 @@ class FakeRunner:
             provider=provider,
             model=model,
             reasoning_effort=reasoning_effort,
-            step=kwargs["step"],
         )
         if task == "fail":
             result.exit_code = 1
@@ -200,103 +199,100 @@ class UsageCalls:
         return self.calls[-1][0]
 
 
-@pytest.mark.parametrize(
-    "arguments",
-    [
-        {},
+def test_validation_requires_a_non_empty_tasks_array() -> None:
+    with pytest.raises(ValidationFailure) as absent:
+        validate_arguments({})
+    assert "tasks array" in str(absent.value)
+
+    with pytest.raises(ValidationFailure) as empty:
+        validate_arguments({"tasks": []})
+    assert "tasks array" in str(empty.value)
+
+
+def test_validation_rejects_non_list_tasks_as_array_error() -> None:
+    for arguments in ({"tasks": "not-a-list"}, {"tasks": {"agent": "a", "task": "x"}}):
+        with pytest.raises(ValidationFailure) as excinfo:
+            validate_arguments(arguments)
+        assert str(excinfo.value) == "tasks must be an array"
+
+
+def test_validation_rejects_removed_mode_fields_as_unknown() -> None:
+    for arguments in (
         {"agent": "general-purpose"},
-        {"agent": " ", "task": "work"},
-        {"tasks": []},
-        {"chain": []},
+        {"task": "work"},
+        {"cwd": "src"},
+        {"chain": [{"agent": "a", "task": "x"}]},
         {
             "agent": "general-purpose",
             "task": "work",
-            "tasks": [{"agent": "read-only", "task": "review"}],
+            "tasks": [{"agent": "a", "task": "x"}],
         },
-        {"tasks": [{"agent": "a", "task": "x"}] * 9},
+        {"tasks": [{"agent": "a", "task": "x"}], "chain": [{"agent": "a", "task": "y"}]},
+    ):
+        with pytest.raises(ValidationFailure) as excinfo:
+            validate_arguments(arguments)
+        assert "unknown field(s)" in str(excinfo.value)
+
+    with pytest.raises(ValidationFailure) as both:
+        validate_arguments(
+            {
+                "agent": "a",
+                "task": "x",
+                "tasks": [{"agent": "a", "task": "x"}],
+            }
+        )
+    assert "unknown field(s): agent, task" in str(both.value)
+
+
+def test_validation_rejects_more_than_eight_tasks() -> None:
+    with pytest.raises(ValidationFailure) as excinfo:
+        validate_arguments({"tasks": [{"agent": "a", "task": "x"}] * 9})
+    assert "at most 8" in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
         {"tasks": [{"agent": "", "task": "x"}]},
-        {"chain": [{"agent": "a", "task": ""}]},
-        {"agent": "a", "task": "x", "agentScope": "invalid"},
-        {"agent": "a", "task": "x", "confirmProjectAgents": 1},
-        {"agent": "a", "task": "x", "provider": ""},
-        {"agent": "a", "task": "x", "reasoningEffort": "max"},
-        {"agent": "a", "task": "x", "reasoningEffort": ""},
-        {"agent": "a", "task": "x", "reasoningEffort": 5},
-        {"agent": "a", "task": "x", "timeoutSeconds": 0},
-        {"agent": "a", "task": "x", "timeoutSeconds": 3601},
-        {"agent": "a", "task": "x", "extra": True},
+        {"tasks": [{"agent": "a", "task": ""}]},
+        {"tasks": [{"agent": "a", "task": "x", "cwd": 5}]},
+        {"tasks": [{"agent": "a", "task": "x", "extra": True}]},
+        {"tasks": [{"agent": "a", "task": "x"}], "agentScope": "invalid"},
+        {"tasks": [{"agent": "a", "task": "x"}], "confirmProjectAgents": 1},
+        {"tasks": [{"agent": "a", "task": "x"}], "provider": ""},
+        {"tasks": [{"agent": "a", "task": "x"}], "model": ""},
+        {"tasks": [{"agent": "a", "task": "x"}], "reasoningEffort": "max"},
+        {"tasks": [{"agent": "a", "task": "x"}], "reasoningEffort": ""},
+        {"tasks": [{"agent": "a", "task": "x"}], "reasoningEffort": 5},
+        {"tasks": [{"agent": "a", "task": "x"}], "timeoutSeconds": 0},
+        {"tasks": [{"agent": "a", "task": "x"}], "timeoutSeconds": 3601},
+        {"tasks": [{"agent": "a", "task": "x"}], "extra": True},
     ],
 )
-def test_validation_rejects_invalid_modes_and_common_options(arguments: dict[str, Any]) -> None:
+def test_validation_rejects_invalid_items_and_common_options(arguments: dict[str, Any]) -> None:
     with pytest.raises(ValidationFailure):
         validate_arguments(arguments)
 
 
-def test_combined_modes_error_names_the_selected_modes() -> None:
-    """Pin the self-correcting contract: a combined-mode rejection must name the
-    modes the call actually carried so the caller can fix its arguments instead
-    of rationalizing that the tool prompt asked for the combination."""
-
-    with pytest.raises(ValidationFailure) as single_parallel:
-        validate_arguments(
-            {
-                "agent": "general-purpose",
-                "task": "work",
-                "tasks": [{"agent": "read-only", "task": "review"}],
-            }
-        )
-    message = str(single_parallel.value)
-    assert "mutually exclusive" in message
-    assert "combined single (agent + task) and parallel (tasks)" in message
-    assert "exactly one mode" in message
-
-    with pytest.raises(ValidationFailure) as parallel_chain:
-        validate_arguments(
-            {
-                "tasks": [{"agent": "a", "task": "x"}],
-                "chain": [{"agent": "a", "task": "y"}],
-            }
-        )
-    message = str(parallel_chain.value)
-    assert "combined parallel (tasks) and chain (chain)" in message
-
-
-def test_partial_single_error_forbids_combining_with_other_modes() -> None:
-    """A lone top-level agent or task is a single-mode fragment; the error must
-    make clear those fields are never valid alongside tasks or chain."""
-
-    with pytest.raises(ValidationFailure) as excinfo:
-        validate_arguments({"agent": "general-purpose", "tasks": [{"agent": "a", "task": "x"}]})
-    message = str(excinfo.value)
-    assert "single mode requires both non-empty agent and task" in message
-    assert "never combine with tasks or chain" in message
-
-
-def test_no_mode_error_lists_every_mode() -> None:
-    with pytest.raises(ValidationFailure) as excinfo:
-        validate_arguments({})
-    message = str(excinfo.value)
-    assert "exactly one non-empty mode" in message
-    assert "single (agent + task)" in message
-    assert "parallel (tasks)" in message
-    assert "chain (chain)" in message
-
-
-def test_validation_accepts_single_and_independent_overrides() -> None:
+def test_validation_accepts_items_and_independent_overrides() -> None:
     request = validate_arguments(
         {
-            "agent": " worker ",
-            "task": "complete prompt",
-            "cwd": "src",
+            "description": "  brief  ",
+            "tasks": [
+                {"agent": " worker ", "task": "complete prompt", "cwd": "src"},
+                {"agent": "read-only", "task": "second prompt"},
+            ],
             "provider": "provider",
             "model": "org/model",
             "reasoningEffort": " XHIGH ",
             "timeoutSeconds": 2.5,
         }
     )
-    assert request.mode == "single"
+    assert len(request.items) == 2
     assert request.items[0].agent == "worker"
+    assert request.items[0].task == "complete prompt"
     assert request.items[0].cwd == "src"
+    assert request.items[1].cwd is None
     assert request.provider == "provider"
     assert request.model == "org/model"
     assert request.reasoning_effort == "xhigh"
@@ -310,39 +306,93 @@ async def test_invalid_call_returns_normal_tool_result_with_schema_details(tmp_p
 
     assert "Invalid parameters" in result.text
     assert "general-purpose (bundled)" in result.text
-    assert result.details["schemaVersion"] == 1
+    assert result.details["schemaVersion"] == 2
+    assert "mode" not in result.details
     assert result.details["results"] == []
     assert runner.calls == []
 
 
 @pytest.mark.asyncio
-async def test_single_returns_summary_content_and_complete_wire_messages(tmp_path: Path) -> None:
+async def test_single_item_runs_one_child_and_returns_complete_final_message(
+    tmp_path: Path,
+) -> None:
+    """Prove a one-item call runs one child and relays its complete final
+    assistant message verbatim: no summary extraction, no heading rewriting."""
+
     runner = FakeRunner()
     updates = []
     result = await make_dispatcher(tmp_path, runner).execute(
         {
-            "agent": "general-purpose",
-            "task": "implement",
+            "tasks": [{"agent": "general-purpose", "task": "implement", "cwd": "src"}],
             "model": "call/model",
             "reasoningEffort": "medium",
         },
         on_update=updates.append,
     )
 
-    assert result.text == "## Summary\nsummary for implement\n**Status: DONE**"
+    assert result.text == (
+        "full output for implement\n## Summary\nsummary for implement\n**Status: DONE**"
+    )
     details = result.details
-    assert details["schemaVersion"] == 1
+    assert details["schemaVersion"] == 2
+    assert "mode" not in details
     assert details["discoveryDiagnostics"] == ["one diagnostic"]
-    assert details["results"][0]["messages"][0]["role"] == "assistant"
-    assert details["results"][0]["provider"] == "agent-provider"
-    assert details["results"][0]["model"] == "call/model"
-    assert details["results"][0]["reasoningEffort"] == "medium"
+    assert details["planned"] == 1
+    child = details["results"][0]
+    assert child["messages"][0]["role"] == "assistant"
+    assert child["provider"] == "agent-provider"
+    assert child["model"] == "call/model"
+    assert child["reasoningEffort"] == "medium"
+    assert child["cwd"] == str(resolve_child_cwd(tmp_path, "src"))
     assert runner.calls[0]["reasoning_effort_override"] == "medium"
-    assert len(updates) == 2
+    # Live updates: one from the accepted message, one on completion, one
+    # final backfill — the same slot-based path any child count takes. The
+    # fixture marks a slot terminal from creation (exitCode 0), so every
+    # snapshot already counts it. (The real runner's 0/N live window is
+    # pinned by the runtime integration tests.)
+    assert len(updates) == 3
+    assert [update.text for update in updates] == ["1/1 done", "1/1 done", "1/1 done"]
 
 
 @pytest.mark.asyncio
-async def test_parallel_limits_concurrency_and_preserves_input_order(tmp_path: Path) -> None:
+async def test_single_item_failure_returns_concise_failure(tmp_path: Path) -> None:
+    runner = FakeRunner()
+    result = await make_dispatcher(tmp_path, runner).execute(
+        {"tasks": [{"agent": "general-purpose", "task": "fail"}]}
+    )
+
+    assert result.text == "Agent general-purpose failed: planned failure"
+    assert result.details["results"][0]["status"] == "BLOCKED"
+
+
+@pytest.mark.asyncio
+async def test_single_item_review_result_relays_complete_final_message(tmp_path: Path) -> None:
+    """Prove review reports are relayed whole: the Code Review section is not
+    extracted, the analysis prefix is not stripped, and no Summary mandate is
+    applied on the dispatch side."""
+
+    runner = FakeRunner()
+    result = await make_dispatcher(tmp_path, runner).execute(
+        {"tasks": [{"agent": "code-review", "task": "review"}]}
+    )
+
+    assert result.text == (
+        "analysis\n"
+        "## Code Review\n"
+        "**Verdict:** Approved with fixes\n- point\n"
+        "## Summary\n"
+        "summary for review\n**Status: DONE**"
+    )
+    child = result.details["results"][0]
+    assert child["messages"][0]["content"][0]["text"].startswith("analysis")
+
+
+@pytest.mark.asyncio
+async def test_multiple_items_run_in_parallel_with_ordered_sections(tmp_path: Path) -> None:
+    """Prove 2+ items dispatch in parallel with bounded concurrency, keep input
+    order in results, and produce one per-child section carrying that child's
+    complete final message."""
+
     runner = FakeRunner()
     tasks = [{"agent": "general-purpose", "task": f"task-{index}"} for index in range(8)]
 
@@ -352,8 +402,58 @@ async def test_parallel_limits_concurrency_and_preserves_input_order(tmp_path: P
     assert [item["task"] for item in result.details["results"]] == [
         f"task-{index}" for index in range(8)
     ]
-    assert result.text.startswith("Parallel: 8/8 succeeded")
+    assert result.text.startswith("8/8 succeeded")
+    assert "Parallel:" not in result.text
+    for index in range(8):
+        section = (
+            f"[general-purpose] (completed)\n\n"
+            f"full output for task-{index}\n## Summary\nsummary for task-{index}\n"
+            "**Status: DONE**"
+        )
+        assert section in result.text
     assert result.text.index("summary for task-0") < result.text.index("summary for task-7")
+
+
+@pytest.mark.asyncio
+async def test_failed_child_section_falls_back_to_error_message(tmp_path: Path) -> None:
+    """Prove a failed child with no final text contributes its error message as
+    the section body, keeping the R5 envelope shape."""
+
+    runner = FakeRunner()
+    result = await make_dispatcher(tmp_path, runner).execute(
+        {
+            "tasks": [
+                {"agent": "general-purpose", "task": "fail"},
+                {"agent": "read-only", "task": "fine"},
+            ]
+        }
+    )
+
+    assert result.text.startswith("1/2 succeeded")
+    assert "[general-purpose] (failed)\n\nplanned failure" in result.text
+    assert "[read-only] (completed)\n\nfull output for fine" in result.text
+
+
+@pytest.mark.asyncio
+async def test_details_use_schema_v2_without_mode_or_step(tmp_path: Path) -> None:
+    runner = FakeRunner()
+    result = await make_dispatcher(tmp_path, runner).execute(
+        {
+            "tasks": [
+                {"agent": "general-purpose", "task": "one"},
+                {"agent": "read-only", "task": "two"},
+            ]
+        }
+    )
+
+    details = result.details
+    assert details["schemaVersion"] == 2
+    assert "mode" not in details
+    assert details["planned"] == 2
+    assert details["agentScope"] == "user"
+    for child in details["results"]:
+        assert "step" not in child
+        assert "mode" not in child
 
 
 @pytest.mark.asyncio
@@ -378,6 +478,7 @@ async def test_parallel_timeout_stops_queued_work_and_retains_ordered_slots(tmp_
         "queued",
     ]
     assert "not started" in result.details["results"][-1]["errorMessage"].lower()
+    assert result.text.startswith("3/5 succeeded")
 
     # The final commit keeps one slot per planned task, including the
     # zero-usage never-started slots produced by the timeout.
@@ -398,72 +499,6 @@ async def test_parallel_timeout_stops_queued_work_and_retains_ordered_slots(tmp_
 
 
 @pytest.mark.asyncio
-async def test_single_content_includes_review_section_with_summary(tmp_path: Path) -> None:
-    runner = FakeRunner()
-    result = await make_dispatcher(tmp_path, runner).execute(
-        {"agent": "code-review", "task": "review"}
-    )
-
-    assert result.text == (
-        "## Code Review\n"
-        "**Verdict:** Approved with fixes\n- point\n"
-        "## Summary\n"
-        "summary for review\n**Status: DONE**"
-    )
-    assert "analysis" not in result.text
-    child = result.details["results"][0]
-    assert child["messages"][0]["content"][0]["text"].startswith("analysis")
-
-
-@pytest.mark.asyncio
-async def test_chain_substitutes_complete_previous_output_and_continues_semantic_status(
-    tmp_path: Path,
-) -> None:
-    runner = FakeRunner()
-    result = await make_dispatcher(tmp_path, runner).execute(
-        {
-            "chain": [
-                {"agent": "general-purpose", "task": "semantic-blocked"},
-                {"agent": "read-only", "task": "Review this:\n{previous}\nAgain {previous}"},
-            ]
-        }
-    )
-
-    assert len(runner.calls) == 2
-    previous = (
-        "full output for semantic-blocked\n## Summary\nsummary for semantic-blocked\n"
-        "**Status: BLOCKED**"
-    )
-    assert runner.calls[1]["task"] == f"Review this:\n{previous}\nAgain {previous}"
-    assert [item["step"] for item in result.details["results"]] == [1, 2]
-    assert result.text.startswith("## Summary")
-
-
-@pytest.mark.asyncio
-async def test_chain_stops_on_process_failure(tmp_path: Path) -> None:
-    runner = FakeRunner()
-    calls = UsageCalls()
-    result = await make_dispatcher(tmp_path, runner, usage_observer=calls.record).execute(
-        {
-            "chain": [
-                {"agent": "general-purpose", "task": "fail"},
-                {"agent": "read-only", "task": "never"},
-            ]
-        }
-    )
-
-    assert len(runner.calls) == 1
-    assert result.text == "Chain stopped at step 1 (general-purpose): planned failure"
-    assert len(result.details["results"]) == 1
-
-    # The final commit carries exactly the returned step-1 child; the
-    # never-started step-2 child must not be counted as usage.
-    assert calls.final_count == 1
-    assert [child.task for child in calls.last_children] == ["fail"]
-    assert any(not final for _children, final in calls.calls), "no live snapshot was fed"
-
-
-@pytest.mark.asyncio
 async def test_project_agents_fail_closed_headless_and_allow_explicit_bypass(
     tmp_path: Path,
 ) -> None:
@@ -472,7 +507,7 @@ async def test_project_agents_fail_closed_headless_and_allow_explicit_bypass(
     headless = make_dispatcher(tmp_path, runner, source="project", usage_observer=calls.record)
 
     rejected = await headless.execute(
-        {"agent": "general-purpose", "task": "work", "agentScope": "project"}
+        {"tasks": [{"agent": "general-purpose", "task": "work"}], "agentScope": "project"}
     )
     assert "approval required in headless mode" in rejected.text
     assert runner.calls == []
@@ -481,13 +516,12 @@ async def test_project_agents_fail_closed_headless_and_allow_explicit_bypass(
 
     approved = await headless.execute(
         {
-            "agent": "general-purpose",
-            "task": "work",
+            "tasks": [{"agent": "general-purpose", "task": "work"}],
             "agentScope": "project",
             "confirmProjectAgents": False,
         }
     )
-    assert approved.text.startswith("## Summary")
+    assert approved.text.startswith("full output for work")
     assert len(runner.calls) == 1
     assert calls.final_count == 1
 
@@ -497,7 +531,7 @@ async def test_project_agents_use_ui_confirmation(tmp_path: Path) -> None:
     denied_runner = FakeRunner()
     denied_ui = FakeUi(has_ui=True, answer=False)
     denied = await make_dispatcher(tmp_path, denied_runner, ui=denied_ui, source="project").execute(
-        {"agent": "general-purpose", "task": "work", "agentScope": "project"}
+        {"tasks": [{"agent": "general-purpose", "task": "work"}], "agentScope": "project"}
     )
     assert denied.text.startswith("Canceled")
     assert denied_runner.calls == []
@@ -507,8 +541,8 @@ async def test_project_agents_use_ui_confirmation(tmp_path: Path) -> None:
     allowed_ui = FakeUi(has_ui=True, answer=True)
     allowed = await make_dispatcher(
         tmp_path, allowed_runner, ui=allowed_ui, source="project"
-    ).execute({"agent": "general-purpose", "task": "work", "agentScope": "project"})
-    assert allowed.text.startswith("## Summary")
+    ).execute({"tasks": [{"agent": "general-purpose", "task": "work"}], "agentScope": "project"})
+    assert allowed.text.startswith("full output for work")
     assert len(allowed_runner.calls) == 1
 
 
@@ -523,7 +557,7 @@ async def test_single_uses_parent_provider_and_model_when_agent_is_unpinned(
         tmp_path, runner, parent_provider="openai", parent_model="gpt-5.6-sol"
     )
 
-    result = await dispatcher.execute({"agent": "read-only", "task": "work"})
+    result = await dispatcher.execute({"tasks": [{"agent": "read-only", "task": "work"}]})
 
     call = runner.calls[0]
     assert call["parent_provider"] == "openai"
@@ -546,7 +580,7 @@ async def test_single_inherits_parent_thinking_level_by_default(tmp_path: Path) 
         parent_reasoning_effort="medium",
     )
 
-    result = await dispatcher.execute({"agent": "read-only", "task": "work"})
+    result = await dispatcher.execute({"tasks": [{"agent": "read-only", "task": "work"}]})
 
     call = runner.calls[0]
     assert call["parent_reasoning_effort"] == "medium"
@@ -562,7 +596,7 @@ async def test_call_reasoning_override_beats_parent_thinking_level(tmp_path: Pat
     dispatcher = make_dispatcher(tmp_path, runner, parent_reasoning_effort="medium")
 
     result = await dispatcher.execute(
-        {"agent": "read-only", "task": "work", "reasoningEffort": "low"}
+        {"tasks": [{"agent": "read-only", "task": "work"}], "reasoningEffort": "low"}
     )
 
     assert runner.calls[0]["reasoning_effort_override"] == "low"
@@ -585,7 +619,7 @@ async def test_config_agent_overrides_shadow_agent_definition(tmp_path: Path) ->
     )
     dispatcher = make_dispatcher(tmp_path, runner, config=config)
 
-    result = await dispatcher.execute({"agent": "general-purpose", "task": "work"})
+    result = await dispatcher.execute({"tasks": [{"agent": "general-purpose", "task": "work"}]})
 
     call = runner.calls[0]
     # make_discovery pins provider "agent-provider" and model "agent-model" on
@@ -615,7 +649,7 @@ async def test_config_defaults_apply_to_unpinned_agents_before_parent(
         parent_model="gpt-5.6-sol",
     )
 
-    result = await dispatcher.execute({"agent": "read-only", "task": "work"})
+    result = await dispatcher.execute({"tasks": [{"agent": "read-only", "task": "work"}]})
 
     child = result.details["results"][0]
     assert child["provider"] == "openai"
@@ -632,7 +666,7 @@ async def test_bundled_agent_pins_survive_empty_config(tmp_path: Path) -> None:
     config = SubagentConfig(defaults=AgentOverrides(model="default/model", reasoning_effort="low"))
     dispatcher = make_dispatcher(tmp_path, runner, config=config)
 
-    result = await dispatcher.execute({"agent": "general-purpose", "task": "work"})
+    result = await dispatcher.execute({"tasks": [{"agent": "general-purpose", "task": "work"}]})
 
     # The agent definition pins provider/model on general-purpose, which must
     # beat config defaults (reasoning falls to the default layer).
@@ -654,7 +688,7 @@ async def test_details_carry_config_paths_and_diagnostics(tmp_path: Path) -> Non
     )
 
     result = await make_dispatcher(tmp_path, runner, config=config).execute(
-        {"agent": "read-only", "task": "work"}
+        {"tasks": [{"agent": "read-only", "task": "work"}]}
     )
 
     assert result.details["configPaths"] == [str(tmp_path / ".tau" / "superpowers-subagent.toml")]
@@ -698,7 +732,7 @@ async def test_config_section_for_unknown_agent_name_adds_diagnostic(
     config = SubagentConfig(agents=(("typo-agent", AgentOverrides(model="never-used")),))
 
     result = await make_dispatcher(tmp_path, runner, config=config).execute(
-        {"agent": "general-purpose", "task": "work"}
+        {"tasks": [{"agent": "general-purpose", "task": "work"}]}
     )
 
     assert result.details["configDiagnostics"] == [
@@ -749,7 +783,7 @@ async def test_config_section_matching_another_scope_is_not_diagnosed(
     )
 
     result = await dispatcher.execute(
-        {"agent": "general-purpose", "task": "work", "agentScope": "user"}
+        {"tasks": [{"agent": "general-purpose", "task": "work"}], "agentScope": "user"}
     )
 
     assert result.details.get("configDiagnostics") is None
@@ -758,9 +792,11 @@ async def test_config_section_matching_another_scope_is_not_diagnosed(
 @pytest.mark.asyncio
 async def test_unknown_agent_is_a_structured_failure(tmp_path: Path) -> None:
     runner = FakeRunner()
-    result = await make_dispatcher(tmp_path, runner).execute({"agent": "missing", "task": "work"})
+    result = await make_dispatcher(tmp_path, runner).execute(
+        {"tasks": [{"agent": "missing", "task": "work"}]}
+    )
 
-    assert "Unknown agent" in result.text
+    assert result.text.startswith("Agent missing failed: Unknown agent 'missing'")
     child = result.details["results"][0]
     assert child["agentSource"] == "unknown"
     assert child["status"] == "BLOCKED"
@@ -777,7 +813,9 @@ async def test_single_dispatch_feeds_usage_observer(tmp_path: Path) -> None:
     dispatcher = make_dispatcher(tmp_path, runner, usage_observer=calls.record)
 
     result = await dispatcher.execute(
-        {"agent": "general-purpose", "task": "task-one"}, signal=None, on_update=None
+        {"tasks": [{"agent": "general-purpose", "task": "task-one"}]},
+        signal=None,
+        on_update=None,
     )
 
     assert calls.calls, "observer was never fed"
@@ -786,11 +824,13 @@ async def test_single_dispatch_feeds_usage_observer(tmp_path: Path) -> None:
     final_children = calls.last_children
     assert len(final_children) == 1
     assert final_children[0].task == "task-one"
-    # The observer must not change what the caller receives: the same summary
-    # text and wire details arrive as without it.
-    assert result.text == "## Summary\nsummary for task-one\n**Status: DONE**"
+    # The observer must not change what the caller receives: the same complete
+    # final message and wire details arrive as without it.
+    assert result.text == (
+        "full output for task-one\n## Summary\nsummary for task-one\n**Status: DONE**"
+    )
     details = result.details
-    assert details is not None and details["schemaVersion"] == 1
+    assert details is not None and details["schemaVersion"] == 2
     assert len(details["results"]) == 1
     assert len(details["results"][0]["messages"]) == 1
 
@@ -814,32 +854,6 @@ async def test_parallel_dispatch_commits_all_children_once(tmp_path: Path) -> No
 
 
 @pytest.mark.asyncio
-async def test_chain_dispatch_commits_accumulated_steps_once(tmp_path: Path) -> None:
-    """Prove chain dispatch feeds one final commit containing every completed
-    step, with live snapshots along the way."""
-
-    calls = UsageCalls()
-    runner = FakeRunner()
-    dispatcher = make_dispatcher(tmp_path, runner, usage_observer=calls.record)
-
-    await dispatcher.execute(
-        {
-            "chain": [
-                {"agent": "general-purpose", "task": "chain-one"},
-                {"agent": "read-only", "task": "chain-two"},
-            ]
-        },
-        signal=None,
-        on_update=None,
-    )
-
-    assert calls.final_count == 1
-    final_children = calls.last_children
-    assert [child.task for child in final_children] == ["chain-one", "chain-two"]
-    assert any(not final for _children, final in calls.calls), "no live snapshot was fed"
-
-
-@pytest.mark.asyncio
 async def test_validation_failure_never_feeds_usage_observer(tmp_path: Path) -> None:
     """Prove a request rejected before dispatch produces no usage observations."""
 
@@ -847,7 +861,7 @@ async def test_validation_failure_never_feeds_usage_observer(tmp_path: Path) -> 
     runner = FakeRunner()
     dispatcher = make_dispatcher(tmp_path, runner, usage_observer=calls.record)
 
-    await dispatcher.execute({"agent": "general-purpose"}, signal=None, on_update=None)
+    await dispatcher.execute({"tasks": []}, signal=None, on_update=None)
 
     assert calls.calls == []
 
@@ -862,7 +876,7 @@ async def test_unknown_agent_commits_zero_usage_child(tmp_path: Path) -> None:
     dispatcher = make_dispatcher(tmp_path, runner, usage_observer=calls.record)
 
     await dispatcher.execute(
-        {"agent": "no-such-agent", "task": "work"}, signal=None, on_update=None
+        {"tasks": [{"agent": "no-such-agent", "task": "work"}]}, signal=None, on_update=None
     )
 
     assert calls.final_count == 1
@@ -887,7 +901,7 @@ async def test_usage_observation_precedes_update_delivery(tmp_path: Path) -> Non
     )
 
     await dispatcher.execute(
-        {"agent": "general-purpose", "task": "task-one"},
+        {"tasks": [{"agent": "general-purpose", "task": "task-one"}]},
         signal=None,
         on_update=lambda _report: events.append("update"),
     )

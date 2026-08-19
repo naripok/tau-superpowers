@@ -1,6 +1,6 @@
 ---
 name: document-review
-description: Adversarial read-only document reviewer for the design workflow gates — feature spec review and plan review — with a strict `## Document Review` plus `## Summary` report format.
+description: Adversarial read-only document reviewer for the design workflow gates — feature spec review and plan review — with a strict `## Document Review` report format.
 profile: review
 provider: openrouter
 model: deepseek/deepseek-v4-flash-0731
@@ -38,7 +38,7 @@ Flag only issues that would cause real problems at the next gate — a missing s
 
 ## Required Response Format
 
-You MUST end your response with exactly two sections, in this order, using these exact headings (each `##` heading on its own line, nothing after the status line). The controller extracts both sections mechanically and relays them to the parent session, so keep every finding self-contained with a document/section reference.
+You MUST end your response with exactly one `## Document Review` section using this exact heading (on its own line, nothing after the status line). Your complete final message is relayed verbatim to the controller, so keep every finding self-contained with a document/section reference.
 
 ## Document Review
 
@@ -55,9 +55,5 @@ You MUST end your response with exactly two sections, in this order, using these
 **Minor (nice to have):**
 
 - [Section/requirement] What could be improved
-
-## Summary
-
-One short paragraph: what was reviewed, the key findings, and the verdict. This is relayed to the parent session alongside the `## Document Review` section.
 
 **Status: DONE** (or **DONE_WITH_CONCERNS** when the review completed with caveats, **BLOCKED** when it cannot be completed, **NEEDS_CONTEXT** when the controller must supply missing input)
