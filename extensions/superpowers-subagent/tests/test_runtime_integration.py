@@ -21,6 +21,8 @@ from tau_coding.extensions import ExtensionRuntime
 from tau_coding.resources import TauResourcePaths
 from tau_coding.session import CodingSession, CodingSessionConfig
 
+from superpowers_subagent.runner import RECURSION_GUARD
+
 EXTENSION_DIR = Path(__file__).resolve().parents[1]
 FAKE_TAU_SOURCE = Path(__file__).parent / "fixtures" / "fake_tau.py"
 
@@ -102,8 +104,13 @@ def fake_tau_environment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tup
 def load_task_tool(
     tmp_path: Path,
     *,
+    monkeypatch: pytest.MonkeyPatch,
     ui: InteractiveUi | None = None,
 ) -> tuple[ExtensionRuntime, AgentTool]:
+    # The suite deliberately loads the real extension, so neutralize the
+    # recursion guard inherited when the suite itself runs inside a
+    # superpowers child (the guard makes setup() register no tools).
+    monkeypatch.delenv(RECURSION_GUARD, raising=False)
     runtime = ExtensionRuntime(ui=ui) if ui is not None else ExtensionRuntime()
     runtime.load(
         TauResourcePaths(
@@ -176,6 +183,9 @@ def test_real_tau_cli_loads_directory_extension_and_registers_task(tmp_path: Pat
             "TAU_NO_UPDATE_CHECK": "1",
         }
     )
+    # Same recursion-guard neutralization as load_task_tool; the spawned tau
+    # must actually register the task tool.
+    environment.pop(RECURSION_GUARD, None)
 
     completed = subprocess.run(
         [
@@ -205,9 +215,10 @@ def test_real_tau_cli_loads_directory_extension_and_registers_task(tmp_path: Pat
 async def test_real_runtime_executes_single_parallel_and_chain_with_ordered_updates(
     tmp_path: Path,
     fake_tau_environment: tuple[Path, Path],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _executable, log_path = fake_tau_environment
-    runtime, tool = load_task_tool(tmp_path)
+    runtime, tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
     assert runtime.render_tool_call("task", {"agent": "general-purpose", "task": "alpha"})
 
     single_updates: list[AgentToolResult] = []
@@ -287,8 +298,12 @@ async def test_real_runtime_executes_single_parallel_and_chain_with_ordered_upda
 async def test_coding_session_propagates_task_partial_updates_and_small_result_context(
     tmp_path: Path,
     fake_tau_environment: tuple[Path, Path],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     del fake_tau_environment
+    # Same recursion-guard neutralization as load_task_tool: the session must
+    # actually register the task tool from the explicit extension path.
+    monkeypatch.delenv(RECURSION_GUARD, raising=False)
     provider = FakeProvider(
         [
             tool_call_stream({"agent": "general-purpose", "task": "session-child"}),
@@ -334,9 +349,10 @@ async def test_coding_session_propagates_task_partial_updates_and_small_result_c
 async def test_runtime_retains_partial_data_for_nonzero_and_protocol_failures(
     tmp_path: Path,
     fake_tau_environment: tuple[Path, Path],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     del fake_tau_environment
-    _runtime, tool = load_task_tool(tmp_path)
+    _runtime, tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
 
     failed = await tool.execute("failed", {"agent": "general-purpose", "task": "fail"})
     failed_child = child_results(failed)[0]
@@ -359,9 +375,10 @@ async def test_runtime_terminates_child_on_timeout_or_cancellation_and_retains_p
     tmp_path: Path,
     fake_tau_environment: tuple[Path, Path],
     cancel: bool,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _executable, log_path = fake_tau_environment
-    _runtime, tool = load_task_tool(tmp_path)
+    _runtime, tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
     token = CancellationToken()
     arguments: dict[str, JSONValue] = {
         "agent": "general-purpose",
@@ -388,6 +405,7 @@ async def test_runtime_terminates_child_on_timeout_or_cancellation_and_retains_p
 async def test_project_agent_approval_uses_headless_fail_closed_and_public_ui_confirmation(
     tmp_path: Path,
     fake_tau_environment: tuple[Path, Path],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _executable, log_path = fake_tau_environment
     project_agents = tmp_path / ".tau" / "agents"
@@ -402,20 +420,22 @@ async def test_project_agent_approval_uses_headless_fail_closed_and_public_ui_co
         "agentScope": "project",
     }
 
-    _headless_runtime, headless_tool = load_task_tool(tmp_path)
+    _headless_runtime, headless_tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
     headless = await headless_tool.execute("headless", arguments)
     assert "approval required in headless mode" in headless.text
     assert read_log(log_path) == []
 
     denied_ui = InteractiveUi(answer=False)
-    _denied_runtime, denied_tool = load_task_tool(tmp_path, ui=denied_ui)
+    _denied_runtime, denied_tool = load_task_tool(tmp_path, monkeypatch=monkeypatch, ui=denied_ui)
     denied = await denied_tool.execute("denied", arguments)
     assert denied.text.startswith("Canceled")
     assert "project-worker" in denied_ui.confirmations[0][1]
     assert read_log(log_path) == []
 
     approved_ui = InteractiveUi(answer=True)
-    _approved_runtime, approved_tool = load_task_tool(tmp_path, ui=approved_ui)
+    _approved_runtime, approved_tool = load_task_tool(
+        tmp_path, monkeypatch=monkeypatch, ui=approved_ui
+    )
     approved = await approved_tool.execute("approved", arguments)
     assert approved.text.startswith("## Summary")
     assert child_results(approved)[0]["agentSource"] == "project"
@@ -441,6 +461,7 @@ async def test_real_runtime_inherits_parent_thinking_level_and_config_overrides(
     section overrides lower layers, end to end into the child argv and back."""
 
     _executable, log_path = fake_tau_environment
+    monkeypatch.delenv(RECURSION_GUARD, raising=False)
     runtime = ExtensionRuntime()
     runtime.load(
         TauResourcePaths(

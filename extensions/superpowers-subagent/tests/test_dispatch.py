@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -164,6 +165,7 @@ def make_dispatcher(
     parent_model: str | None = None,
     parent_reasoning_effort: str | None = None,
     config: SubagentConfig | None = None,
+    usage_observer: Any = None,
 ) -> TaskDispatcher:
     discovery = make_discovery(tmp_path, source=source)
     return TaskDispatcher(
@@ -175,7 +177,27 @@ def make_dispatcher(
         parent_model=parent_model,
         parent_reasoning_effort=parent_reasoning_effort,
         config=config,
+        usage_observer=usage_observer,
     )
+
+
+class UsageCalls:
+    """Record every observer feed in call order so tests can assert final-commit
+    counts and the children carried by the last commit."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[list[ChildResult], bool]] = []
+
+    def record(self, children: Sequence[ChildResult], final: bool) -> None:
+        self.calls.append((list(children), final))
+
+    @property
+    def final_count(self) -> int:
+        return sum(final for _children, final in self.calls)
+
+    @property
+    def last_children(self) -> list[ChildResult]:
+        return self.calls[-1][0]
 
 
 @pytest.mark.parametrize(
@@ -291,8 +313,11 @@ async def test_parallel_timeout_stops_queued_work_and_retains_ordered_slots(tmp_
         {"agent": "general-purpose", "task": task}
         for task in ("timeout", "one", "two", "three", "queued")
     ]
+    calls = UsageCalls()
 
-    result = await make_dispatcher(tmp_path, runner).execute({"tasks": tasks})
+    result = await make_dispatcher(tmp_path, runner, usage_observer=calls.record).execute(
+        {"tasks": tasks}
+    )
 
     assert len(runner.calls) == 4
     assert [item["task"] for item in result.details["results"]] == [
@@ -303,6 +328,23 @@ async def test_parallel_timeout_stops_queued_work_and_retains_ordered_slots(tmp_
         "queued",
     ]
     assert "not started" in result.details["results"][-1]["errorMessage"].lower()
+
+    # The final commit keeps one slot per planned task, including the
+    # zero-usage never-started slots produced by the timeout.
+    assert calls.final_count == 1
+    assert [child.task for child in calls.last_children] == [
+        "timeout",
+        "one",
+        "two",
+        "three",
+        "queued",
+    ]
+    queued = calls.last_children[-1]
+    assert queued.usage.input == 0
+    assert queued.usage.cost == 0.0
+    assert any(
+        not final and len(children) < len(calls.last_children) for children, final in calls.calls
+    ), "no partial live snapshot was fed"
 
 
 @pytest.mark.asyncio
@@ -350,7 +392,8 @@ async def test_chain_substitutes_complete_previous_output_and_continues_semantic
 @pytest.mark.asyncio
 async def test_chain_stops_on_process_failure(tmp_path: Path) -> None:
     runner = FakeRunner()
-    result = await make_dispatcher(tmp_path, runner).execute(
+    calls = UsageCalls()
+    result = await make_dispatcher(tmp_path, runner, usage_observer=calls.record).execute(
         {
             "chain": [
                 {"agent": "general-purpose", "task": "fail"},
@@ -363,19 +406,28 @@ async def test_chain_stops_on_process_failure(tmp_path: Path) -> None:
     assert result.text == "Chain stopped at step 1 (general-purpose): planned failure"
     assert len(result.details["results"]) == 1
 
+    # The final commit carries exactly the returned step-1 child; the
+    # never-started step-2 child must not be counted as usage.
+    assert calls.final_count == 1
+    assert [child.task for child in calls.last_children] == ["fail"]
+    assert any(not final for _children, final in calls.calls), "no live snapshot was fed"
+
 
 @pytest.mark.asyncio
 async def test_project_agents_fail_closed_headless_and_allow_explicit_bypass(
     tmp_path: Path,
 ) -> None:
     runner = FakeRunner()
-    headless = make_dispatcher(tmp_path, runner, source="project")
+    calls = UsageCalls()
+    headless = make_dispatcher(tmp_path, runner, source="project", usage_observer=calls.record)
 
     rejected = await headless.execute(
         {"agent": "general-purpose", "task": "work", "agentScope": "project"}
     )
     assert "approval required in headless mode" in rejected.text
     assert runner.calls == []
+    # Headless denial returns before dispatch starts, so it feeds nothing.
+    assert calls.calls == []
 
     approved = await headless.execute(
         {
@@ -387,6 +439,7 @@ async def test_project_agents_fail_closed_headless_and_allow_explicit_bypass(
     )
     assert approved.text.startswith("## Summary")
     assert len(runner.calls) == 1
+    assert calls.final_count == 1
 
 
 @pytest.mark.asyncio
@@ -662,3 +715,136 @@ async def test_unknown_agent_is_a_structured_failure(tmp_path: Path) -> None:
     assert child["agentSource"] == "unknown"
     assert child["status"] == "BLOCKED"
     assert runner.calls == []
+
+
+@pytest.mark.asyncio
+async def test_single_dispatch_feeds_usage_observer(tmp_path: Path) -> None:
+    """Prove single dispatch delivers live snapshots and exactly one final
+    commit carrying the completed child, so the tracker never double counts."""
+
+    calls = UsageCalls()
+    runner = FakeRunner()
+    dispatcher = make_dispatcher(tmp_path, runner, usage_observer=calls.record)
+
+    result = await dispatcher.execute(
+        {"agent": "general-purpose", "task": "task-one"}, signal=None, on_update=None
+    )
+
+    assert calls.calls, "observer was never fed"
+    assert calls.final_count == 1
+    assert calls.calls[-1][1] is True
+    final_children = calls.last_children
+    assert len(final_children) == 1
+    assert final_children[0].task == "task-one"
+    # The observer must not change what the caller receives: the same summary
+    # text and wire details arrive as without it.
+    assert result.text == "## Summary\nsummary for task-one\n**Status: DONE**"
+    details = result.details
+    assert details is not None and details["schemaVersion"] == 1
+    assert len(details["results"]) == 1
+    assert len(details["results"][0]["messages"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_parallel_dispatch_commits_all_children_once(tmp_path: Path) -> None:
+    """Prove parallel dispatch feeds snapshots while children complete and one
+    final commit with every result in input order."""
+
+    calls = UsageCalls()
+    runner = FakeRunner()
+    dispatcher = make_dispatcher(tmp_path, runner, usage_observer=calls.record)
+    items = [{"agent": "general-purpose", "task": f"parallel-{index}"} for index in range(4)]
+
+    await dispatcher.execute({"tasks": items}, signal=None, on_update=None)
+
+    assert calls.final_count == 1
+    final_children = calls.last_children
+    assert [child.task for child in final_children] == [f"parallel-{index}" for index in range(4)]
+    assert any(not final for _children, final in calls.calls), "no live snapshot was fed"
+
+
+@pytest.mark.asyncio
+async def test_chain_dispatch_commits_accumulated_steps_once(tmp_path: Path) -> None:
+    """Prove chain dispatch feeds one final commit containing every completed
+    step, with live snapshots along the way."""
+
+    calls = UsageCalls()
+    runner = FakeRunner()
+    dispatcher = make_dispatcher(tmp_path, runner, usage_observer=calls.record)
+
+    await dispatcher.execute(
+        {
+            "chain": [
+                {"agent": "general-purpose", "task": "chain-one"},
+                {"agent": "read-only", "task": "chain-two"},
+            ]
+        },
+        signal=None,
+        on_update=None,
+    )
+
+    assert calls.final_count == 1
+    final_children = calls.last_children
+    assert [child.task for child in final_children] == ["chain-one", "chain-two"]
+    assert any(not final for _children, final in calls.calls), "no live snapshot was fed"
+
+
+@pytest.mark.asyncio
+async def test_validation_failure_never_feeds_usage_observer(tmp_path: Path) -> None:
+    """Prove a request rejected before dispatch produces no usage observations."""
+
+    calls = UsageCalls()
+    runner = FakeRunner()
+    dispatcher = make_dispatcher(tmp_path, runner, usage_observer=calls.record)
+
+    await dispatcher.execute({"agent": "general-purpose"}, signal=None, on_update=None)
+
+    assert calls.calls == []
+
+
+@pytest.mark.asyncio
+async def test_unknown_agent_commits_zero_usage_child(tmp_path: Path) -> None:
+    """Prove an unknown-agent failure still commits once with a zero-usage
+    child, which the tracker ignores rather than counting as a run."""
+
+    calls = UsageCalls()
+    runner = FakeRunner()
+    dispatcher = make_dispatcher(tmp_path, runner, usage_observer=calls.record)
+
+    await dispatcher.execute(
+        {"agent": "no-such-agent", "task": "work"}, signal=None, on_update=None
+    )
+
+    assert calls.final_count == 1
+    final_children = calls.last_children
+    assert final_children[0].agent == "no-such-agent"
+    assert final_children[0].usage.input == 0
+    assert final_children[0].usage.cost == 0.0
+
+
+@pytest.mark.asyncio
+async def test_usage_observation_precedes_update_delivery(tmp_path: Path) -> None:
+    """Prove live usage snapshots are fed before the frontend update callback
+    whenever both are present, with the final commit trailing as the sole
+    observation after the last update."""
+
+    events: list[str] = []
+    runner = FakeRunner()
+    dispatcher = make_dispatcher(
+        tmp_path,
+        runner,
+        usage_observer=lambda children, final: events.append("observer"),
+    )
+
+    await dispatcher.execute(
+        {"agent": "general-purpose", "task": "task-one"},
+        signal=None,
+        on_update=lambda _report: events.append("update"),
+    )
+
+    assert events[0] == "observer"
+    for index, event in enumerate(events):
+        if event == "update":
+            assert index > 0 and events[index - 1] == "observer"
+    assert events[-1] == "observer"
+    assert events.count("observer") == events.count("update") + 1

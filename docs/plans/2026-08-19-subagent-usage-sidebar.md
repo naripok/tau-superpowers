@@ -115,8 +115,8 @@ def test_live_updates_replace_the_snapshot() -> None:
     without double counting."""
     tracker = SubagentUsageTracker()
 
-    tracker.update([_child(input=100, output=50)], final=False)
-    tracker.update([_child(input=150, output=80)], final=False)
+    tracker.update("call-1", [_child(input=100, output=50)], final=False)
+    tracker.update("call-1", [_child(input=150, output=80)], final=False)
 
     totals = tracker.totals
     assert totals.runs == 1
@@ -129,8 +129,9 @@ def test_commit_folds_each_call_once() -> None:
     accumulate across the session."""
     tracker = SubagentUsageTracker()
 
-    tracker.update([_child(input=100, output=50, cost=0.01)], final=True)
+    tracker.update("call-1", [_child(input=100, output=50, cost=0.01)], final=True)
     tracker.update(
+        "call-2",
         [_child(input=200, output=100), _child(input=50, output=25)],
         final=True,
     )
@@ -148,8 +149,8 @@ def test_snapshot_cleared_on_commit() -> None:
     tracker = SubagentUsageTracker()
     child = _child(input=100, output=50)
 
-    tracker.update([child], final=False)
-    tracker.update([child], final=True)
+    tracker.update("call-1", [child], final=False)
+    tracker.update("call-1", [child], final=True)
 
     assert tracker.totals.input_tokens == 100
     assert tracker.totals.runs == 1
@@ -159,10 +160,10 @@ def test_discard_pending_drops_snapshot() -> None:
     """Prove a call that ends without committing discards its in-flight
     snapshot, leaving only the committed totals."""
     tracker = SubagentUsageTracker()
-    tracker.update([_child(input=100, output=50)], final=True)
+    tracker.update("call-1", [_child(input=100, output=50)], final=True)
 
-    tracker.update([_child(input=500, output=250)], final=False)
-    tracker.discard_pending()
+    tracker.update("call-2", [_child(input=500, output=250)], final=False)
+    tracker.discard_pending("call-2")
 
     totals = tracker.totals
     assert totals.input_tokens == 100
@@ -176,7 +177,7 @@ def test_zero_usage_children_contribute_nothing() -> None:
     tracker = SubagentUsageTracker()
     empty = _child()
 
-    tracker.update([_child(input=100, output=50), empty], final=True)
+    tracker.update("call-1", [_child(input=100, output=50), empty], final=True)
 
     totals = tracker.totals
     assert totals.runs == 1
@@ -188,7 +189,7 @@ def test_partial_usage_children_are_included() -> None:
     consumed even though the child never completed."""
     tracker = SubagentUsageTracker()
 
-    tracker.update([_child(input=60, output=30, timed_out=True)], final=True)
+    tracker.update("call-1", [_child(input=60, output=30, timed_out=True)], final=True)
 
     assert tracker.totals.input_tokens == 60
     assert tracker.totals.runs == 1
@@ -198,8 +199,8 @@ def test_reset_clears_everything() -> None:
     """Prove a session-rebind reset returns the tracker to its initial state,
     committed totals and in-flight snapshot alike."""
     tracker = SubagentUsageTracker()
-    tracker.update([_child(input=100, output=50)], final=True)
-    tracker.update([_child(input=10, output=5)], final=False)
+    tracker.update("call-1", [_child(input=100, output=50)], final=True)
+    tracker.update("call-2", [_child(input=10, output=5)], final=False)
 
     tracker.reset()
 
@@ -211,7 +212,7 @@ def test_prompt_tokens_include_cached_and_written() -> None:
     tokens, mirroring the session usage section's input definition."""
     tracker = SubagentUsageTracker()
 
-    tracker.update([_child(input=100, cache_read=50, cache_write=10)], final=True)
+    tracker.update("call-1", [_child(input=100, cache_read=50, cache_write=10)], final=True)
 
     assert tracker.totals.prompt_tokens == 160
     assert tracker.totals.input_tokens == 100
@@ -222,11 +223,47 @@ def test_cost_reported_only_when_nonzero() -> None:
     tracker = SubagentUsageTracker()
 
     tracker.update(
+        "call-1",
         [_child(input=100, output=50, cost=0.0), _child(input=200, output=100, cost=0.5)],
         final=True,
     )
 
     assert tracker.totals.cost == 0.5
+
+
+def test_concurrent_calls_keep_separate_snapshots() -> None:
+    """Prove two in-flight calls each keep their own snapshot: committing or
+    discarding one call never drops the other call's in-flight display."""
+    tracker = SubagentUsageTracker()
+
+    tracker.update("call-a", [_child(input=100, output=50)], final=False)
+    tracker.update("call-b", [_child(input=200, output=100)], final=False)
+
+    totals = tracker.totals
+    assert totals.runs == 2
+    assert totals.input_tokens == 300
+
+    tracker.update("call-a", [_child(input=150, output=80)], final=True)
+
+    totals = tracker.totals
+    assert totals.input_tokens == 350
+    assert totals.runs == 2
+
+    tracker.discard_pending("call-b")
+
+    assert tracker.totals.input_tokens == 150
+    assert tracker.totals.runs == 1
+
+
+def test_discard_unknown_call_is_a_noop() -> None:
+    """Prove discarding an unknown call key leaves all snapshots intact."""
+    tracker = SubagentUsageTracker()
+    tracker.update("call-a", [_child(input=100, output=50)], final=False)
+
+    tracker.discard_pending("unknown-call")
+
+    assert tracker.totals.input_tokens == 100
+    assert tracker.totals.runs == 1
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
@@ -294,48 +331,50 @@ def _add_child(totals: SubagentUsageTotals, child: ChildResult) -> SubagentUsage
 class SubagentUsageTracker:
     """Aggregate child usage across task calls within the active session.
 
-    Live updates replace an in-flight snapshot of the current call's children
-    (per-child usage is cumulative, so a snapshot is never additive); a call's
-    final result commits once and clears the snapshot. A call that ends without
-    committing, such as a hard cancellation, discards its snapshot through
-    ``discard_pending``, and a session rebind resets everything.
+    Each in-flight call keeps its own snapshot of the latest child results
+    (per-child usage is cumulative, so a snapshot is never additive); tool call
+    ids are unique, so concurrent dispatch calls cannot collide. A call's final
+    result commits once and drops that call's snapshot, an uncommitted call
+    discards its own snapshot through ``discard_pending``, and a session rebind
+    resets everything.
     """
 
     def __init__(self) -> None:
         self._committed = SubagentUsageTotals()
-        self._active: tuple[ChildResult, ...] = ()
+        self._active: dict[str, tuple[ChildResult, ...]] = {}
 
-    def update(self, children: Sequence[ChildResult], final: bool) -> None:
-        """Replace the in-flight snapshot, or commit the call's children once."""
+    def update(self, call_key: str, children: Sequence[ChildResult], final: bool) -> None:
+        """Replace a call's in-flight snapshot, or commit its children once."""
         if final:
             for child in children:
                 self._committed = _add_child(self._committed, child)
-            self._active = ()
+            self._active.pop(call_key, None)
         else:
-            self._active = tuple(children)
+            self._active[call_key] = tuple(children)
 
-    def discard_pending(self) -> None:
-        """Drop the in-flight snapshot of a call that ended without committing."""
-        self._active = ()
+    def discard_pending(self, call_key: str) -> None:
+        """Drop one call's in-flight snapshot; committed totals are untouched."""
+        self._active.pop(call_key, None)
 
     def reset(self) -> None:
         """Clear all totals for a new, resumed, or branched session."""
         self._committed = SubagentUsageTotals()
-        self._active = ()
+        self._active = {}
 
     @property
     def totals(self) -> SubagentUsageTotals:
-        """Committed totals plus the latest in-flight snapshot."""
+        """Committed totals plus every active call's latest snapshot."""
         totals = self._committed
-        for child in self._active:
-            totals = _add_child(totals, child)
+        for children in self._active.values():
+            for child in children:
+                totals = _add_child(totals, child)
         return totals
 ```
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `PYTHONPATH=/opt/tau/lib/python3.14/site-packages .venv/bin/python -m pytest tests/test_usage.py -q`
-Expected: 10 passed
+Expected: 12 passed
 
 - [ ] **Step 5: Lint, format, and type-check**
 
@@ -848,10 +887,18 @@ def _section_titles(content: Any) -> list[str]:
 
 def _section_body(content: Any, title: str) -> Text:
     """Body text of the sidebar section with the given title."""
-    index = _section_titles(content).index(title)
-    body = content.summary_sections[index].renderables[1].renderable
+    sections = [
+        section for section in content.summary_sections if getattr(section, "renderables", None)
+    ]
+    titles = [section.renderables[0].renderable.plain for section in sections]
+    body = sections[titles.index(title)].renderables[1].renderable
     assert isinstance(body, Text)
     return body
+
+
+# NOTE: ``summary_sections`` begins with a Padding title block that
+# ``_section_titles`` filters out, so body lookups must use the filtered
+# ``sections``/``titles`` pair, never raw ``summary_sections`` indices.
 
 
 def _base_content() -> Any:
@@ -1440,9 +1487,13 @@ def setup(tau: ExtensionAPI) -> None:
     install_sidebar_section(tracker)
     runner = TauChildRunner()
 
-    @tau.on("session_start")
     def on_session_start(event: object, _context: object) -> None:
         _reset_tracker_on_rebind(tracker, event)
+
+    # Explicit handler form: ``ExtensionAPI.on``'s return type is a union that
+    # includes the two-argument handler itself, so mypy strict rejects the
+    # decorator form; passing the handler directly type-checks cleanly.
+    tau.on("session_start", on_session_start)
 
     async def execute_task(
         tool_call_id: str,
@@ -1451,6 +1502,10 @@ def setup(tau: ExtensionAPI) -> None:
         on_update: ToolUpdateCallback | None = None,
     ) -> AgentToolResult:
         del tool_call_id
+
+        def observe(children: Sequence[ChildResult], final: bool) -> None:
+            tracker.update(tool_call_id, children, final)
+
         dispatcher = TaskDispatcher(
             default_cwd=tau.context.cwd,
             ui=tau.context.ui,
@@ -1459,12 +1514,12 @@ def setup(tau: ExtensionAPI) -> None:
             parent_model=tau.context.model or None,
             parent_reasoning_effort=_parent_thinking_level(tau),
             config=load_subagent_config(tau.context.cwd),
-            usage_observer=tracker.update,
+            usage_observer=observe,
         )
         try:
             return await dispatcher.execute(arguments, signal=signal, on_update=on_update)
         finally:
-            tracker.discard_pending()
+            tracker.discard_pending(tool_call_id)
 
     tau.register_tool(...)
 ```
@@ -1505,7 +1560,7 @@ git commit -m "feat: wire usage tracker into task dispatch and session lifecycle
 - [ ] **Step 1: Run the full test suite**
 
 Run (from `extensions/superpowers-subagent/`): `PYTHONPATH=/opt/tau/lib/python3.14/site-packages .venv/bin/python -m pytest -q`
-Expected: 160 passed (131 baseline + 10 usage + 5 dispatch + 11 sidebar + 3 extension), zero failures.
+Expected: 163 passed (131 baseline + 12 usage + 5 dispatch + 11 sidebar + 3 extension + 1 ordering pin), zero failures.
 
 - [ ] **Step 2: Ruff and mypy**
 
