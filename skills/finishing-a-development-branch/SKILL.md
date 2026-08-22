@@ -19,7 +19,7 @@ Run the project's full test suite, fresh:
 npm test / cargo test / pytest / go test ./...
 ```
 
-**If tests fail:** report the failures and stop. Do not proceed until tests pass.
+**If tests fail:** report the failures and stop. Until tests pass, do not proceed.
 
 ### Step 2: Determine the Base Branch
 
@@ -43,8 +43,8 @@ Read the feature spec at `docs/design/<date>-<topic>-spec.md`.
   - Living spec file missing → create it with `# <Domain>`, a brief `## Purpose` section, and a `## Requirements` section holding the ADDED requirements
 - **MODIFIED requirements:**
   - Find the requirement by name
-  - Add new scenarios; replace same-named scenarios; apply description changes
-  - Preserve existing content the feature-spec section doesn't mention
+  - Add new scenarios. Replace same-named scenarios. Apply description changes.
+  - Preserve existing content that the feature-spec section does not mention
 - **REMOVED requirements:**
   - Delete the entire requirement block (description + all scenarios). Already gone → no-op
 
@@ -114,21 +114,21 @@ EOF
 )"
 ```
 
-Keep the branch and worktree until the PR is merged.
+Until the PR is merged, keep the branch and worktree.
 
 ## Red Flags
 
 **Never:**
 - Merge or open a PR with failing tests
-- Delete the feature branch when the merged result fails tests
+- When the merged result fails tests, delete the feature branch
 - Force-push without an explicit request
 - Skip the living-spec sync for behavioral changes
 - Present options other than merge or PR
 
 **Always:**
-- Run the full test suite fresh before anything else
-- Sync and commit living specs to the branch BEFORE merging or opening the PR
-- Run the test suite on the merged result before deleting the branch
+- Before anything else, run the full test suite fresh
+- BEFORE merging or opening the PR, sync and commit living specs to the branch
+- Before deleting the branch, run the test suite on the merged result
 
 ## Integration
 

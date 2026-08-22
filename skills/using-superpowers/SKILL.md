@@ -3,13 +3,13 @@ name: using-superpowers
 description: Use when implementing new features or applications, or starting complex multi-step tasks that may benefit from structured workflows like brainstorming, TDD, or debugging. NOT for simple questions or straightforward operations.
 ---
 
-**Subagents:** If you were dispatched as a subagent to execute a specific task, skip this skill.
+**Subagents:** If a controller dispatched you as a subagent to execute a specific task, skip this skill.
 
-If a skill might apply to what you are doing — even at 1% probability — read its `SKILL.md` before acting and follow it. If it turns out not to apply, discard it and proceed.
+If a skill can apply to what you are doing, even at 1% probability, read its `SKILL.md` before you act. Then follow it. If the skill does not apply, discard it. Continue with your task.
 
 ## Simple Operations — No Skill Needed
 
-Do NOT invoke skills or dispatch subagents for operations that are trivially fast and carry no risk of errors:
+Do NOT invoke skills or dispatch subagents for operations that are fast and carry no risk of errors:
 
 - Reading 1-3 files to understand code, configuration, or output
 - Making a single edit to a file
@@ -22,10 +22,10 @@ These are tool calls, not tasks. Dispatch subagents only for work that is:
 
 - **Multi-step:** 3+ distinct actions with judgment between them
 - **Substantive:** implementation, debugging, or design decisions
-- **Risk-bearing:** could introduce bugs if done incorrectly
-- **Time-consuming:** more than a handful of tool calls
+- **Risk-bearing:** incorrect work can introduce bugs
+- **Time-consuming:** more than a few tool calls
 
-Subagents earn their isolated context window when the work is substantive (many steps or a deep investigation that would bloat this session's context) or long-running (duration that must not block this session). Never dispatch a subagent and then perform the same read or command yourself — the dispatch replaces your tool calls for that work.
+Subagents earn their isolated context window when the work is substantive or long-running. Substantive work means many steps or a deep investigation that can bloat this session's context. Long-running work has a duration that must not block this session. Never dispatch a subagent and then perform the same read or command yourself. The dispatch replaces your tool calls for that work.
 
 ## Instruction Priority
 
@@ -35,9 +35,9 @@ Subagents earn their isolated context window when the work is substantive (many 
 
 ## How Skills Work
 
-Tau initially places only each skill's name, description, and path in the system prompt. When a skill applies, read its `SKILL.md` before acting and follow its instructions. Users can invoke one explicitly with `/skill:<name>`. Resolve supporting files relative to the skill directory.
+Tau initially places only each skill's name, description, and path in the system prompt. When a skill applies, read its `SKILL.md` before you act. Then follow its instructions. Users can invoke a skill explicitly with `/skill:<name>`. Resolve supporting files relative to the skill directory.
 
-Subagent dispatch is handled by the `task` tool (see [`references/tau-tools.md`](references/tau-tools.md)). A child does not inherit this conversation, so every delegated task must be self-contained.
+The `task` tool handles subagent dispatch (see [`references/tau-tools.md`](references/tau-tools.md)). A child does not inherit this conversation, so every delegated task must be self-contained.
 
 ## The Flow
 
@@ -79,7 +79,7 @@ digraph skill_flow {
 
 ## Skill Priority
 
-When multiple skills could apply:
+When multiple skills can apply:
 
 1. **Process skills first** (brainstorming, systematic-debugging) — they determine HOW to approach the task
 2. **Implementation skills second** (domain-specific) — they guide execution
@@ -87,4 +87,4 @@ When multiple skills could apply:
 "Let's build X" → brainstorming first, then implementation skills.
 "Fix this bug" → systematic-debugging first, then domain-specific skills.
 
-**What counts as "already brainstormed":** brainstorming is complete when the proposal (`docs/design/YYYY-MM-DD-<topic>-proposal.md`) and the feature spec (`docs/design/YYYY-MM-DD-<topic>-spec.md`) both exist. A conversation about the idea is not brainstorming. If the artifacts don't exist, invoke brainstorming — even if you've already discussed the idea at length.
+**What counts as "already brainstormed":** brainstorming is complete when the proposal (`docs/design/YYYY-MM-DD-<topic>-proposal.md`) and the feature spec (`docs/design/YYYY-MM-DD-<topic>-spec.md`) both exist. A conversation about the idea is not brainstorming. If the artifacts do not exist, invoke brainstorming, even if you have already discussed the idea at length.

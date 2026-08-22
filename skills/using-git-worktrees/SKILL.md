@@ -5,21 +5,21 @@ description: Use when starting feature work that needs isolation from the curren
 
 # Using Git Worktrees
 
-Git worktrees create isolated workspaces sharing the same repository, allowing work on multiple branches simultaneously without switching.
+Git worktrees create isolated workspaces that share the same repository. You can work on multiple branches at the same time without switching between them.
 
-**Rule:** worktrees live at `<project_root>/.worktrees/<branch-name>`. No other location. All workflow artifacts (spec, plan, code) are committed to this branch — never to the default branch.
+**Rule:** worktrees live at `<project_root>/.worktrees/<branch-name>`. No other location. Commit all workflow artifacts (spec, plan, code) to this branch. Never commit them to the default branch.
 
 **Announce at start:** "I'm using the using-git-worktrees skill to set up an isolated workspace."
 
 ## Safety Verification
 
-Verify `.worktrees` is ignored before creating any worktree:
+Before you create any worktree, check that git ignores `.worktrees`:
 
 ```bash
 git check-ignore -q .worktrees
 ```
 
-If NOT ignored:
+If git does not ignore `.worktrees`:
 
 1. Add `.worktrees/` to `.gitignore`
 2. Commit the change
@@ -51,7 +51,7 @@ if [ -f go.mod ]; then go mod download; fi
 
 Run the project's test suite (`npm test` / `cargo test` / `pytest` / `go test ./...`).
 
-- **Tests fail:** report the failures; ask whether to proceed or investigate
+- **Tests fail:** report the failures. Ask whether to proceed or investigate
 - **Tests pass:** report ready
 
 ### 4. Report Location
@@ -65,22 +65,22 @@ Ready to implement <feature-name>
 ## Red Flags
 
 **Never:**
-- Create a worktree without verifying `.worktrees/` is ignored
-- Skip the baseline test verification
+- Create a worktree without checking that git ignores `.worktrees/`
+- Skip the baseline test check
 - Proceed with failing tests without asking
 - Place worktrees anywhere other than `<project_root>/.worktrees/`
-- Create a second worktree when the workflow already created one — verify with `git worktree list`
+- If the workflow already created a worktree, create a second one — check first with `git worktree list`
 
 **Always:**
-- Verify the directory is ignored before creating a worktree
+- Before you create a worktree, check that git ignores the directory
 - Auto-detect and run project setup
-- Verify a clean test baseline before starting work
+- Before you start work, check for a clean test baseline
 
 ## Integration
 
 **Called by:**
-- **brainstorming** — after design approval, before writing any artifact; all artifacts and code are committed to this branch
-- **executing-plans** / **subagent-driven-development** — verify execution happens inside the existing worktree; do not create a second one
+- **brainstorming** — after design approval, before writing any artifact. Commit all artifacts and code to this branch
+- **executing-plans** / **subagent-driven-development** — check that execution happens inside the existing worktree. Do not create a second one
 
 **Pairs with:**
 - **finishing-a-development-branch** — removes the worktree after a local merge

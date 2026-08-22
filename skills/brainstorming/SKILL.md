@@ -9,22 +9,22 @@ Turn ideas into an approved proposal and behavioral feature spec through collabo
 
 **Announce at start:** "I'm using the brainstorming skill to refine this idea into a design."
 
-**HARD GATE:** Do NOT invoke any implementation skill, write any code, or scaffold any project until the proposal and feature spec exist, the spec reviewer has approved the feature spec, and the user has approved both artifacts. This applies to every project regardless of perceived simplicity. For truly simple projects the artifacts can be short, but they MUST exist.
+**HARD GATE:** The proposal and the feature spec must exist, the spec reviewer must approve the feature spec, and the user must approve both artifacts. Until all three are true, do NOT invoke any implementation skill, write any code, or scaffold any project. This applies to every project regardless of perceived simplicity. For truly simple projects the artifacts can be short, but they MUST exist.
 
 ## Checklist
 
-Copy this checklist into your working notes and mark each item as you complete it. Complete the items in order:
+Copy this checklist into your working notes. Mark each item as you complete it. Complete the items in order:
 
-- [ ] **Read living specs** — check `docs/specs/` for relevant domain specs; they describe current system behavior. If no spec exists for the domain, the feature spec will define its initial requirements
+- [ ] **Read living specs** — check `docs/specs/` for relevant domain specs. They describe current system behavior. If no spec exists for the domain, the feature spec will define its initial requirements
 - [ ] **Explore project context** — files, docs, recent commits
 - [ ] **Ask clarifying questions** — purpose, constraints, success criteria
 - [ ] **Propose 2-3 approaches** — with trade-offs and your recommendation
 - [ ] **Present the complete design** — get user approval
-- [ ] **Set up the worktree** — invoke using-git-worktrees. All artifacts and code are committed to this branch, never to the default branch
+- [ ] **Set up the worktree** — invoke using-git-worktrees. Commit all artifacts and code to this branch, never to the default branch
 - [ ] **Write the proposal** — `docs/design/YYYY-MM-DD-<topic>-proposal.md`
 - [ ] **Write the feature spec** — `docs/design/YYYY-MM-DD-<topic>-spec.md`
-- [ ] **Dispatch the spec reviewer** — use `spec-document-reviewer-prompt.md`; loop until approved
-- [ ] **User reviews proposal + spec** — if changes are requested: fix, re-run the spec reviewer, re-present
+- [ ] **Dispatch the spec reviewer** — use `spec-document-reviewer-prompt.md`. Loop until the reviewer approves
+- [ ] **User reviews proposal + spec** — if the user requests changes: fix them. Re-run the spec reviewer. Re-present
 - [ ] **Commit the artifacts to the branch**
 - [ ] **Invoke writing-plans** — the only skill that comes next
 
@@ -68,10 +68,10 @@ digraph brainstorming {
 
 **Understanding the idea:**
 
-- Read `docs/specs/<domain>.md` if it exists — it describes current behavior for the domain
+- If `docs/specs/<domain>.md` exists, read it — it describes current behavior for the domain
 - Check the current project state first (files, docs, recent commits)
-- Assess scope before detailed questions: if the request spans multiple independent subsystems, help the user decompose it into sub-projects first. Each sub-project gets its own brainstorm → spec → plan → implementation cycle
-- Ask clarifying questions. Batch independent questions in one message. Prefer multiple-choice questions when possible
+- Assess scope before detailed questions. If the request spans multiple independent subsystems, help the user decompose it into sub-projects first. Each sub-project gets its own brainstorm → spec → plan → implementation cycle
+- Ask clarifying questions. Batch independent questions in one message. When possible, prefer multiple-choice questions
 - Focus on: purpose, constraints, success criteria
 
 **Exploring approaches:**
@@ -83,17 +83,17 @@ digraph brainstorming {
 
 - Present the complete design in one message, scaled to its complexity
 - Cover: architecture, components, data flow, error handling, testing
-- Get a single approval for the whole design; go back and clarify anything that doesn't make sense
+- Get a single approval for the whole design. If anything does not make sense, go back and clarify it
 
 **Design rules:**
 
-- Break the system into units that each have one clear purpose, communicate through well-defined interfaces, and can be understood and tested independently
-- For each unit you should be able to answer: what does it do, how is it used, what does it depend on
+- Break the system into units. Each unit must have one clear purpose and communicate through well-defined interfaces. You must be able to understand and test each unit independently
+- For each unit, you must be able to answer: what does it do, how does other code use it, what does it depend on
 - Prefer smaller, focused files over large ones that do too much
 
 **Working in existing codebases:**
 
-- Explore the current structure before proposing changes; follow existing patterns
+- Explore the current structure before you propose changes. Follow existing patterns
 - Include targeted improvements to code this work touches
 - Do not propose unrelated refactoring
 
@@ -125,7 +125,7 @@ Captures **why** and **what scope**. Save to `docs/design/YYYY-MM-DD-<topic>-pro
 
 ### Feature Spec
 
-The feature spec is the behavioral contract, written as the delta against the living spec (ADDED/MODIFIED/REMOVED per domain). It drives the implementation plan in writing-plans, the implementation review during execution, and the living-spec sync in finishing.
+The feature spec is the behavioral contract. You write it as the delta against the living spec (ADDED/MODIFIED/REMOVED per domain). It drives the implementation plan in writing-plans, the implementation review during execution, and the living-spec sync in finishing.
 
 Save to `docs/design/YYYY-MM-DD-<topic>-spec.md`.
 
@@ -179,22 +179,22 @@ No requirements added, modified, or removed.
 
 - Every requirement MUST use RFC 2119 keywords (SHALL, MUST, SHOULD)
 - Every requirement MUST have at least one scenario with GIVEN/WHEN/THEN
-- Scenarios MUST be testable — if you can't write a test for it, it's not a behavioral requirement
+- Scenarios MUST be testable. If you cannot write a test for a scenario, it is not a behavioral requirement
 - Requirements describe WHAT the system does, not HOW — no class names, library choices, or file paths (those belong in the proposal's Approach section)
-- Requirement names descriptive and under 50 characters
-- One `## Domain:` section per affected domain
+- Requirement names must be descriptive and under 50 characters
+- Use one `## Domain:` section per affected domain
 
 ### Spec Review
 
 Dispatch a `document-review` subagent using `spec-document-reviewer-prompt.md`.
 
-- **Issues found:** fix the spec, re-dispatch. Loop until the reviewer approves
-- **Fundamental issues** (the spec is architecture instead of behavior; the approach is wrong at the behavioral level): present the findings to the user and ask whether to revise the approach — do not silently rewrite the spec
-- Do NOT proceed to the user gate until the reviewer approves
+- **Issues found:** fix the spec. Re-dispatch the reviewer. Loop until the reviewer approves
+- **Fundamental issues:** the spec is architecture instead of behavior, or the approach is wrong at the behavioral level. Present the findings to the user. Ask whether to revise the approach. Do not silently rewrite the spec
+- Until the reviewer approves, do NOT proceed to the user gate
 
 ### User Gate
 
-Present both artifacts to the user for review. If they request changes: make them, re-run the spec reviewer, re-present. Proceed only once the user approves.
+Present both artifacts to the user for review. If the user requests changes, make the changes. Then re-run the spec reviewer. Re-present both artifacts. Until the user approves, do not proceed.
 
 ### Commit
 

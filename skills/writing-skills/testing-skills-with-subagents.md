@@ -1,14 +1,14 @@
 # Testing Skills With Subagents
 
-**Load this reference when:** creating or editing skills, before deployment, to verify they work under pressure and resist rationalization.
+**Load this reference when:** creating or editing skills, before deployment, to check that they work under pressure and resist rationalization.
 
 ## Overview
 
-**Testing skills is just TDD applied to process documentation.**
+**Testing skills is TDD applied to process documentation.**
 
-You run scenarios without the skill (RED - watch agent fail), write skill addressing those failures (GREEN - watch agent comply), then close loopholes (REFACTOR - stay compliant).
+Run scenarios without the skill (RED - watch the agent fail). Write the skill to address those failures (GREEN - watch the agent comply). Then close loopholes (REFACTOR - stay compliant).
 
-**Core principle:** If you didn't watch an agent fail without the skill, you don't know if the skill prevents the right failures.
+**Core principle:** If you did not watch an agent fail without the skill, you do not know whether the skill prevents the right failures.
 
 **REQUIRED BACKGROUND:** You MUST understand test-driven-development before using this skill. That skill defines the fundamental RED-GREEN-REFACTOR cycle. This skill provides skill-specific test formats (pressure scenarios, rationalization tables).
 
@@ -16,11 +16,11 @@ You run scenarios without the skill (RED - watch agent fail), write skill addres
 
 ## Tau Test Harness
 
-This harness requires the `superpowers-subagent` Tau extension; see the [Tau `task` tool reference](../using-superpowers/references/tau-tools.md) for loading instructions and the complete result contract.
+This harness requires the `superpowers-subagent` Tau extension. See the [Tau `task` tool reference](../using-superpowers/references/tau-tools.md) for loading instructions and the complete result contract.
 
-Use separate calls to the `task` tool so every trial has isolated context. The bundled `read-only` agent is sufficient for choice-and-explanation scenarios and prevents state-changing Tau tool calls. This tool policy is not an OS, network, credential, or provider sandbox, so keep scenarios non-destructive.
+Use separate calls to the `task` tool so that every trial has isolated context. The bundled `read-only` agent is sufficient for choice-and-explanation scenarios and prevents state-changing Tau tool calls. This tool policy is not an OS, network, credential, or provider sandbox, so keep scenarios non-destructive.
 
-A `task` child does not inherit this conversation. Discovered child resources are disabled as far as Tau's public CLI permits, and the child is instructed not to invoke ambient skills. Use that isolation for the RED baseline. For GREEN, include the complete candidate `SKILL.md` text in the task itself; do **not** tell the child to use `/skill:<name>`, which is a user-facing Tau invocation rather than a child test harness.
+A `task` child does not inherit this conversation. Tau disables discovered child resources as far as its public CLI permits. It also instructs the child not to invoke ambient skills. Use that isolation for the RED baseline. For GREEN, include the complete candidate `SKILL.md` text in the task itself. Do **not** tell the child to use `/skill:<name>`. That is a user-facing Tau invocation, not a child test harness.
 
 **RED call:**
 
@@ -48,19 +48,19 @@ A `task` child does not inherit this conversation. Discovered child resources ar
 }
 ```
 
-Use the same provider/model settings and exact scenario in both calls. Give baseline and skill-present trials separate `task` calls so they stay independent. `task` content is the child's complete final message; inspect `details.results[0].messages` when you need tool calls or earlier messages, and verify process fields plus semantic `status` before counting a trial. Re-dispatch a complete prompt if the result is `NEEDS_CONTEXT`; do not continue an old child conversation.
+Use the same provider/model settings and the exact scenario in both calls. Give baseline and skill-present trials separate `task` calls so that they stay independent. The `task` content is the child's complete final message. Inspect `details.results[0].messages` when you need tool calls or earlier messages. Check the process fields plus the semantic `status` before you count a trial. If the result is `NEEDS_CONTEXT`, re-dispatch a complete prompt. Do not continue an old child conversation.
 
-Before deployment, also verify real Tau discovery in the parent TUI: put the skill in one of Tau's discovery directories, run `/reload`, confirm its metadata appears, and invoke `/skill:<name>` explicitly. This discovery smoke test complements behavior trials; it does not replace them.
+Before deployment, also check real Tau discovery in the parent TUI. Put the skill in one of Tau's discovery directories. Run `/reload`. Check that its metadata appears. Invoke `/skill:<name>` explicitly. This discovery smoke test complements behavior trials. It does not replace them.
 
 ## When to Use
 
 Test skills that:
 - Enforce discipline (TDD, testing requirements)
 - Have compliance costs (time, effort, rework)
-- Could be rationalized away ("just this once")
+- Can be rationalized away ("just this once")
 - Contradict immediate goals (speed over quality)
 
-Don't test:
+Do not test:
 - Pure reference skills (API docs, syntax guides)
 - Skills without rules to violate
 - Skills agents have no incentive to bypass
@@ -69,20 +69,20 @@ Don't test:
 
 | TDD Phase | Skill Testing | What You Do |
 |-----------|---------------|-------------|
-| **RED** | Baseline test | Run scenario WITHOUT skill, watch agent fail |
-| **Verify RED** | Capture rationalizations | Document exact failures verbatim |
-| **GREEN** | Write skill | Address specific baseline failures |
-| **Verify GREEN** | Pressure test | Run scenario WITH skill, verify compliance |
+| **RED** | Baseline test | Run the scenario WITHOUT the skill, watch the agent fail |
+| **Verify RED** | Capture rationalizations | Document the exact failures verbatim |
+| **GREEN** | Write skill | Address the specific baseline failures |
+| **Verify GREEN** | Pressure test | Run the scenario WITH the skill, check compliance |
 | **REFACTOR** | Plug holes | Find new rationalizations, add counters |
-| **Stay GREEN** | Re-verify | Test again, ensure still compliant |
+| **Stay GREEN** | Re-verify | Test again, check compliance |
 
-Same cycle as code TDD, different test format.
+This is the same cycle as code TDD with a different test format.
 
 ## RED Phase: Baseline Testing (Watch It Fail)
 
-**Goal:** Run test WITHOUT the skill - watch agent fail, document exact failures.
+**Goal:** Run the test WITHOUT the skill. Watch the agent fail. Document the exact failures.
 
-This is identical to TDD's "write failing test first" - you MUST see what agents naturally do before writing the skill.
+This is identical to TDD's "write failing test first". You MUST see what agents naturally do before you write the skill.
 
 **Process:**
 
@@ -119,15 +119,15 @@ Run this with the RED `task` call. If the child chooses B or C, capture rational
 
 ## GREEN Phase: Write Minimal Skill (Make It Pass)
 
-Write the skill to address the specific baseline failures you documented. Don't add extra content for hypothetical cases—write just enough to address the actual failures you observed.
+Write the skill to address the specific baseline failures you documented. Do not add extra content for hypothetical cases. Write only enough to address the actual failures you observed.
 
-Run the same scenarios with the GREEN `task` call, embedding the complete candidate skill text. The child should now comply.
+Run the same scenarios with the GREEN `task` call, embedding the complete candidate skill text. The child must now comply.
 
-If agent still fails: skill is unclear or incomplete. Revise and re-test.
+If the agent still fails, the skill is unclear or incomplete. Revise and re-test.
 
 ## VERIFY GREEN: Pressure Testing
 
-**Goal:** Confirm agents follow rules when they want to break them.
+**Goal:** Check that agents follow the rules when they want to break them.
 
 **Method:** Realistic scenarios with multiple pressures.
 
@@ -137,7 +137,7 @@ If agent still fails: skill is unclear or incomplete. Revise and re-test.
 ```markdown
 You need to implement a feature. What does the skill say?
 ```
-Too academic. Agent just recites the skill.
+Too academic. The agent recites the skill.
 
 **Good scenario (single pressure):**
 ```markdown
@@ -161,7 +161,7 @@ Choose A, B, or C. Be honest.
 ```
 
 Multiple pressures: sunk cost + time + exhaustion + consequences.
-Forces explicit choice.
+This forces an explicit choice.
 
 ### Pressure Types
 
@@ -175,7 +175,7 @@ Forces explicit choice.
 | **Social** | Looking dogmatic, seeming inflexible |
 | **Pragmatic** | "Being pragmatic vs dogmatic" |
 
-**Best tests combine 3+ pressures.**
+**The best tests combine 3+ pressures.**
 
 **Why this works:** See persuasion-principles.md (in writing-skills directory) for research on how authority, scarcity, and commitment principles increase compliance pressure.
 
@@ -185,7 +185,7 @@ Forces explicit choice.
 2. **Real constraints** - Specific times, actual consequences
 3. **Real file paths** - `/tmp/payment-system` not "a project"
 4. **Make agent act** - "What do you do?" not "What should you do?"
-5. **No easy outs** - Can't defer to "I'd ask your human partner" without choosing
+5. **No easy outs** - Cannot defer to "I'd ask your human partner" without choosing
 
 ### Testing Setup
 
@@ -197,11 +197,11 @@ Do not avoid the choice by asking a hypothetical question.
 Explain what you would do, but do not modify files or run commands.
 ```
 
-Keep the decision realistic without falsely asking a test child to mutate the project. In GREEN, place the complete skill before the identical scenario; a path or skill name alone is not enough because `task` children must not rely on ambient skill discovery.
+Keep the decision realistic without falsely asking a test child to mutate the project. In GREEN, place the complete skill before the identical scenario. A path or skill name alone is not enough, because `task` children must not rely on ambient skill discovery.
 
 ## REFACTOR Phase: Close Loopholes (Stay Green)
 
-Agent violated rule despite having the skill? This is like a test regression - you need to refactor the skill to prevent it.
+Did the agent violate the rule despite having the skill? This is like a test regression. You must refactor the skill to prevent it.
 
 **Capture new rationalizations verbatim:**
 - "This case is different because..."
@@ -261,24 +261,24 @@ Write code before test? Delete it. Start over.
 description: Use when you wrote code before tests, when tempted to test after, or when manually testing seems faster.
 ```
 
-Add symptoms of ABOUT to violate.
+Add the symptoms of an agent that is ABOUT to violate.
 
 ### Re-verify After Refactoring
 
-**Re-test same scenarios with updated skill.**
+**Re-test the same scenarios with the updated skill.**
 
-Agent should now:
-- Choose correct option
-- Cite new sections
-- Acknowledge their previous rationalization was addressed
+The agent must now:
+- Choose the correct option
+- Cite the new sections
+- Acknowledge that the skill addressed their previous rationalization
 
-**If agent finds NEW rationalization:** Continue REFACTOR cycle.
+**If the agent finds a NEW rationalization:** Continue the REFACTOR cycle.
 
-**If agent follows rule:** Success - skill is bulletproof for this scenario.
+**If the agent follows the rule:** Success. The skill is bulletproof for this scenario.
 
 ## Meta-Testing (When GREEN Isn't Working)
 
-**After agent chooses wrong option, ask:**
+**After the agent chooses the wrong option, ask:**
 
 ```markdown
 your human partner: You read the skill and chose Option C anyway.
@@ -290,33 +290,33 @@ it crystal clear that Option A was the only acceptable answer?
 **Three possible responses:**
 
 1. **"The skill WAS clear, I chose to ignore it"**
-   - Not documentation problem
-   - Need stronger foundational principle
+   - This is not a documentation problem
+   - Add a stronger foundational principle
    - Add "Violating letter is violating spirit"
 
 2. **"The skill should have said X"**
-   - Documentation problem
+   - This is a documentation problem
    - Add their suggestion verbatim
 
 3. **"I didn't see section Y"**
-   - Organization problem
-   - Make key points more prominent
-   - Add foundational principle early
+   - This is an organization problem
+   - Make the key points more prominent
+   - Add the foundational principle early
 
 ## When Skill is Bulletproof
 
-**Signs of bulletproof skill:**
+**Signs of a bulletproof skill:**
 
-1. **Agent chooses correct option** under maximum pressure
+1. **Agent chooses the correct option** under maximum pressure
 2. **Agent cites skill sections** as justification
-3. **Agent acknowledges temptation** but follows rule anyway
+3. **Agent acknowledges temptation** but follows the rule anyway
 4. **Meta-testing reveals** "skill was clear, I should follow it"
 
 **Not bulletproof if:**
 - Agent finds new rationalizations
-- Agent argues skill is wrong
+- Agent argues the skill is wrong
 - Agent creates "hybrid approaches"
-- Agent asks permission but argues strongly for violation
+- Agent asks permission but argues strongly for a violation
 
 ## Example: TDD Skill Bulletproofing
 
@@ -346,7 +346,7 @@ Meta-test: "Skill was clear, I should follow it"
 
 ## Testing Checklist (TDD for Skills)
 
-Before deploying skill, verify you followed RED-GREEN-REFACTOR:
+Before you deploy the skill, check that you followed RED-GREEN-REFACTOR:
 
 **RED Phase:**
 - [ ] Created pressure scenarios (3+ combined pressures)
@@ -354,70 +354,70 @@ Before deploying skill, verify you followed RED-GREEN-REFACTOR:
 - [ ] Documented agent failures and rationalizations verbatim
 
 **GREEN Phase:**
-- [ ] Wrote skill addressing specific baseline failures
-- [ ] Ran scenarios WITH skill
+- [ ] Wrote the skill to address the specific baseline failures
+- [ ] Ran scenarios WITH the skill
 - [ ] Agent now complies
 
 **REFACTOR Phase:**
 - [ ] Identified NEW rationalizations from testing
 - [ ] Added explicit counters for each loophole
-- [ ] Updated rationalization table
-- [ ] Updated red flags list
-- [ ] Updated description with violation symptoms
-- [ ] Re-tested - agent still complies
-- [ ] Meta-tested to verify clarity
-- [ ] Agent follows rule under maximum pressure
+- [ ] Updated the rationalization table
+- [ ] Updated the red flags list
+- [ ] Updated the description with violation symptoms
+- [ ] Re-tested - the agent still complies
+- [ ] Meta-tested to check clarity
+- [ ] Agent follows the rule under maximum pressure
 
 ## Common Mistakes (Same as TDD)
 
-**❌ Writing skill before testing (skipping RED)**
-Reveals what YOU think needs preventing, not what ACTUALLY needs preventing.
+**❌ Writing the skill before testing (skipping RED)**
+This reveals what YOU think needs preventing, not what ACTUALLY needs preventing.
 ✅ Fix: Always run baseline scenarios first.
 
-**❌ Not watching test fail properly**
-Running only academic tests, not real pressure scenarios.
-✅ Fix: Use pressure scenarios that make agent WANT to violate.
+**❌ Not watching the test fail properly**
+You run only academic tests, not real pressure scenarios.
+✅ Fix: Use pressure scenarios that make the agent WANT to violate.
 
 **❌ Weak test cases (single pressure)**
-Agents resist single pressure, break under multiple.
+Agents resist a single pressure and break under multiple pressures.
 ✅ Fix: Combine 3+ pressures (time + sunk cost + exhaustion).
 
 **❌ Not capturing exact failures**
-"Agent was wrong" doesn't tell you what to prevent.
+"Agent was wrong" does not tell you what to prevent.
 ✅ Fix: Document exact rationalizations verbatim.
 
 **❌ Vague fixes (adding generic counters)**
-"Don't cheat" doesn't work. "Don't keep as reference" does.
+"Don't cheat" does not work. "Don't keep as reference" does.
 ✅ Fix: Add explicit negations for each specific rationalization.
 
-**❌ Stopping after first pass**
-Tests pass once ≠ bulletproof.
-✅ Fix: Continue REFACTOR cycle until no new rationalizations.
+**❌ Stopping after the first pass**
+Passing the tests once ≠ bulletproof.
+✅ Fix: Continue the REFACTOR cycle until no new rationalizations appear.
 
 ## Quick Reference (TDD Cycle)
 
 | TDD Phase | Skill Testing | Success Criteria |
 |-----------|---------------|------------------|
-| **RED** | Run scenario without skill | Agent fails, document rationalizations |
+| **RED** | Run the scenario without the skill | The agent fails, document the rationalizations |
 | **Verify RED** | Capture exact wording | Verbatim documentation of failures |
-| **GREEN** | Write skill addressing failures | Agent now complies with skill |
-| **Verify GREEN** | Re-test scenarios | Agent follows rule under pressure |
+| **GREEN** | Write the skill addressing the failures | The agent now complies with the skill |
+| **Verify GREEN** | Re-test scenarios | The agent follows the rule under pressure |
 | **REFACTOR** | Close loopholes | Add counters for new rationalizations |
-| **Stay GREEN** | Re-verify | Agent still complies after refactoring |
+| **Stay GREEN** | Re-verify | The agent still complies after refactoring |
 
 ## The Bottom Line
 
-**Skill creation IS TDD. Same principles, same cycle, same benefits.**
+**Skill creation IS TDD. The same principles, the same cycle, the same benefits.**
 
-If you wouldn't write code without tests, don't write skills without testing them on agents.
+If you do not write code without tests, do not write skills without testing them on agents.
 
 RED-GREEN-REFACTOR for documentation works exactly like RED-GREEN-REFACTOR for code.
 
 ## Real-World Impact
 
-From applying TDD to TDD skill itself (2025-10-03):
+From applying TDD to the TDD skill itself (2025-10-03):
 - 6 RED-GREEN-REFACTOR iterations to bulletproof
 - Baseline testing revealed 10+ unique rationalizations
 - Each REFACTOR closed specific loopholes
 - Final VERIFY GREEN: 100% compliance under maximum pressure
-- Same process works for any discipline-enforcing skill
+- The same process works for any discipline-enforcing skill

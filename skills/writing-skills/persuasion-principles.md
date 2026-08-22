@@ -2,7 +2,7 @@
 
 ## Overview
 
-LLMs respond to the same persuasion principles as humans. Understanding this psychology helps you design more effective skills - not to manipulate, but to ensure critical practices are followed even under pressure.
+LLMs respond to the same persuasion principles as humans. Understanding this psychology helps you design more effective skills. The purpose is not to manipulate. The purpose is to make sure that the agent follows critical practices even under pressure.
 
 **Research foundation:** Meincke et al. (2025) tested 7 persuasion principles with N=28,000 AI conversations. Persuasion techniques more than doubled compliance rates (33% → 72%, p < .001).
 
@@ -36,7 +36,7 @@ LLMs respond to the same persuasion principles as humans. Understanding this psy
 - Use tracking: copy required steps into an ordinary Markdown checklist and mark each item
 
 **When to use:**
-- Ensuring skills are actually followed
+- Making sure that the agent actually follows skills
 - Multi-step processes
 - Accountability mechanisms
 
@@ -66,7 +66,7 @@ LLMs respond to the same persuasion principles as humans. Understanding this psy
 ```
 
 ### 4. Social Proof
-**What it is:** Conformity to what others do or what's considered normal.
+**What it is:** Conformity to what others do or to what people consider normal.
 
 **How it works in skills:**
 - Universal patterns: "Every time", "Always"
@@ -106,17 +106,17 @@ LLMs respond to the same persuasion principles as humans. Understanding this psy
 **What it is:** Obligation to return benefits received.
 
 **How it works:**
-- Use sparingly - can feel manipulative
-- Rarely needed in skills
+- Use sparingly - it can feel manipulative
+- Skills rarely need this principle
 
 **When to avoid:**
-- Almost always (other principles more effective)
+- Almost always (other principles are more effective)
 
 ### 7. Liking
 **What it is:** Preference for cooperating with those we like.
 
 **How it works:**
-- **DON'T USE for compliance**
+- **DO NOT USE for compliance**
 - Conflicts with honest feedback culture
 - Creates sycophancy
 
@@ -141,19 +141,19 @@ LLMs respond to the same persuasion principles as humans. Understanding this psy
 
 **Implementation intentions create automatic behavior:**
 - Clear triggers + required actions = automatic execution
-- "When X, do Y" more effective than "generally do Y"
+- "When X, do Y" is more effective than "generally do Y"
 - Reduces cognitive load on compliance
 
 **LLMs are parahuman:**
-- Trained on human text containing these patterns
+- LLMs learn from human text that contains these patterns
 - Authority language precedes compliance in training data
-- Commitment sequences (statement → action) frequently modeled
+- Training data frequently models commitment sequences (statement → action)
 - Social proof patterns (everyone does X) establish norms
 
 ## Ethical Use
 
 **Legitimate:**
-- Ensuring critical practices are followed
+- Making sure that the agent follows critical practices
 - Creating effective documentation
 - Preventing predictable failures
 
@@ -162,7 +162,7 @@ LLMs respond to the same persuasion principles as humans. Understanding this psy
 - Creating false urgency
 - Guilt-based compliance
 
-**The test:** Would this technique serve the user's genuine interests if they fully understood it?
+**The test:** If the user fully understands this technique, does it serve the user's genuine interests?
 
 ## Research Citations
 
@@ -183,5 +183,5 @@ When designing a skill, ask:
 1. **What type is it?** (Discipline vs. guidance vs. reference)
 2. **What behavior am I trying to change?**
 3. **Which principle(s) apply?** (Usually authority + commitment for discipline)
-4. **Am I combining too many?** (Don't use all seven)
+4. **Am I combining too many?** (Do not use all seven)
 5. **Is this ethical?** (Serves user's genuine interests?)

@@ -33,28 +33,29 @@ The child has no controller conversation history. Name the plan, feature spec, a
     | Category | What to Look For |
     |----------|------------------|
     | Completeness | Every task has complete interface signatures, behavior contracts, a "tests must prove" list, and exact verification commands. No TODOs or placeholders. |
-    | Spec alignment | Every ADDED/MODIFIED requirement in the feature spec has a corresponding task whose tests cover its scenarios. REMOVED requirements are acted on. No scope creep beyond the spec. |
+    | Spec alignment | Every ADDED/MODIFIED requirement in the feature spec has a task whose tests cover its scenarios. The plan acts on REMOVED requirements. No scope creep beyond the spec. |
     | Task decomposition | Tasks have clear boundaries, each traces to a spec requirement, and each is sized as one coherent change producing one commit. |
     | Buildability | An implementer can build the right thing from the contracts without guessing the intended API, error behavior, or test expectations. |
     | Standards | The plan header carries the shared implementation standards, and no task prescribes a hack, workaround, silent fallback, or unnecessary abstraction. |
 
     The plan defines contracts — architecture, signatures, expected behavior,
     tests to prove — not implementation code. Do NOT flag the absence of
-    implementation or test code; flag contracts too vague to implement
-    correctly from.
+    implementation or test code. Flag contracts too vague to implement from.
 
     ## Adversarial Stance
 
     Assume the plan is flawed until proven otherwise. Question the author's decisions:
     why this task boundary, why this omission, why this signature. Do not acknowledge
-    strengths, do not give praise, and do not soften findings. Every finding must be
+    strengths, do not give praise, and do not soften findings. Make every finding
     actionable: what is wrong, why it blocks implementation, how to fix it.
 
     ## Calibration
 
-    **Only flag issues that would cause real problems during implementation.**
+    **Only flag issues that cause real problems during implementation.**
     An implementer building the wrong thing or getting stuck is an issue.
     Minor wording, stylistic preferences, and "nice to have" suggestions are not.
+    Do not demand tasks, tests, or error handling for scenarios the spec does
+    not require.
 
     ## Output Format
 

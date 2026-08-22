@@ -9,11 +9,11 @@ description: Use when you have a spec or requirements for a multi-step task, bef
 
 Write an implementation plan that defines **architecture, interfaces, and expected behavior** — and stops there. The implementer (a skilled subagent or inline executor) decides the exact implementation within those contracts.
 
-A plan task specifies: which files to touch, the signatures and behavior contracts of new or changed functions and types, which behaviors tests must prove, and the exact verification commands. It does NOT contain implementation code or test code.
+A plan task specifies which files to touch. It specifies the signatures and behavior contracts of new or changed functions and types. It specifies which behaviors tests must prove and the exact verification commands. It does NOT contain implementation code or test code.
 
-Assume the implementer is a skilled developer with zero context for our codebase. Give them complete contracts and exact commands; trust them to write the code. DRY. YAGNI. TDD. One commit per task.
+Assume the implementer is a skilled developer with zero context for our codebase. Give them complete contracts and exact commands. Trust them to write the code. DRY. YAGNI. TDD. One commit per task.
 
-**Announce at start:** "I'm using the writing-plans skill to create the implementation plan."
+**Announce at start:** "I am using the writing-plans skill to create the implementation plan."
 
 **Context:** Run inside the worktree created during brainstorming. Never plan or implement on the default branch.
 
@@ -22,7 +22,7 @@ Assume the implementer is a skilled developer with zero context for our codebase
 
 ## Scope Check
 
-If the spec covers multiple independent subsystems, it should have been broken into sub-project specs during brainstorming. If it wasn't, suggest breaking this into separate plans — one per subsystem. Each plan should produce working, testable software on its own.
+If the spec covers multiple independent subsystems, check that brainstorming broke it into sub-project specs. If it did not, suggest separate plans, one per subsystem. Each plan must produce working, testable software on its own.
 
 ## Step 1: Read Inputs
 
@@ -30,24 +30,24 @@ Read these artifacts before writing anything:
 
 1. **The proposal** (`docs/design/YYYY-MM-DD-<topic>-proposal.md`) — intent, scope, approach, impact
 2. **The feature spec** (`docs/design/YYYY-MM-DD-<topic>-spec.md`) — the behavioral contract: ADDED/MODIFIED/REMOVED requirements with SHALL/MUST/SHOULD and GIVEN/WHEN/THEN scenarios
-3. **The living specs** (`docs/specs/<domain>.md`) — current system behavior for affected domains (may not exist yet)
+3. **The living specs** (`docs/specs/<domain>.md`) — current system behavior for affected domains, if these specs exist
 
 Every task in the plan must trace back to a requirement in the feature spec.
 
 ## Step 2: File Structure
 
-Map out which files will be created or modified and what each one is responsible for. This is where decomposition decisions get locked in.
+Map out which files the plan creates or modifies and what each file is responsible for. This step locks in the decomposition decisions.
 
 - Design units with clear boundaries and well-defined interfaces. Each file has one clear responsibility.
 - Prefer smaller, focused files over large ones that do too much.
 - Files that change together live together. Split by responsibility, not by technical layer.
-- In existing codebases, follow established patterns. If a file you're modifying has grown unwieldy, including a split in the plan is reasonable.
+- In existing codebases, follow established patterns. If a file you are modifying has grown unwieldy, include a split in the plan.
 
 This structure informs task decomposition. Each task produces one self-contained commit.
 
 ## Step 3: Write Tasks
 
-Write tasks that implement the feature spec. **Task sizing:** one task = one implementer dispatch = one commit — a coherent component (or one aspect of one) plus its tests, small enough to hold in context at once.
+Write tasks that implement the feature spec. **Task sizing:** one task = one implementer dispatch = one commit. A task is a coherent component (or one aspect of one) plus its tests. It must be small enough to hold in context at once.
 
 ### Plan Document Header
 
@@ -64,14 +64,14 @@ Write tasks that implement the feature spec. **Task sizing:** one task = one imp
 
 **Tech Stack:** [Key technologies/libraries]
 
-**Standards:** Apply the shared code standards in every task: DRY, low cyclomatic complexity, type safety, no unnecessary abstractions or fallbacks, no hacks or workarounds, informative docstrings, documentation of current state only.
+**Standards:** Apply the shared code standards in every task: DRY, minimal implementation (YAGNI), low cyclomatic complexity, type safety, no unnecessary abstractions or fallbacks, no hacks or workarounds, informative docstrings, documentation of current state only.
 
 **Feature spec:** `docs/design/YYYY-MM-DD-<topic>-spec.md` (the behavioral contract)
 
 ---
 ```
 
-Follow the header with a **commands section** giving the exact project commands implementers must run (test a single file, run the full suite, lint, format-check, type-check), including any environment setup they need. Implementers do not guess commands.
+Follow the header with a **commands section**. Give the exact project commands that implementers must run: test a single file, run the full suite, lint, format-check, type-check. Include any environment setup that they need. Implementers do not guess commands.
 
 ### Task Structure
 
@@ -113,7 +113,7 @@ Every task must contain complete contracts. These are **plan failures** — neve
 - Unspecified behavior ("handle errors appropriately", "add validation")
 - Test lists like "write tests for the above" without naming the behaviors to prove
 - "TBD", "TODO", "implement later", "fill in details"
-- "Similar to Task N" — repeat the contract; tasks may be read out of order
+- "Similar to Task N" — repeat the contract, because readers can read tasks out of order
 - References to types, functions, or methods not defined in any task
 - Tasks without verification commands
 
@@ -124,16 +124,17 @@ The plan does NOT contain:
 
 ## Implementation Standards (Include in Every Plan)
 
-Every plan embeds the shared code standards in its header so implementers and reviewers apply them consistently:
+Every plan embeds the shared code standards in its header so that implementers and reviewers apply them consistently:
 
 - **DRY** — duplicated logic and repeated test patterns exist once.
-- **Low cyclomatic complexity** — code should encode a single valid path whenever possible; keep branches shallow and conditionals honest.
-- **Type safety** — invalid system states should not be representable by the type system; use precise types rather than untyped escapes or stringly-typed states.
-- **No unnecessary abstractions** — prefer simple, direct solutions; add indirection only when a real caller needs it.
-- **No unnecessary fallbacks** — prefer explicit error handling; silent defaults that mask failures are bugs.
-- **No hacks or workarounds** — implement the correct, complete solution by design; never a "fix later" workaround.
-- **Informative docstrings** — application code: what the code does and why, not how; tests: what behavior the test proves and why the test is needed.
-- **Documentation of current state only** — docs describe the current implemented behavior and why it is that way; never old system states or removed behavior.
+- **Minimal implementation (YAGNI)** — the simplest code that satisfies the task's contract. No speculative edge-case handling, no defensive checks for states that cannot occur, no unrequested error paths.
+- **Low cyclomatic complexity** — code must encode a single valid path whenever possible. Keep branches shallow and conditionals honest.
+- **Type safety** — invalid system states must not be representable by the type system. Use precise types rather than untyped escapes or stringly-typed states.
+- **No unnecessary abstractions** — prefer simple, direct solutions. If a real caller needs indirection, add it. Otherwise, do not add it.
+- **No unnecessary fallbacks** — prefer explicit error handling. Silent defaults that mask failures are bugs.
+- **No hacks or workarounds** — implement the correct, complete solution by design. Never write a "fix later" workaround.
+- **Informative docstrings** — application code: what the code does and why, not how. Tests: what behavior the test proves and why the test is needed.
+- **Documentation of current state only** — docs describe the current implemented behavior and why it is that way, never old system states or removed behavior.
 
 ## Step 4: Self-Review
 
@@ -141,7 +142,7 @@ After writing the complete plan, check it yourself before dispatching the review
 
 **1. Spec coverage (spec → plan):** For each ADDED/MODIFIED requirement in the feature spec, is there a task whose "Tests must prove" list covers its scenarios? A requirement without a task and tests is a plan failure.
 
-**2. Reverse coverage (plan → spec):** Does every task map to a feature-spec requirement? Tasks that don't are scope creep.
+**2. Reverse coverage (plan → spec):** Does every task map to a feature-spec requirement? Tasks that do not are scope creep.
 
 **3. Placeholder scan:** Search for the patterns from "Contract Completeness" above. Fix them.
 
@@ -149,11 +150,11 @@ After writing the complete plan, check it yourself before dispatching the review
 
 **5. Standards coverage:** Does every contract respect the Implementation Standards? A task that prescribes a workaround, a silent fallback, or an unnecessary abstraction is a plan failure.
 
-Fix issues inline and move on. Add missing tasks; add missing test behaviors.
+Fix issues inline and move on. Add missing tasks. Add missing test behaviors.
 
 ## Step 5: Plan Review
 
-Dispatch a `document-review` subagent using `plan-document-reviewer-prompt.md` to verify plan completeness and spec alignment.
+Dispatch a `document-review` subagent using `plan-document-reviewer-prompt.md` to check plan completeness and spec alignment.
 
 - **Issues found:** fix the plan, re-dispatch. Loop until the reviewer approves.
 - Do NOT proceed to execution until the reviewer approves.
@@ -172,4 +173,4 @@ Then execute:
 - **Default:** invoke subagent-driven-development — fresh implementer subagent per task, one review pass per task
 - **Trivial plans** (1-2 small tasks): executing-plans inline is acceptable
 
-State which you are using; do not ask the operator to choose.
+State which you are using. Do not ask the operator to choose.

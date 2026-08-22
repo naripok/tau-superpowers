@@ -5,7 +5,7 @@ description: Use when completing tasks, implementing major features, or before m
 
 # Requesting Code Review
 
-Dispatch a read-only reviewer subagent with precisely crafted context: the diff, the verification output, the requirements, and every relevant file path.
+Dispatch a read-only reviewer subagent with exact context: the diff, the verification output, the requirements, and every relevant file path.
 
 **Core principle:** Review early, review often.
 
@@ -57,9 +57,10 @@ Embed the complete diff, verification output, and every relevant file path. The 
 **4. Act on feedback:**
 
 - Fix Critical issues immediately
-- Fix Important issues before proceeding
+- Before proceeding, fix Important issues
 - Note Minor issues for later
-- Push back with technical reasoning if the reviewer is wrong (see receiving-code-review)
+- If the reviewer is wrong, push back with technical reasoning (see receiving-code-review)
+- Reject findings that demand work beyond the stated requirements (see receiving-code-review)
 
 ## Red Flags
 

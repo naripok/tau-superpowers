@@ -7,7 +7,7 @@ description: Use when creating new skills, editing existing skills, or verifying
 
 ## What a Skill Is
 
-A skill is a reference guide for a proven technique, pattern, or tool, written as a procedure: what to do, when to do it, and how to do it. Skills state rules and steps; they do not argue for them, justify them, or persuade.
+A skill is a reference guide for a proven technique, pattern, or tool. It is written as a procedure: what to do, when to do it, and how to do it. Skills state rules and steps. They do not argue for them, justify them, or persuade.
 
 **Skills are:** reusable techniques, patterns, tools, reference guides.
 
@@ -22,16 +22,16 @@ Tau discovers skills from these directories in increasing precedence:
 3. `<cwd>/.tau/skills/`
 4. `<cwd>/.agents/skills/`
 
-Each skill is a directory containing `SKILL.md`. A higher-precedence skill with the same name overrides a lower-precedence one. Tau initially injects only each skill's name, description, and path into the system prompt; the agent reads the full `SKILL.md` when the description matches its task. In an active TUI, run `/reload` after changing a skill. Users invoke a skill explicitly with `/skill:<name> [request]`.
+Each skill is a directory containing `SKILL.md`. A higher-precedence skill with the same name overrides a lower-precedence one. Tau initially injects only each skill's name, description, and path into the system prompt. When the description matches its task, the agent reads the full `SKILL.md`. If you change a skill in an active TUI, run `/reload`. Users invoke a skill explicitly with `/skill:<name> [request]`.
 
 ## When to Create a Skill
 
 **Create when:**
-- The technique wasn't intuitively obvious
-- You'd reference it again across projects
+- The technique was not intuitively obvious
+- You will reference it again across projects
 - The pattern applies broadly (not project-specific)
 
-**Don't create for:**
+**Do not create for:**
 - One-off solutions
 - Standard practices documented elsewhere
 - Project-specific conventions (put those in AGENTS.md)
@@ -62,8 +62,8 @@ Keep the directory name and frontmatter `name` identical. All skills share one f
 
 **Frontmatter (YAML)** — two required fields (see [agentskills.io/specification](https://agentskills.io/specification) for all supported fields):
 
-- `name`: 1-64 characters; lowercase letters, numbers, and single hyphens only; no leading or trailing hyphen; must match the parent directory
-- `description`: 1-1024 characters (keep under 500); third person; starts with "Use when..."; lists triggering conditions, symptoms, and contexts. **NEVER summarize the skill's process or workflow in the description** — an agent may follow the summary instead of reading the skill body
+- `name`: 1-64 characters. Use only lowercase letters, numbers, and single hyphens. No leading or trailing hyphen. The name must match the parent directory.
+- `description`: 1-1024 characters (keep under 500). Third person. Starts with "Use when...". Lists triggering conditions, symptoms, and contexts. **NEVER summarize the skill's process or workflow in the description**. An agent can follow the summary instead of reading the skill body
 
 **Body:**
 
@@ -89,10 +89,10 @@ What goes wrong + the correct action.
 
 ## Description Rules
 
-The description answers only: "Should I read this skill right now?"
+The description answers only one question: "Should I read this skill right now?"
 
 - Start with "Use when..." and list concrete triggers, symptoms, situations
-- Describe the problem (race conditions, flaky tests), not language-specific symptoms, unless the skill is technology-specific — then say so explicitly
+- Describe the problem (race conditions, flaky tests), not language-specific symptoms. If the skill is technology-specific, say so explicitly.
 - Third person
 - Never summarize the process or workflow
 
@@ -108,18 +108,18 @@ Use searchable keywords in the body: error messages, symptom words, synonyms, to
 
 ## Naming
 
-Active voice, verb-first; gerunds work well for processes:
+Use active voice and verb-first names. Gerunds work well for processes:
 
 - `condition-based-waiting`, not `async-test-helpers`
 - `writing-skills`, not `skill-creation`
 
 ## Token Efficiency
 
-- Keep descriptions concise; their metadata is always indexed
-- Keep frequently-used skill bodies focused; move heavy reference and tools to supporting files
+- Keep descriptions concise. Tau always indexes their metadata.
+- Keep frequently-used skill bodies focused. Move heavy reference and tools to supporting files.
 - Cross-reference other skills by name instead of repeating their content
 - One excellent example beats several mediocre ones
-- Don't explain what a command already makes obvious; don't give multiple examples of the same pattern
+- Do not explain what a command already makes obvious. Do not give multiple examples of the same pattern.
 
 ## Cross-Referencing Other Skills
 
@@ -130,13 +130,13 @@ Reference by skill name with an explicit requirement marker:
 - BAD: `See skills/testing/test-driven-development` (assumes an installation layout)
 - BAD: `Open @skills/testing/test-driven-development/SKILL.md` (repository paths are not skill invocation)
 
-`/skill:<name>` is user-facing syntax; prose inside a skill states dependencies by name.
+`/skill:<name>` is user-facing syntax. Prose inside a skill states dependencies by name.
 
 ## Flowcharts
 
 **Use flowcharts ONLY for:**
 - Non-obvious decision points
-- Process loops where you might stop too early
+- Process loops where you can stop too early
 - "When to use A vs B" decisions
 
 **Never use flowcharts for:**
@@ -158,8 +158,8 @@ Write rules as unambiguous procedure:
 
 - State the rule, its boundaries, and its exceptions explicitly
 - Give decision rules for edge cases ("test passes immediately → you're testing existing behavior; fix the test"), not justifications
-- For discipline-enforcing skills (TDD, verification): close known workarounds explicitly ("delete means delete: don't keep it as reference, don't adapt it"), state that violating the letter of the rule violates its spirit, and provide a red-flags list the agent can self-check against
-- Do not explain why a rule exists, what research supports it, or what goes wrong philosophically — the skill is followed, not argued into
+- For discipline-enforcing skills (TDD, verification): close known workarounds explicitly ("delete means delete: don't keep it as reference, don't adapt it"). State that violating the letter of the rule violates its spirit. Provide a red-flags list the agent can self-check against.
+- Do not explain why a rule exists, what research supports it, or what goes wrong philosophically. The agent follows the skill instead of debating it.
 
 ## Testing Skills
 
@@ -174,45 +174,45 @@ If you wrote or edited a skill without testing, delete the change and start over
 **Test cycle** (methodology: `testing-skills-with-subagents.md`):
 
 1. **RED** — Run a pressure scenario with an isolated subagent WITHOUT the skill text. Record the exact behavior and rationalizations verbatim.
-2. **GREEN** — Write the minimal skill addressing those specific failures. Run the same scenarios WITH the skill text included in the dispatch. Verify the agent now complies.
-3. **REFACTOR** — Plug each new loophole the agent finds. Re-verify until bulletproof.
+2. **GREEN** — Write the minimal skill addressing those specific failures. Run the same scenarios WITH the skill text included in the dispatch. Check that the agent now complies.
+3. **REFACTOR** — Plug each new loophole the agent finds. Re-check until bulletproof.
 
 **Test approach by skill type:**
 
 | Type | Test with | Success criterion |
 |------|-----------|-------------------|
 | Discipline-enforcing | Academic questions + pressure scenarios (time, sunk cost, exhaustion, combined) | Agent follows the rule under maximum pressure |
-| Technique | Application and variation scenarios; missing-information probes | Agent applies the technique correctly to a new scenario |
-| Pattern | Recognition and application scenarios; counter-examples | Agent identifies when and how the pattern applies |
+| Technique | Application and variation scenarios, missing-information probes | Agent applies the technique correctly to a new scenario |
+| Pattern | Recognition and application scenarios, counter-examples | Agent identifies when and how the pattern applies |
 | Reference | Retrieval and application scenarios | Agent finds and correctly applies the information |
 
 ## Deployment Checklist
 
-Complete for EACH skill before moving to the next. Deploying an untested skill is deploying untested code.
+Before moving to the next skill, complete this checklist for EACH skill. Deploying an untested skill is deploying untested code.
 
 **RED:**
-- [ ] Pressure scenarios created (3+ combined pressures for discipline skills)
-- [ ] Scenarios run without the skill; baseline behavior documented verbatim
+- [ ] Create pressure scenarios (3+ combined pressures for discipline skills)
+- [ ] Run the scenarios without the skill. Document the baseline behavior verbatim.
 
 **GREEN:**
-- [ ] `name` valid and matches its directory; frontmatter has `name` and `description` (≤1024 chars)
-- [ ] Description starts with "Use when...", third person, triggers only, no workflow summary
-- [ ] Body states procedure as rules and steps — no rationale, no persuasion, no narratives
-- [ ] One excellent example; supporting files only for heavy reference or tools
-- [ ] Scenarios re-run with the skill; agent complies
+- [ ] Check that `name` is valid and matches its directory. Check that the frontmatter has `name` and `description` (≤1024 chars).
+- [ ] Check that the description starts with "Use when...", uses third person, lists triggers only, and has no workflow summary.
+- [ ] Check that the body states procedure as rules and steps: no rationale, no persuasion, no narratives.
+- [ ] Include one excellent example. Keep supporting files only for heavy reference or tools.
+- [ ] Re-run the scenarios with the skill. Check that the agent complies.
 
 **REFACTOR:**
-- [ ] New loopholes closed; red-flags list present for discipline skills
-- [ ] Flowchart only where a decision is non-obvious
-- [ ] Re-tested until bulletproof
+- [ ] Close new loopholes. Add a red-flags list for discipline skills.
+- [ ] Use a flowchart only where a decision is non-obvious.
+- [ ] Re-test until bulletproof.
 
 **Deployment:**
-- [ ] Committed to git
+- [ ] Commit to git
 
 ## Anti-Patterns
 
-- **Narrative examples** ("In session 2025-10-03, we found...") — not reusable; state the rule instead
-- **Multi-language example files** — mediocre quality, maintenance burden; one excellent example
+- **Narrative examples** ("In session 2025-10-03, we found...") — not reusable. State the rule instead.
+- **Multi-language example files** — mediocre quality, maintenance burden. Use one excellent example.
 - **Code in flowchart labels** — not copy-pasteable
 - **Generic labels** (helper1, step3) — labels carry semantic meaning
-- **Rationale sections** ("Why this matters", "The psychology of...") — delete them; procedure only
+- **Rationale sections** ("Why this matters", "The psychology of...") — delete them. Procedure only.

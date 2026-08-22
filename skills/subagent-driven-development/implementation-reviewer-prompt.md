@@ -52,24 +52,26 @@ This is a template for constructing the `task` string of the Tau `task` tool. Ca
 
     [PASTE THE COMPLETE DIFF AND TEST/LINT/TYPE-CHECK OUTPUT]
 
-    You may run read-only bash (git diff/log/status, grep/rg/find) to verify, but
-    never change the state of the repository. If required evidence is missing,
-    report NEEDS_CONTEXT and identify exactly what the controller must provide.
+    You can run read-only bash (git diff/log/status, grep/rg/find) to check
+    claims. Never change the state of the repository. If required evidence is
+    missing, report NEEDS_CONTEXT and name what the controller must provide.
 
     ## Do Not Trust the Report
 
-    The implementer's report may be incomplete, inaccurate, or optimistic. Verify
+    The implementer's report can be incomplete, inaccurate, or optimistic. Check
     everything independently: read the actual code, compare it to the contract
-    line by line, check for missing pieces and unrequested extras. Review
-    adversarially — assume the work is flawed until proven otherwise, question
-    the implementer's decisions, and report only actionable findings, no praise.
+    line by line, and look for missing pieces and unrequested extras. Review
+    adversarially: assume the work is flawed until the code proves otherwise,
+    question the implementer's decisions, and report only actionable findings.
+    No praise.
 
     ## Dimension 1: Spec Compliance
 
     - Is every feature-spec requirement relevant to this scope implemented?
       ADDED present, MODIFIED reflected, REMOVED gone?
-    - Did they skip or miss requested behavior? Claim something works that doesn't?
-    - Did they build anything NOT in the spec or task (over-engineering, "nice to haves")?
+    - Did they skip or miss requested behavior? Claim that something works when it does not?
+    - Did they build anything NOT in the spec or task: over-engineering,
+      "nice to haves", speculative edge-case handling?
     - Did they misinterpret a requirement or solve the wrong problem?
 
     If you find a discrepancy between code and spec, note it explicitly so the
@@ -78,14 +80,24 @@ This is a template for constructing the `task` string of the Tau `task` tool. Ca
     ## Dimension 2: Code Quality
 
     - Does each file have one clear responsibility with a well-defined interface?
-    - Do tests verify real behavior (not mocks), cover edge cases, and have
-      docstrings saying what behavior they prove and why?
-    - Is the code clean, maintainable, well-named? Security or performance concerns?
+    - Is the implementation the simplest code that satisfies the contract? Flag
+      speculative edge-case handling, defensive checks for states that cannot
+      occur, and error paths that no requirement names.
+    - Do tests verify real behavior (not mocks), cover the contract's scenarios,
+      and have docstrings saying what behavior they prove and why?
+    - Is the code clean, maintainable, well-named? Security or performance problems?
     - Is cyclomatic complexity low — a single valid path per function where possible?
     - Are invalid states unrepresentable (no untyped escapes or stringly-typed states)?
     - Any unnecessary abstractions, unnecessary fallbacks, or hacks/workarounds?
     - Do docstrings say what and why (not how)? Does documentation describe only
       the current behavior, with no references to old states or removed behavior?
+
+    ## Scope Calibration
+
+    Review against the contract, nothing more. Do not request handling, tests,
+    or robustness for scenarios that the spec and the task do not name. If the
+    spec is silent on a real risk, report it once under Minor so the controller
+    can decide whether to update the spec. Do not demand code for it.
 
     ## Output Format (strict)
 

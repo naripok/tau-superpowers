@@ -24,12 +24,12 @@ digraph when_to_use {
 **Use when:**
 - Tests have arbitrary delays (`setTimeout`, `sleep`, `time.sleep()`)
 - Tests are flaky (pass sometimes, fail under load)
-- Tests timeout when run in parallel
-- Waiting for async operations to complete
+- Tests time out when they run in parallel
+- Tests wait for async operations to complete
 
-**Don't use when:**
-- Testing actual timing behavior (debounce, throttle intervals)
-- Always document WHY if using arbitrary timeout
+**Do not use when:**
+- You test actual timing behavior (debounce, throttle intervals)
+- If you use an arbitrary timeout, always document WHY
 
 ## Core Pattern
 
@@ -57,7 +57,7 @@ expect(result).toBeDefined();
 
 ## Implementation
 
-Generic polling function:
+A generic polling function:
 ```typescript
 async function waitFor<T>(
   condition: () => T | undefined | null | false,
@@ -79,18 +79,18 @@ async function waitFor<T>(
 }
 ```
 
-See `condition-based-waiting-example.ts` in this directory for complete implementation with domain-specific helpers (`waitForEvent`, `waitForEventCount`, `waitForEventMatch`) from actual debugging session.
+See `condition-based-waiting-example.ts` in this directory for the complete implementation with domain-specific helpers (`waitForEvent`, `waitForEventCount`, `waitForEventMatch`) from an actual debugging session.
 
 ## Common Mistakes
 
 **❌ Polling too fast:** `setTimeout(check, 1)` - wastes CPU
 **✅ Fix:** Poll every 10ms
 
-**❌ No timeout:** Loop forever if condition never met
-**✅ Fix:** Always include timeout with clear error
+**❌ No timeout:** If the condition is never met, the loop runs forever
+**✅ Fix:** Always include a timeout with a clear error message
 
-**❌ Stale data:** Cache state before loop
-**✅ Fix:** Call getter inside loop for fresh data
+**❌ Stale data:** The code caches the state before the loop
+**✅ Fix:** Call the getter inside the loop to get fresh data
 
 ## When Arbitrary Timeout IS Correct
 
@@ -102,13 +102,13 @@ await new Promise(r => setTimeout(r, 200));   // Then: wait for timed behavior
 ```
 
 **Requirements:**
-1. First wait for triggering condition
-2. Based on known timing (not guessing)
-3. Comment explaining WHY
+1. First, wait for the triggering condition
+2. Base the delay on known timing, not on guessing
+3. Add a comment that explains WHY
 
 ## Real-World Impact
 
-From debugging session (2025-10-03):
+From a debugging session (2025-10-03):
 - Fixed 15 flaky tests across 3 files
 - Pass rate: 60% → 100%
 - Execution time: 40% faster

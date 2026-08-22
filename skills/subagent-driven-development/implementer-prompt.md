@@ -22,7 +22,7 @@ The child has no controller conversation history, cannot converse mid-task, and 
 
     ## Task Description
 
-    [FULL TEXT of task from plan - paste it here, don't make the subagent read the file]
+    [FULL TEXT of task from plan - paste it here, do not make the subagent read the file]
 
     ## Context
 
@@ -42,13 +42,13 @@ The child has no controller conversation history, cannot converse mid-task, and 
 
     ## Your Job
 
-    Once you're clear on the contract:
+    When you are clear on the contract:
     1. Implement the task's contract. The task defines the files, the interface
-       signatures, and the expected behavior; the exact implementation within that
-       contract is your decision
-    2. Follow TDD explicitly: write the failing tests for the task's "Tests must
-       prove" list first, run them and confirm each fails for the expected reason,
-       implement the minimum to pass, rerun, then refactor
+       signatures, and the expected behavior. The exact implementation within
+       that contract is your decision
+    2. Follow TDD explicitly. Write the failing tests for the task's "Tests must
+       prove" list first. Run them and confirm that each fails for the expected
+       reason. Implement the minimum to pass. Run the tests again. Then refactor
     3. Run the task's verification commands
     4. Commit your work
     5. Self-review (see below)
@@ -56,19 +56,19 @@ The child has no controller conversation history, cannot converse mid-task, and 
 
     Work from: [directory]
 
-    If you encounter something essential that is unexpected or unclear, stop safely
-    and report NEEDS_CONTEXT or BLOCKED. Do not guess.
+    If something essential is unexpected or unclear, stop safely and report
+    NEEDS_CONTEXT or BLOCKED. Do not guess.
 
     ## Code Organization
 
     - Follow the file structure defined in the plan
     - Each file has one clear responsibility with a well-defined interface
-    - If a file you're creating is growing beyond the plan's intent, stop and report
-      it as DONE_WITH_CONCERNS — don't split files on your own without plan guidance
-    - If an existing file you're modifying is already large or tangled, work carefully
-      and note it as a concern in your report
-    - Follow established codebase patterns. Improve code you're touching, but don't
-      restructure things outside your task
+    - If a file you are creating grows beyond the plan's intent, stop and report
+      it as DONE_WITH_CONCERNS. Do not split files on your own without plan guidance
+    - If an existing file you must modify is large or tangled, work carefully and
+      note it as a concern in your report
+    - Follow the established codebase patterns. Improve code that you touch. Do not
+      restructure code outside your task
 
     ## Code Standards
 
@@ -81,6 +81,9 @@ The child has no controller conversation history, cannot converse mid-task, and 
     - Implement the correct, complete solution by design — no hacks, workarounds,
       or "fix later" code
     - Keep it DRY — duplicated logic and repeated test patterns exist once
+    - Keep the implementation minimal — the simplest code that satisfies the
+      task's contract; no speculative edge-case handling, no defensive checks
+      for states that cannot occur
     - Docstrings: application code says what it does and why, not how; tests say
       what behavior they prove and why they are needed
     - Document only the current state and behavior — never old system states,
@@ -92,7 +95,7 @@ The child has no controller conversation history, cannot converse mid-task, and 
 
     **Completeness:**
     - Did I fully implement every contract in the task?
-    - Edge cases and error behavior covered?
+    - Edge cases and error behavior that the task names covered?
 
     **Quality:**
     - Is this my best work? Clear, accurate names?
@@ -120,7 +123,8 @@ The child has no controller conversation history, cannot converse mid-task, and 
     - A final line exactly matching one of: **Status: DONE**,
       **Status: DONE_WITH_CONCERNS**, **Status: BLOCKED**, **Status: NEEDS_CONTEXT**
 
-    Use DONE_WITH_CONCERNS if you completed the work but have doubts about correctness.
-    Use BLOCKED if you cannot complete the task. Use NEEDS_CONTEXT if you need
-    information that wasn't provided. Never silently produce work you're unsure about.
+    If you completed the work but have doubts about correctness, use
+    DONE_WITH_CONCERNS. If you cannot complete the task, use BLOCKED. If you
+    need information that the prompt did not provide, use NEEDS_CONTEXT. Never
+    silently produce work that you are unsure about.
 ```

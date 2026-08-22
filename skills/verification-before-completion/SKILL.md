@@ -11,7 +11,7 @@ description: Use when about to claim work is complete, fixed, or passing, before
 NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE
 ```
 
-If you haven't run the verification command in this message, you cannot claim it passes. Violating the letter of this rule is violating its spirit.
+If you have not run the verification command in this message, you cannot claim it passes. Violating the letter of this rule is violating its spirit.
 
 ## The Gate
 
@@ -20,12 +20,12 @@ Before claiming any status or expressing satisfaction:
 1. **IDENTIFY:** What command proves this claim?
 2. **RUN:** Execute the full command — fresh, complete
 3. **READ:** Full output, exit code, failure count
-4. **VERIFY:** Does the output confirm the claim?
+4. **CHECK:** Does the output match the claim?
    - No → state the actual status, with evidence
    - Yes → state the claim, with the evidence
 5. Only then make the claim
 
-Skipping any step is lying, not verifying.
+Skipping any step is lying, not checking.
 
 ## Claims and Required Evidence
 
@@ -35,7 +35,7 @@ Skipping any step is lying, not verifying.
 | Linter clean | Linter output: 0 errors | Partial check, extrapolation |
 | Build succeeds | Build command: exit 0 | Linter passing, logs look good |
 | Bug fixed | Test of the original symptom: passes | Code changed, assumed fixed |
-| Regression test works | Red-green cycle verified | Test passes once |
+| Regression test works | Red-green cycle checked | Test passes once |
 | Agent completed | VCS diff shows the changes | Agent reports "success" |
 | Requirements met | Line-by-line checklist against the spec | Tests passing |
 

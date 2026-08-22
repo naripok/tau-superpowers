@@ -2,9 +2,9 @@
 
 ## Overview
 
-When you fix a bug caused by invalid data, adding validation at one place feels sufficient. But that single check can be bypassed by different code paths, refactoring, or mocks.
+When you fix a bug caused by invalid data, adding validation at one place feels sufficient. But different code paths, refactoring, or mocks can bypass that single check.
 
-**Core principle:** Validate at EVERY layer data passes through. Make the bug structurally impossible.
+**Core principle:** Validate at EVERY layer that the data passes through. Make the bug structurally impossible.
 
 ## Why Multiple Layers
 
@@ -20,7 +20,7 @@ Different layers catch different cases:
 ## The Four Layers
 
 ### Layer 1: Entry Point Validation
-**Purpose:** Reject obviously invalid input at API boundary
+**Purpose:** Reject obviously invalid input at the API boundary
 
 ```typescript
 function createProject(name: string, workingDirectory: string) {
@@ -38,7 +38,7 @@ function createProject(name: string, workingDirectory: string) {
 ```
 
 ### Layer 2: Business Logic Validation
-**Purpose:** Ensure data makes sense for this operation
+**Purpose:** Check that the data makes sense for this operation
 
 ```typescript
 function initializeWorkspace(projectDir: string, sessionId: string) {
@@ -88,14 +88,14 @@ async function gitInit(directory: string) {
 
 When you find a bug:
 
-1. **Trace the data flow** - Where does bad value originate? Where used?
-2. **Map all checkpoints** - List every point data passes through
+1. **Trace the data flow** - Where does the bad value originate? Where does the code use it?
+2. **Map all checkpoints** - List every point that the data passes through
 3. **Add validation at each layer** - Entry, business, environment, debug
-4. **Test each layer** - Try to bypass layer 1, verify layer 2 catches it
+4. **Test each layer** - Try to bypass layer 1. Check that layer 2 catches it.
 
 ## Example from Session
 
-Bug: Empty `projectDir` caused `git init` in source code
+Bug: Empty `projectDir` caused `git init` in the source code
 
 **Data flow:**
 1. Test setup → empty string
@@ -109,7 +109,7 @@ Bug: Empty `projectDir` caused `git init` in source code
 - Layer 3: `WorktreeManager` refuses git init outside tmpdir in tests
 - Layer 4: Stack trace logging before git init
 
-**Result:** All 1847 tests passed, bug impossible to reproduce
+**Result:** All 1847 tests passed. The bug is impossible to reproduce.
 
 ## Key Insight
 
@@ -119,4 +119,4 @@ All four layers were necessary. During testing, each layer caught bugs the other
 - Edge cases on different platforms needed environment guards
 - Debug logging identified structural misuse
 
-**Don't stop at one validation point.** Add checks at every layer.
+**Do not stop at one validation point.** Add checks at every layer.

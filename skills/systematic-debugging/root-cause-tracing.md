@@ -2,9 +2,9 @@
 
 ## Overview
 
-Bugs often manifest deep in the call stack (git init in wrong directory, file created in wrong location, database opened with wrong path). Your instinct is to fix where the error appears, but that's treating a symptom.
+Bugs often manifest deep in the call stack (git init in the wrong directory, a file created in the wrong location, a database opened with the wrong path). Your instinct is to fix where the error appears. That treats a symptom.
 
-**Core principle:** Trace backward through the call chain until you find the original trigger, then fix at the source.
+**Core principle:** Trace backward through the call chain until you find the original trigger. Then fix at the source.
 
 ## When to Use
 
@@ -24,10 +24,10 @@ digraph when_to_use {
 ```
 
 **Use when:**
-- Error happens deep in execution (not at entry point)
-- Stack trace shows long call chain
-- Unclear where invalid data originated
-- Need to find which test/code triggers the problem
+- The error happens deep in execution (not at the entry point)
+- The stack trace shows a long call chain
+- It is unclear where the invalid data originated
+- You need to find which test or code triggers the problem
 
 ## The Tracing Process
 
@@ -51,13 +51,13 @@ WorktreeManager.createSessionWorktree(projectDir, sessionId)
 ```
 
 ### 4. Keep Tracing Up
-**What value was passed?**
+**What value did the caller pass?**
 - `projectDir = ''` (empty string!)
-- Empty string as `cwd` resolves to `process.cwd()`
-- That's the source code directory!
+- An empty string as `cwd` resolves to `process.cwd()`
+- That is the source code directory!
 
 ### 5. Find Original Trigger
-**Where did empty string come from?**
+**Where did the empty string come from?**
 ```typescript
 const context = setupCoreTest(); // Returns { tempDir: '' }
 Project.create('name', context.tempDir); // Accessed before beforeEach!
@@ -65,7 +65,7 @@ Project.create('name', context.tempDir); // Accessed before beforeEach!
 
 ## Adding Stack Traces
 
-When you can't trace manually, add instrumentation:
+When you cannot trace manually, add instrumentation:
 
 ```typescript
 // Before the problematic operation
@@ -82,7 +82,7 @@ async function gitInit(directory: string) {
 }
 ```
 
-**Critical:** Use `console.error()` in tests (not logger - may not show)
+**Critical:** Use `console.error()` in tests, not the logger. The logger can hide the output.
 
 **Run and capture:**
 ```bash
@@ -91,12 +91,12 @@ npm test 2>&1 | grep 'DEBUG git init'
 
 **Analyze stack traces:**
 - Look for test file names
-- Find the line number triggering the call
+- Find the line number that triggers the call
 - Identify the pattern (same test? same parameter?)
 
 ## Finding Which Test Causes Pollution
 
-If something appears during tests but you don't know which test:
+If something appears during tests but you do not know which test:
 
 Use the bisection script `find-polluter.sh` in this directory:
 
@@ -104,7 +104,7 @@ Use the bisection script `find-polluter.sh` in this directory:
 ./find-polluter.sh '.git' 'src/**/*.test.ts'
 ```
 
-Runs tests one-by-one, stops at first polluter. See script for usage.
+The script runs the tests one by one and stops at the first polluter. See the script for usage.
 
 ## Real Example: Empty projectDir
 
@@ -112,17 +112,17 @@ Runs tests one-by-one, stops at first polluter. See script for usage.
 
 **Trace chain:**
 1. `git init` runs in `process.cwd()` ← empty cwd parameter
-2. WorktreeManager called with empty projectDir
-3. Session.create() passed empty string
-4. Test accessed `context.tempDir` before beforeEach
+2. WorktreeManager receives an empty projectDir
+3. Session.create() passes the empty string
+4. The test accesses `context.tempDir` before beforeEach runs
 5. setupCoreTest() returns `{ tempDir: '' }` initially
 
-**Root cause:** Top-level variable initialization accessing empty value
+**Root cause:** A top-level variable initialization accesses an empty value
 
-**Fix:** Made tempDir a getter that throws if accessed before beforeEach
+**Fix:** tempDir is now a getter that throws if a test accesses it before beforeEach
 
 **Also added defense-in-depth:**
-- Layer 1: Project.create() validates directory
+- Layer 1: Project.create() validates the directory
 - Layer 2: WorkspaceManager validates not empty
 - Layer 3: NODE_ENV guard refuses git init outside tmpdir
 - Layer 4: Stack trace logging before git init
@@ -151,19 +151,19 @@ digraph principle {
 }
 ```
 
-**NEVER fix just where the error appears.** Trace back to find the original trigger.
+**NEVER fix only where the error appears.** Trace back to find the original trigger.
 
 ## Stack Trace Tips
 
-**In tests:** Use `console.error()` not logger - logger may be suppressed
+**In tests:** Use `console.error()`, not the logger. The logger can hide the output.
 **Before operation:** Log before the dangerous operation, not after it fails
 **Include context:** Directory, cwd, environment variables, timestamps
-**Capture stack:** `new Error().stack` shows complete call chain
+**Capture stack:** `new Error().stack` shows the complete call chain
 
 ## Real-World Impact
 
-From debugging session (2025-10-03):
-- Found root cause through 5-level trace
-- Fixed at source (getter validation)
+From a debugging session (2025-10-03):
+- Found the root cause through a 5-level trace
+- Fixed at the source (getter validation)
 - Added 4 layers of defense
 - 1847 tests passed, zero pollution

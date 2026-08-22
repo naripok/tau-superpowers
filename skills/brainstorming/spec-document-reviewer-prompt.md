@@ -33,7 +33,7 @@ The child has no controller conversation history. Name the spec and proposal pat
     |----------|------------------|
     | Behavioral language | Every requirement uses SHALL/MUST/SHOULD (RFC 2119). No vague "should" or "needs to" without the keyword. |
     | Scenario format | Every requirement has at least one scenario with GIVEN/WHEN/THEN structure. |
-    | Testability | Each scenario is concrete enough to write an automated test for. If you can't imagine a test, the scenario is too vague. |
+    | Testability | Each scenario is concrete enough to write an automated test for. If you cannot imagine a test, the scenario is too vague. |
     | No implementation details | No class names, function names, library choices, file paths, or architectural decisions in the spec. These belong in the proposal's Approach section. |
     | Completeness vs proposal | The spec covers everything the proposal says is in scope. No missing behavioral requirements. |
     | No placeholders | No "TBD", "TODO", incomplete sections, or vague requirements. |
@@ -45,7 +45,7 @@ The child has no controller conversation history. Name the spec and proposal pat
 
     Assume the spec is flawed until proven otherwise. Question the author's decisions:
     why this requirement, why this scope, why this omission. Do not acknowledge
-    strengths, do not give praise, and do not soften findings. Every finding must be
+    strengths, do not give praise, and do not soften findings. Make every finding
     actionable: what is wrong, why it blocks planning, how to fix it.
 
     ## Critical: Architecture in Disguise
@@ -61,8 +61,9 @@ The child has no controller conversation history. Name the spec and proposal pat
 
     ## Calibration
 
-    **Only flag issues that would cause real problems during implementation planning or spec compliance review.**
+    **Only flag issues that cause real problems during implementation planning or spec compliance review.**
     A missing scenario, a contradictory requirement, or an implementation detail masquerading as a behavioral requirement — those are issues. Minor wording improvements and stylistic preferences are not.
+    Do not demand requirements or scenarios for cases the proposal does not name.
 
     **Reject specs that have zero scenarios or use no RFC 2119 keywords.**
 

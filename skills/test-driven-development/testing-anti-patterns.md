@@ -4,7 +4,7 @@
 
 ## Overview
 
-Tests must verify real behavior, not mock behavior. Mocks are a means to isolate, not the thing being tested.
+Tests must check real behavior, not mock behavior. Mocks are a means to isolate, not the thing under test.
 
 **Core principle:** Test what the code does, not what the mocks do.
 
@@ -30,9 +30,9 @@ test('renders sidebar', () => {
 ```
 
 **Why this is wrong:**
-- You're verifying the mock works, not that the component works
-- Test passes when mock is present, fails when it's not
-- Tells you nothing about real behavior
+- You are checking that the mock works, not that the component works
+- The test passes when the mock is present and fails when it is not
+- It tells you nothing about real behavior
 
 **your human partner's correction:** "Are we testing the behavior of a mock?"
 
@@ -77,10 +77,10 @@ afterEach(() => session.destroy());
 ```
 
 **Why this is wrong:**
-- Production class polluted with test-only code
-- Dangerous if accidentally called in production
-- Violates YAGNI and separation of concerns
-- Confuses object lifecycle with entity lifecycle
+- Test-only code pollutes the production class
+- An accidental call in production is dangerous
+- It violates YAGNI and separation of concerns
+- It confuses the object lifecycle with the entity lifecycle
 
 **The fix:**
 ```typescript
@@ -132,9 +132,9 @@ test('detects duplicate server', () => {
 ```
 
 **Why this is wrong:**
-- Mocked method had side effect test depended on (writing config)
-- Over-mocking to "be safe" breaks actual behavior
-- Test passes for wrong reason or fails mysteriously
+- The mocked method had a side effect that the test depended on (writing config)
+- Over-mocking to "be safe" breaks the actual behavior
+- The test passes for the wrong reason or fails mysteriously
 
 **The fix:**
 ```typescript
@@ -189,12 +189,12 @@ const mockResponse = {
 ```
 
 **Why this is wrong:**
-- **Partial mocks hide structural assumptions** - You only mocked fields you know about
-- **Downstream code may depend on fields you didn't include** - Silent failures
-- **Tests pass but integration fails** - Mock incomplete, real API complete
-- **False confidence** - Test proves nothing about real behavior
+- **Partial mocks hide structural assumptions** - You only mocked the fields that you know about
+- **Downstream code can depend on fields that you did not include** - The failures are silent
+- **Tests pass but integration fails** - The mock is incomplete. The real API is complete.
+- **False confidence** - The test proves nothing about real behavior
 
-**The Iron Rule:** Mock the COMPLETE data structure as it exists in reality, not just fields your immediate test uses.
+**The Iron Rule:** Mock the COMPLETE data structure as it exists in reality, not only the fields that your immediate test uses.
 
 **The fix:**
 ```typescript
@@ -235,9 +235,9 @@ BEFORE creating mock responses:
 ```
 
 **Why this is wrong:**
-- Testing is part of implementation, not optional follow-up
-- TDD would have caught this
-- Can't claim complete without tests
+- Testing is part of implementation, not an optional follow-up
+- TDD catches this problem
+- You cannot claim that the work is complete without tests
 
 **The fix:**
 ```
@@ -251,49 +251,49 @@ TDD cycle:
 ## When Mocks Become Too Complex
 
 **Warning signs:**
-- Mock setup longer than test logic
-- Mocking everything to make test pass
-- Mocks missing methods real components have
-- Test breaks when mock changes
+- The mock setup is longer than the test logic
+- You mock everything to make the test pass
+- The mocks lack methods that the real components have
+- The test breaks when the mock changes
 
 **your human partner's question:** "Do we need to be using a mock here?"
 
-**Consider:** Integration tests with real components often simpler than complex mocks
+**Consider:** Integration tests with real components are often simpler than complex mocks
 
 ## TDD Prevents These Anti-Patterns
 
 **Why TDD helps:**
-1. **Write test first** → Forces you to think about what you're actually testing
-2. **Watch it fail** → Confirms test tests real behavior, not mocks
-3. **Minimal implementation** → No test-only methods creep in
+1. **Write test first** → Forces you to think about what you are actually testing
+2. **Watch it fail** → Proves that the test checks real behavior, not mocks
+3. **Minimal implementation** → Test-only methods do not creep in
 4. **Real dependencies** → You see what the test actually needs before mocking
 
-**If you're testing mock behavior, you violated TDD** - you added mocks without watching test fail against real code first.
+**If you are testing mock behavior, you violated TDD** - you added mocks without watching the test fail against real code first.
 
 ## Quick Reference
 
 | Anti-Pattern | Fix |
 |--------------|-----|
-| Assert on mock elements | Test real component or unmock it |
-| Test-only methods in production | Move to test utilities |
-| Mock without understanding | Understand dependencies first, mock minimally |
-| Incomplete mocks | Mirror real API completely |
-| Tests as afterthought | TDD - tests first |
+| Assert on mock elements | Test the real component or unmock it |
+| Test-only methods in production | Move them to test utilities |
+| Mock without understanding | Understand the dependencies first. Mock minimally. |
+| Incomplete mocks | Mirror the real API completely |
+| Tests as afterthought | Use TDD: tests first |
 | Over-complex mocks | Consider integration tests |
 
 ## Red Flags
 
-- Assertion checks for `*-mock` test IDs
-- Methods only called in test files
-- Mock setup is >50% of test
-- Test fails when you remove mock
-- Can't explain why mock is needed
-- Mocking "just to be safe"
+- The assertion checks for `*-mock` test IDs
+- Only test files call the method
+- The mock setup is more than 50% of the test
+- The test fails when you remove the mock
+- You cannot explain why the mock is needed
+- You mock "just to be safe"
 
 ## The Bottom Line
 
 **Mocks are tools to isolate, not things to test.**
 
-If TDD reveals you're testing mock behavior, you've gone wrong.
+If TDD reveals that you are testing mock behavior, you have gone wrong.
 
-Fix: Test real behavior or question why you're mocking at all.
+Fix: Test real behavior or question why you are mocking at all.

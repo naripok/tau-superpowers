@@ -11,7 +11,7 @@ description: Use when implementing any feature or bugfix, before writing impleme
 NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST
 ```
 
-Write the test first. Watch it fail. Write minimal code to pass. If you wrote code before the test: delete it and start over — don't keep it as reference, don't adapt it, don't look at it. Violating the letter of this rule is violating its spirit.
+Write the test first. Watch it fail. Write minimal code to pass. If you wrote code before the test, delete it and start over. Do not keep it as a reference. Do not adapt it. Do not look at it. Violating the letter of this rule is violating its spirit.
 
 **When to use:** always — new features, bug fixes, refactoring, behavior changes.
 
@@ -43,11 +43,11 @@ digraph tdd_cycle {
 
 ### RED — Write the Failing Test
 
-One minimal test showing what should happen:
+One minimal test that shows the expected behavior:
 
 - One behavior per test
-- Name describes the behavior
-- Real code — mocks only when unavoidable
+- The name describes the behavior
+- Use real code. Mock only when unavoidable
 
 <Good>
 ```typescript
@@ -88,19 +88,19 @@ Vague name, tests mock not code
 npm test path/to/test.test.ts
 ```
 
-Confirm:
+Check:
 
 - The test fails (does not error)
 - The failure message is the expected one
 - It fails because the behavior is missing, not because of typos
 
-**Test passes immediately?** You're testing existing behavior. Fix the test.
+**Test passes immediately?** You are testing existing behavior. Fix the test.
 
-**Test errors?** Fix the error, re-run until it fails correctly.
+**Test errors?** Fix the error. Re-run until it fails correctly.
 
 ### GREEN — Minimal Code
 
-Write the simplest code that passes the test. No extra features, no options nobody asked for, no refactoring of other code, no "improvements" beyond the test.
+Write the simplest code that passes the test. Do not add extra features, options that nobody asked for, refactoring of other code, or "improvements" beyond the test.
 
 ### Verify GREEN — Watch It Pass (Mandatory)
 
@@ -108,11 +108,11 @@ Write the simplest code that passes the test. No extra features, no options nobo
 npm test path/to/test.test.ts
 ```
 
-Confirm:
+Check:
 
 - The test passes
 - Other tests still pass
-- Output is pristine (no errors, no warnings)
+- The output is pristine (no errors, no warnings)
 
 **Test fails?** Fix the code, not the test.
 
@@ -126,7 +126,7 @@ Only after green:
 - Improve names
 - Extract helpers
 
-Keep tests green. Don't add behavior. Then repeat the cycle for the next behavior.
+Keep tests green. Do not add behavior. Then repeat the cycle for the next behavior.
 
 ## Verification Checklist
 
@@ -136,24 +136,24 @@ Before marking work complete:
 - [ ] You watched each test fail before implementing
 - [ ] Each test failed for the expected reason (missing behavior, not typos)
 - [ ] You wrote minimal code to pass each test
-- [ ] All tests pass; output pristine (no errors, no warnings)
+- [ ] All tests pass and the output is pristine (no errors, no warnings)
 - [ ] Tests use real code (mocks only if unavoidable)
-- [ ] Edge cases and error paths covered
+- [ ] Edge cases and error paths that the requirement names are covered
 
-Any box unchecked → you skipped TDD. Start over.
+If any box is unchecked, you skipped TDD. Start over.
 
 ## When Stuck
 
 | Problem | Action |
 |---------|--------|
-| Don't know how to test | Write the wished-for API; write the assertion first; ask your human partner |
-| Test too complicated | The design is too complicated; simplify the interface |
-| Must mock everything | Code too coupled; use dependency injection |
-| Test setup huge | Extract helpers; still complex → simplify the design |
+| You do not know how to test | Write the wished-for API. Write the assertion first. Ask your human partner. |
+| The test is too complicated | The design is too complicated. Simplify the interface. |
+| You must mock everything | The code is too coupled. Use dependency injection. |
+| The test setup is huge | Extract helpers. If the design is still complex, simplify it. |
 
 ## Debugging Integration
 
-Bug found → write a failing test reproducing it → follow the cycle. The test proves the fix and prevents regression. Never fix a bug without a test.
+If you find a bug, write a failing test that reproduces it. Then follow the cycle. The test proves the fix and prevents regression. Never fix a bug without a test.
 
 ## Testing Anti-Patterns
 
