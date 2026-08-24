@@ -36,14 +36,14 @@
 [agents.implementation]
 provider = "openrouter"
 model = "deepseek/deepseek-v4-flash-0731"
-reasoningEffort = "high"
+reasoningEffort = "xhigh"
 
 [agents.code-review]
 provider = "openrouter"
-model = "deepseek/deepseek-v4-flash-0731"
-reasoningEffort = "xhigh"
+model = "z-ai/glm-5.3"
+reasoningEffort = "medium"
 
 [agents.document-review]
 provider = "openrouter"
-model = "deepseek/deepseek-v4-flash-0731"
-reasoningEffort = "xhigh"
+model = "z-ai/glm-5.3"
+reasoningEffort = "medium"

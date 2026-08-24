@@ -8,7 +8,7 @@ The project combines ideas and material from [obra/superpowers](https://github.c
 
 - 14 Tau-discoverable Agent Skills covering the full design-to-delivery workflow.
 - A `task` tool that dispatches one or more isolated Tau subprocesses.
-- Bundled child agents: `general-purpose`, tool-enforced `read-only`, `implementation` (OpenRouter DeepSeek, `high` reasoning), `code-review` and `document-review` (OpenRouter DeepSeek, `xhigh` reasoning, `read` + read-only `bash`, strict `## Code Review`/`## Document Review` reports). Children inherit the parent session's active provider, model, and thinking effort by default, after call-level, config-file, and agent-definition values.
+- Bundled child agents: `general-purpose`, tool-enforced `read-only`, `implementation` (OpenRouter DeepSeek, `xhigh` reasoning), `code-review` and `document-review` (OpenRouter GLM, `medium` reasoning, `read` + read-only `bash`, strict `## Code Review`/`## Document Review` reports). Children inherit the parent session's active provider, model, and thinking effort by default, after call-level, config-file, and agent-definition values.
 - User and project agent definitions with deterministic precedence and explicit project-agent approval.
 - A per-subagent config file (`~/.tau/superpowers-subagent.toml` and `<project>/.tau/superpowers-subagent.toml`) that pins provider, model, and `reasoningEffort` globally or per agent; a copy encoding today's defaults ships as `superpowers-subagent.example.toml`.
 - Per-child `reasoningEffort` at call or config-file level, applied as the child's Tau thinking level.
@@ -198,12 +198,12 @@ The subagent config file is a TOML file named `superpowers-subagent.toml` in eit
 [agents.implementation]
 provider = "openrouter"
 model = "deepseek/deepseek-v4-flash-0731"
-reasoningEffort = "high"
+reasoningEffort = "xhigh"
 
 [agents.code-review]
 provider = "openrouter"
-model = "deepseek/deepseek-v4-flash-0731"
-reasoningEffort = "xhigh"
+model = "z-ai/glm-5.3"
+reasoningEffort = "medium"
 ```
 
 Per-call overrides are separate and map directly to Tau's separate CLI settings:

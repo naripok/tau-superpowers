@@ -123,17 +123,17 @@ def test_default_discovery_finds_bundled_agents_with_pinned_config(tmp_path: Pat
     assert implementation.profile == "general-purpose"
     assert implementation.provider == "openrouter"
     assert implementation.model == "deepseek/deepseek-v4-flash-0731"
-    assert implementation.reasoning_effort == "high"
+    assert implementation.reasoning_effort == "xhigh"
     code_review = result.by_name()["code-review"]
     assert code_review.profile == "review"
     assert code_review.provider == "openrouter"
-    assert code_review.model == "deepseek/deepseek-v4-flash-0731"
-    assert code_review.reasoning_effort == "xhigh"
+    assert code_review.model == "z-ai/glm-5.3"
+    assert code_review.reasoning_effort == "medium"
     document_review = result.by_name()["document-review"]
     assert document_review.profile == "review"
     assert document_review.provider == "openrouter"
-    assert document_review.model == "deepseek/deepseek-v4-flash-0731"
-    assert document_review.reasoning_effort == "xhigh"
+    assert document_review.model == "z-ai/glm-5.3"
+    assert document_review.reasoning_effort == "medium"
 
 
 def test_invalid_agent_files_are_skipped_with_diagnostics(tmp_path: Path) -> None:

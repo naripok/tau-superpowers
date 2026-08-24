@@ -253,16 +253,16 @@ def test_shipped_example_config_is_valid_and_encodes_current_defaults(
             "code-review",
             AgentOverrides(
                 provider="openrouter",
-                model="deepseek/deepseek-v4-flash-0731",
-                reasoning_effort="xhigh",
+                model="z-ai/glm-5.3",
+                reasoning_effort="medium",
             ),
         ),
         (
             "document-review",
             AgentOverrides(
                 provider="openrouter",
-                model="deepseek/deepseek-v4-flash-0731",
-                reasoning_effort="xhigh",
+                model="z-ai/glm-5.3",
+                reasoning_effort="medium",
             ),
         ),
         (
@@ -270,7 +270,7 @@ def test_shipped_example_config_is_valid_and_encodes_current_defaults(
             AgentOverrides(
                 provider="openrouter",
                 model="deepseek/deepseek-v4-flash-0731",
-                reasoning_effort="high",
+                reasoning_effort="xhigh",
             ),
         ),
     )
