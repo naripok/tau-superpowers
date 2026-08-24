@@ -6,7 +6,7 @@ The project combines ideas and material from [obra/superpowers](https://github.c
 
 ## What You Get
 
-- 14 Tau-discoverable Agent Skills covering the full design-to-delivery workflow.
+- 15 Tau-discoverable Agent Skills covering the full design-to-delivery workflow.
 - A `task` tool that dispatches one or more isolated Tau subprocesses.
 - Bundled child agents: `general-purpose`, tool-enforced `read-only`, `implementation` (OpenRouter DeepSeek, `xhigh` reasoning), `code-review` and `document-review` (OpenRouter GLM, `medium` reasoning, `read` + read-only `bash`, strict `## Code Review`/`## Document Review` reports). Children inherit the parent session's active provider, model, and thinking effort by default, after call-level, config-file, and agent-definition values.
 - User and project agent definitions with deterministic precedence and explicit project-agent approval.
@@ -71,6 +71,7 @@ If you intentionally create your own project extension link, Tau requires both p
 | `finishing-a-development-branch` | Verify, sync living specs, and merge or open a PR |
 | `receiving-code-review` | Evaluate review feedback with technical verification |
 | `requesting-code-review` | Request focused review before completion |
+| `simple-english` | Write developer-facing text with ASD-STE100 Simplified Technical English rules |
 | `subagent-driven-development` | Execute plan tasks with fresh implementer and reviewer contexts, one two-dimension review per task |
 | `systematic-debugging` | Diagnose root causes before changing code |
 | `test-driven-development` | Apply red-green-refactor discipline |
@@ -81,6 +82,8 @@ If you intentionally create your own project extension link, Tau requires both p
 | `writing-skills` | Author and test Tau Agent Skills |
 
 Tau initially loads only skill names, descriptions, and paths. It reads the full `SKILL.md` when a skill matches the task. Use `/skill:<name>` to invoke one explicitly.
+
+`simple-english` is vendored verbatim from [AminBlg/SimpleEnglish](https://github.com/AminBlg/SimpleEnglish) (MIT, version 1.3.0, upstream commit `8e8a008`). Its license ships at `skills/simple-english/LICENSE`.
 
 ## The `task` Extension
 
