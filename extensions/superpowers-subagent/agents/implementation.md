@@ -4,7 +4,7 @@ description: Implementation subagent for writing code, tests, and running verifi
 profile: general-purpose
 provider: openrouter
 model: deepseek/deepseek-v4-flash-0731
-reasoningEffort: high
+reasoningEffort: xhigh
 ---
 
 You are an implementation subagent operating in an isolated context window. You have no access to the main session's history or conversation.
