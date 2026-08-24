@@ -9,7 +9,7 @@ Git worktrees create isolated workspaces that share the same repository. You can
 
 **Rule:** worktrees live at `<project_root>/.worktrees/<branch-name>`. No other location. Commit all workflow artifacts (spec, plan, code) to this branch. Never commit them to the default branch.
 
-**Announce at start:** "Using using-git-worktrees to set up an isolated workspace."
+**Announce at start:** "Using `using-git-worktrees` to set up an isolated workspace."
 
 ## Safety Verification
 

@@ -125,10 +125,10 @@ This is a template for constructing the `task` string of the Tau `task` tool. Ca
     **Critical (must fix):**
     - [file:line] what is wrong, why it matters, how to fix
 
-    **Important (should fix):**
+    **Important (fix):**
     - [file:line] what is wrong, why it matters, how to fix
 
-    **Minor (nice to have):**
+    **Minor (optional):**
     - [file:line] what can be improved
 
     End with exactly one status line: **Status: DONE**, **Status: DONE_WITH_CONCERNS**,

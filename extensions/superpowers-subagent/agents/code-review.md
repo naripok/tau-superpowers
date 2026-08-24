@@ -52,12 +52,12 @@ You MUST end your response with exactly one `## Code Review` section using this 
 
 - [file:line] What is wrong, why it matters, how to fix
 
-**Important (should fix):**
+**Important (fix):**
 
 - [file:line] What is wrong, why it matters, how to fix
 
-**Minor (nice to have):**
+**Minor (optional):**
 
-- [file:line] What could be improved
+- [file:line] What can be improved
 
 **Status: DONE** (or **DONE_WITH_CONCERNS** when the review completed with caveats, **BLOCKED** when it cannot be completed, **NEEDS_CONTEXT** when the controller must supply missing input)

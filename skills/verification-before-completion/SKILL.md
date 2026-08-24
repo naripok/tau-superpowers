@@ -74,14 +74,14 @@ Skipping any step is lying, not checking.
 **Requirements:**
 
 ```
-✅ Re-read the spec → checklist → verify each item → report gaps or completion
+✅ Re-read the spec → checklist → check each item → report gaps or completion
 ❌ "Tests pass, phase complete"
 ```
 
 **Agent delegation:**
 
 ```
-✅ Agent reports success → check VCS diff → verify changes → report actual state
+✅ Agent reports success → check VCS diff → check the changes → report actual state
 ❌ Trust the agent's report
 ```
 

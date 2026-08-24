@@ -228,7 +228,7 @@ If you catch yourself thinking any of these, STOP and take the action:
 | **"One more fix attempt" (after 2+ failures)** | 3+ failures = an architectural problem. Question the fundamentals. Discuss with your human partner before more fixes. |
 | **Each fix reveals a new problem in a different place** | Same signal: wrong architecture, not failed hypothesis. See Phase 4.5. |
 
-**ALL of these mean: STOP. Return to Phase 1.**
+**If you recognize a thought: STOP. Do the paired action before more code.**
 
 ## Signals You're Doing It Wrong
 
@@ -236,7 +236,7 @@ If you catch yourself thinking any of these, STOP and take the action:
 - "Is that not happening?" - You made an assumption without a check
 - "Will it show us...?" - You did not add evidence gathering
 - "Stop guessing" - You are proposing fixes without understanding
-- "Question the fundamentals" - Re-examine core assumptions, not just the symptoms
+- "Step back" / "What are you assuming?" - Re-examine core assumptions, not the symptoms only
 - "We're stuck?" (frustrated) - Your approach is not working
 
 **When you see these:** STOP. Return to Phase 1.
@@ -259,7 +259,7 @@ If systematic investigation reveals that the issue is truly environmental, timin
 3. Implement appropriate handling (retry, timeout, error message)
 4. Add monitoring/logging for future investigation
 
-**But:** 95% of "no root cause" cases are incomplete investigation.
+**But:** most "no root cause" cases are incomplete investigation.
 
 ## Supporting Techniques
 

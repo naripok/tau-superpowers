@@ -80,10 +80,10 @@ The child has no controller conversation history. Name the spec and proposal pat
     **Critical (must fix):**
     - [Section X]: [specific issue] - [why it blocks planning]
 
-    **Important (should fix):**
+    **Important (fix):**
     - [Section X]: [specific issue] - [why it matters]
 
-    **Minor (nice to have):**
+    **Minor (optional):**
     - [suggestions for improvement]
 
     End with exactly one status line: **Status: DONE**, **Status: DONE_WITH_CONCERNS**,

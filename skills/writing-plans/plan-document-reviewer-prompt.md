@@ -70,10 +70,10 @@ The child has no controller conversation history. Name the plan, feature spec, a
     **Critical (must fix):**
     - [Task X]: [specific issue] - [why it blocks implementation]
 
-    **Important (should fix):**
+    **Important (fix):**
     - [Task X]: [specific issue] - [why it matters]
 
-    **Minor (nice to have):**
+    **Minor (optional):**
     - [suggestions for improvement]
 
     End with exactly one status line: **Status: DONE**, **Status: DONE_WITH_CONCERNS**,

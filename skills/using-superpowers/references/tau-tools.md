@@ -200,7 +200,7 @@ A typical review call embeds the controller-provided diff while letting the revi
   "tasks": [
     {
       "agent": "code-review",
-      "task": "Review the named modified files for code quality. The controller-provided git diff follows; you may run read-only bash (git diff/log/status, grep/rg/find) to verify, but never change the repository state.\n\n## Git Diff\n[PASTE COMPLETE DIFF HERE]\n\n## Requirements\n[PASTE REQUIREMENTS HERE]\n\nReturn the strict report format: exact `## Code Review` heading (verdict, Critical/Important/Minor points — review adversarially, no praise), ending with the status line."
+      "task": "Review the named modified files for code quality. The controller-provided git diff follows; you can run read-only bash (git diff/log/status, grep/rg/find) to check claims, but never change the repository state.\n\n## Git Diff\n[PASTE COMPLETE DIFF HERE]\n\n## Requirements\n[PASTE REQUIREMENTS HERE]\n\nReturn the strict report format: exact `## Code Review` heading (verdict, Critical/Important/Minor points — review adversarially, no praise), ending with the status line."
     }
   ]
 }

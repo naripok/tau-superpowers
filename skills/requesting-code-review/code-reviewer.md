@@ -111,10 +111,10 @@ Fill every placeholder, then dispatch with:
     **Critical (must fix):**
     - [file:line] What's wrong, why it matters, how to fix
 
-    **Important (should fix):**
+    **Important (fix):**
     - [file:line] What's wrong, why it matters, how to fix
 
-    **Minor (nice to have):**
+    **Minor (optional):**
     - [file:line] What can be improved
 
     End with exactly one status line: **Status: DONE**, **Status: DONE_WITH_CONCERNS**,

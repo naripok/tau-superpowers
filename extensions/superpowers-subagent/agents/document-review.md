@@ -48,12 +48,12 @@ You MUST end your response with exactly one `## Document Review` section using t
 
 - [Section/requirement] What is wrong, why it blocks the next gate, how to fix
 
-**Important (should fix):**
+**Important (fix):**
 
 - [Section/requirement] What is wrong, why it matters, how to fix
 
-**Minor (nice to have):**
+**Minor (optional):**
 
-- [Section/requirement] What could be improved
+- [Section/requirement] What can be improved
 
 **Status: DONE** (or **DONE_WITH_CONCERNS** when the review completed with caveats, **BLOCKED** when it cannot be completed, **NEEDS_CONTEXT** when the controller must supply missing input)

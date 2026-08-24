@@ -74,11 +74,11 @@ Keep the directory name and frontmatter `name` identical. All skills share one f
 What this is; the core rule in 1-2 sentences.
 
 ## When to Use
-[Small inline flowchart only if the decision is non-obvious]
+[Small pseudocode decision block only if the decision is non-obvious]
 Symptoms and use cases. When NOT to use.
 
 ## The Procedure
-Numbered steps or a flowchart. Decision rules for edge cases.
+Numbered steps or a pseudocode decision block. Decision rules for edge cases.
 
 ## Quick Reference
 Table or bullets for scanning common operations.
@@ -132,14 +132,16 @@ Reference by skill name with an explicit requirement marker:
 
 `/skill:<name>` is user-facing syntax. Prose inside a skill states dependencies by name.
 
-## Flowcharts
+## Decision Blocks
 
-**Use flowcharts ONLY for:**
+Write decisions as pseudocode IF/ELSE blocks. Keep one representation per procedure. Do not pair a decision block with a list or a graph that repeats the same procedure.
+
+**Use a decision block ONLY for:**
 - Non-obvious decision points
 - Process loops where you can stop too early
 - "When to use A vs B" decisions
 
-**Never use flowcharts for:**
+**Never use one for:**
 - Reference material (use tables or lists)
 - Code examples (use markdown blocks)
 - Linear instructions (use numbered lists)
@@ -158,7 +160,7 @@ Write rules as unambiguous procedure:
 
 - State the rule, its boundaries, and its exceptions explicitly
 - Give decision rules for edge cases ("test passes immediately → you're testing existing behavior; fix the test"), not justifications
-- For discipline-enforcing skills (TDD, verification): close known workarounds explicitly ("delete means delete: don't keep it as reference, don't adapt it"). State that violating the letter of the rule violates its spirit. Provide a red-flags list the agent can self-check against.
+- For discipline-enforcing skills (TDD, verification): close known workarounds explicitly ("delete means delete: don't keep it as reference, don't adapt it"). State that violating the letter of the rule violates its spirit. Provide a red-flags list the agent can self-check against. For the tone and announcement mechanics of discipline skills, see `persuasion-principles.md`.
 - Do not explain why a rule exists, what research supports it, or what goes wrong philosophically. The agent follows the skill instead of debating it.
 
 ## Testing Skills
@@ -203,7 +205,7 @@ Before moving to the next skill, complete this checklist for EACH skill. Deployi
 
 **REFACTOR:**
 - [ ] Close new loopholes. Add a red-flags list for discipline skills.
-- [ ] Use a flowchart only where a decision is non-obvious.
+- [ ] Use a decision block only where a decision is non-obvious.
 - [ ] Re-test until bulletproof.
 
 **Deployment:**
@@ -213,6 +215,6 @@ Before moving to the next skill, complete this checklist for EACH skill. Deployi
 
 - **Narrative examples** ("In session 2025-10-03, we found...") — not reusable. State the rule instead.
 - **Multi-language example files** — mediocre quality, maintenance burden. Use one excellent example.
-- **Code in flowchart labels** — not copy-pasteable
+- **Dot graphs and rendered diagrams** — use a pseudocode decision block instead. Keep one representation per procedure.
 - **Generic labels** (helper1, step3) — labels carry semantic meaning
 - **Rationale sections** ("Why this matters", "The psychology of...") — delete them. Procedure only.

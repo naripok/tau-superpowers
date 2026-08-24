@@ -91,7 +91,7 @@ Use the bisection script `find-polluter.sh` in this directory:
 
 The script runs the tests one by one and stops at the first polluter. See the script for usage.
 
-## Real Example: Empty projectDir
+## Worked Example: Empty projectDir
 
 **Symptom:** `.git` created in `packages/core/` (source code)
 

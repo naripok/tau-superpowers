@@ -177,7 +177,7 @@ This forces an explicit choice.
 
 **The best tests combine 3+ pressures.**
 
-**Why this works:** See persuasion-principles.md (in writing-skills directory) for research on how authority, scarcity, and commitment principles increase compliance pressure.
+**Scenario design:** `persuasion-principles.md` (in this directory) catalogs the pressure types and the tone techniques for discipline skills. Use it when you design pressure scenarios. Do not copy its rationale into a skill body.
 
 ### Key Elements of Good Scenarios
 
