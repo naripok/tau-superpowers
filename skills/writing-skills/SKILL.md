@@ -200,6 +200,7 @@ Before moving to the next skill, complete this checklist for EACH skill. Deployi
 - [ ] Check that `name` is valid and matches its directory. Check that the frontmatter has `name` and `description` (≤1024 chars).
 - [ ] Check that the description starts with "Use when...", uses third person, lists triggers only, and has no workflow summary.
 - [ ] Check that the body states procedure as rules and steps: no rationale, no persuasion, no narratives.
+- [ ] Check that the text follows the simple-english skill (pragmatic mode). Run its self-check.
 - [ ] Include one excellent example. Keep supporting files only for heavy reference or tools.
 - [ ] Re-run the scenarios with the skill. Check that the agent complies.
 

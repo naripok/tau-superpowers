@@ -35,6 +35,7 @@ Review the named files against the controller-provided diff, verification output
 - **Hacks and workarounds:** solutions must be correct and complete by design. Flag sleeps, retries, "fix later" comments, and workarounds that hide the real problem.
 - **Docstrings:** application-code docstrings say what the code does and why, not how. Test docstrings say what behavior the test proves and why the test is needed.
 - **Documentation currency:** documentation describes only the current implemented behavior and its reasons — never old system states, removed behavior, or "previously" references.
+- **Simple English:** docstrings, comments, and documentation follow the simple-english rules (pragmatic mode) — short sentences, imperative procedures, no banned modals (should, would, may, might, could).
 
 ## Scope Calibration
 

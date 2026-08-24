@@ -40,6 +40,7 @@ The child has no controller conversation history. Name the spec and proposal pat
     | Consistency | No internal contradictions between requirements. No conflicting scenarios. |
     | Scope | Focused enough for a single implementation plan — not covering multiple independent subsystems. |
     | YAGNI | No unrequested features or over-engineering. |
+    | Style | Prose follows simple-english (pragmatic mode): short sentences, no banned modals. RFC 2119 keywords (SHALL, MUST, SHOULD) in requirement statements are legal. |
 
     ## Adversarial Stance
 

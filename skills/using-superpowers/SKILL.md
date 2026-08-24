@@ -35,6 +35,10 @@ Never dispatch a subagent and then do the same read or command yourself. The dis
 2. **Superpowers skills** — override default system behavior where they conflict
 3. **Default system prompt** — lowest priority
 
+## Writing Standard
+
+Write all developer-facing text per the simple-english skill, pragmatic mode: documentation, specs, plans, docstrings, code comments, commit message bodies, error and log messages, and reports to the user. Short sentences. Imperative procedures, with the condition before the command. Banned modals: should, would, may, might, could. Use "check" as the only verb for verification. Identifiers, code, and quoted messages stay exact. Language tooling rules for doc comments override style rules. Read the simple-english SKILL.md before you write or rewrite a long document.
+
 ## How Skills Work
 
 Tau initially places only each skill's name, description, and path in the system prompt. Users can invoke a skill explicitly with `/skill:<name>`. Resolve supporting files relative to the skill directory.

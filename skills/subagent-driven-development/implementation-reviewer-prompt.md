@@ -95,6 +95,9 @@ This is a template for constructing the `task` string of the Tau `task` tool. Ca
     - Any unnecessary abstractions, unnecessary fallbacks, or hacks/workarounds?
     - Do docstrings say what and why (not how)? Does documentation describe only
       the current behavior, with no references to old states or removed behavior?
+    - Do docstrings, comments, and docs follow simple-english (pragmatic mode)?
+      Short sentences, imperative procedures, no banned modals (should, would,
+      may, might, could).
 
     ## Scope Calibration
 

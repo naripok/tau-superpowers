@@ -42,6 +42,8 @@ Copy this checklist into your working notes. Mark each item as you complete it. 
 
 ## The Artifacts
 
+Write both artifacts per the simple-english skill, pragmatic mode.
+
 ### Proposal
 
 Captures **why** and **what scope**. Save to `docs/design/YYYY-MM-DD-<topic>-proposal.md`.

@@ -86,6 +86,9 @@ The child has no controller conversation history, cannot converse mid-task, and 
       for states that cannot occur
     - Docstrings: application code says what it does and why, not how; tests say
       what behavior they prove and why they are needed
+    - Write docstrings, comments, and the report per simple-english, pragmatic
+      mode: short sentences, imperative procedures, no banned modals (should,
+      would, may, might, could), "check" as the only verb for verification
     - Document only the current state and behavior — never old system states,
       removed behavior, or "previously" references
 

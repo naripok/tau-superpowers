@@ -1,6 +1,6 @@
 ---
 name: read-only
-description: Read-only subagent for substantial reviews and multi-file investigation of named files. Cannot modify files or run commands. Use for spec compliance review, code quality review, and any task that should not change the codebase.
+description: Read-only subagent for substantial reviews and multi-file investigation of named files. Cannot modify files or run commands. Use for spec compliance review, code quality review, and any task that must not change the codebase.
 profile: read-only
 ---
 
