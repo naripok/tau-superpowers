@@ -29,6 +29,7 @@ WHEN receiving code review feedback:
 **NEVER:**
 - "You're absolutely right!"
 - "Great point!" / "Excellent feedback!" (performative)
+- "Thanks for [anything]" — no gratitude
 - "Let me implement that now" (before verification)
 
 **INSTEAD:**
@@ -82,8 +83,6 @@ IF conflicts with your human partner's prior decisions:
   Stop and discuss with your human partner first
 ```
 
-**Rule:** "External feedback - be skeptical, but check carefully"
-
 ## YAGNI Check for "Professional" Features
 
 ```
@@ -93,8 +92,6 @@ IF reviewer suggests "implementing properly":
   IF unused: "This endpoint isn't called. Remove it (YAGNI)?"
   IF used: Then implement properly
 ```
-
-**Rule:** "You and reviewer both report to me. If we don't need this feature, don't add it."
 
 ## Implementation Order
 
@@ -132,15 +129,7 @@ When feedback IS correct:
 ✅ "Fixed. [Brief description of what changed]"
 ✅ "Good catch - [specific issue]. Fixed in [location]."
 ✅ [Just fix it and show in the code]
-
-❌ "You're absolutely right!"
-❌ "Great point!"
-❌ "Thanks for catching that!"
-❌ "Thanks for [anything]"
-❌ ANY gratitude expression
 ```
-
-**Why no thanks:** Actions speak. Fix it. The code itself shows that you heard the feedback.
 
 **If you catch yourself about to write "Thanks":** DELETE IT. State the fix instead.
 
@@ -170,31 +159,12 @@ State the correction factually and move on.
 | Partial implementation | Clarify all items first |
 | Cannot check, proceed anyway | State the limitation and ask for direction |
 
-## Real Examples
-
-**Performative Agreement (Bad):**
-```
-Reviewer: "Remove legacy code"
-❌ "You're absolutely right! Let me remove that..."
-```
+## Example
 
 **Technical Check (Good):**
 ```
 Reviewer: "Remove legacy code"
 ✅ "Checking... build target is 10.15+, this API needs 13+. Need legacy for backward compat. Current impl has wrong bundle ID - fix it or drop pre-13 support?"
-```
-
-**YAGNI (Good):**
-```
-Reviewer: "Implement proper metrics tracking with database, date filters, CSV export"
-✅ "Grepped codebase - nothing calls this endpoint. Remove it (YAGNI)? Or is there usage I'm missing?"
-```
-
-**Unclear Item (Good):**
-```
-your human partner: "Fix items 1-6"
-You understand 1,2,3,6. Unclear on 4,5.
-✅ "Understand 1,2,3,6. Need clarification on 4 and 5 before implementing."
 ```
 
 ## GitHub Thread Replies

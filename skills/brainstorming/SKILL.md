@@ -7,7 +7,7 @@ description: Use before any creative work - creating features, building componen
 
 Turn ideas into an approved proposal and behavioral feature spec through collaborative dialogue.
 
-**Announce at start:** "I'm using the brainstorming skill to refine this idea into a design."
+**Announce at start:** "Using brainstorming to refine this idea into a design."
 
 **HARD GATE:** The proposal and the feature spec must exist, the spec reviewer must approve the feature spec, and the user must approve both artifacts. Until all three are true, do NOT invoke any implementation skill, write any code, or scaffold any project. This applies to every project regardless of perceived simplicity. For truly simple projects the artifacts can be short, but they MUST exist.
 
@@ -17,9 +17,9 @@ Copy this checklist into your working notes. Mark each item as you complete it. 
 
 - [ ] **Read living specs** — check `docs/specs/` for relevant domain specs. They describe current system behavior. If no spec exists for the domain, the feature spec will define its initial requirements
 - [ ] **Explore project context** — files, docs, recent commits
-- [ ] **Ask clarifying questions** — purpose, constraints, success criteria
-- [ ] **Propose 2-3 approaches** — with trade-offs and your recommendation
-- [ ] **Present the complete design** — get user approval
+- [ ] **Ask clarifying questions** — purpose, constraints, success criteria. Assess scope first: if the request spans multiple independent subsystems, help the user decompose it into sub-projects, each with its own brainstorm → spec → plan → implementation cycle. Batch independent questions in one message; prefer multiple-choice
+- [ ] **Propose 2-3 approaches** — with trade-offs and your recommendation. Lead with your recommendation
+- [ ] **Present the complete design** — get user approval. One message, scaled to complexity. Cover: architecture, components, data flow, error handling, testing. Get a single approval for the whole design; if anything does not make sense, go back and clarify it
 - [ ] **Set up the worktree** — invoke using-git-worktrees. Commit all artifacts and code to this branch, never to the default branch
 - [ ] **Write the proposal** — `docs/design/YYYY-MM-DD-<topic>-proposal.md`
 - [ ] **Write the feature spec** — `docs/design/YYYY-MM-DD-<topic>-spec.md`
@@ -28,70 +28,13 @@ Copy this checklist into your working notes. Mark each item as you complete it. 
 - [ ] **Commit the artifacts to the branch**
 - [ ] **Invoke writing-plans** — the only skill that comes next
 
-## Process Flow
-
-```dot
-digraph brainstorming {
-    "Read living specs\n(docs/specs/)" [shape=box];
-    "Explore project context" [shape=box];
-    "Ask clarifying questions" [shape=box];
-    "Propose 2-3 approaches" [shape=box];
-    "Present complete design" [shape=box];
-    "User approves design?" [shape=diamond];
-    "Set up worktree\n(using-git-worktrees)" [shape=box];
-    "Write proposal + feature spec\n(docs/design/)" [shape=box];
-    "Dispatch spec reviewer" [shape=box];
-    "Spec reviewer approves?" [shape=diamond];
-    "User approves artifacts?" [shape=diamond];
-    "Commit artifacts to the branch" [shape=box];
-    "Invoke writing-plans skill" [shape=doublecircle];
-
-    "Read living specs\n(docs/specs/)" -> "Explore project context";
-    "Explore project context" -> "Ask clarifying questions";
-    "Ask clarifying questions" -> "Propose 2-3 approaches";
-    "Propose 2-3 approaches" -> "Present complete design";
-    "Present complete design" -> "User approves design?";
-    "User approves design?" -> "Present complete design" [label="no, revise"];
-    "User approves design?" -> "Set up worktree\n(using-git-worktrees)" [label="yes"];
-    "Set up worktree\n(using-git-worktrees)" -> "Write proposal + feature spec\n(docs/design/)";
-    "Write proposal + feature spec\n(docs/design/)" -> "Dispatch spec reviewer";
-    "Dispatch spec reviewer" -> "Spec reviewer approves?";
-    "Spec reviewer approves?" -> "Write proposal + feature spec\n(docs/design/)" [label="issues found"];
-    "Spec reviewer approves?" -> "User approves artifacts?" [label="approved"];
-    "User approves artifacts?" -> "Write proposal + feature spec\n(docs/design/)" [label="changes requested"];
-    "User approves artifacts?" -> "Commit artifacts to the branch" [label="approved"];
-    "Commit artifacts to the branch" -> "Invoke writing-plans skill";
-}
-```
-
-## The Process
-
-**Understanding the idea:**
-
-- If `docs/specs/<domain>.md` exists, read it — it describes current behavior for the domain
-- Check the current project state first (files, docs, recent commits)
-- Assess scope before detailed questions. If the request spans multiple independent subsystems, help the user decompose it into sub-projects first. Each sub-project gets its own brainstorm → spec → plan → implementation cycle
-- Ask clarifying questions. Batch independent questions in one message. When possible, prefer multiple-choice questions
-- Focus on: purpose, constraints, success criteria
-
-**Exploring approaches:**
-
-- Propose 2-3 different approaches with trade-offs
-- Lead with your recommended option
-
-**Presenting the design:**
-
-- Present the complete design in one message, scaled to its complexity
-- Cover: architecture, components, data flow, error handling, testing
-- Get a single approval for the whole design. If anything does not make sense, go back and clarify it
-
-**Design rules:**
+## Design Rules
 
 - Break the system into units. Each unit must have one clear purpose and communicate through well-defined interfaces. You must be able to understand and test each unit independently
 - For each unit, you must be able to answer: what does it do, how does other code use it, what does it depend on
 - Prefer smaller, focused files over large ones that do too much
 
-**Working in existing codebases:**
+## Working in Existing Codebases
 
 - Explore the current structure before you propose changes. Follow existing patterns
 - Include targeted improvements to code this work touches

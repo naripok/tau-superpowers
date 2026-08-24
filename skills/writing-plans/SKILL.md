@@ -13,7 +13,7 @@ A plan task specifies which files to touch. It specifies the signatures and beha
 
 Assume the implementer is a skilled developer with zero context for our codebase. Give them complete contracts and exact commands. Trust them to write the code. DRY. YAGNI. TDD. One commit per task.
 
-**Announce at start:** "I am using the writing-plans skill to create the implementation plan."
+**Announce at start:** "Using writing-plans to create the implementation plan."
 
 **Context:** Run inside the worktree created during brainstorming. Never plan or implement on the default branch.
 

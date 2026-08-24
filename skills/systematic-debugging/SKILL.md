@@ -31,17 +31,14 @@ Use for ANY technical issue:
 - Build failures
 - Integration issues
 
-**Use this ESPECIALLY when:**
+**ESPECIALLY when:**
 - Under time pressure (emergencies make guessing tempting)
 - "Just one quick fix" seems obvious
 - You have already tried multiple fixes
 - A previous fix did not work
 - You do not fully understand the issue
 
-**Do not skip when:**
-- The issue seems simple (simple bugs have root causes too)
-- You are in a hurry (rushing guarantees rework)
-- Your manager wants it fixed NOW (systematic is faster than thrashing)
+Do not skip it for simple bugs, hurry, or pressure — systematic is faster than thrashing.
 
 ## The Four Phases
 
@@ -212,24 +209,26 @@ You MUST complete each phase before you proceed to the next.
 
    This is NOT a failed hypothesis - this is a wrong architecture.
 
-## Red Flags - STOP and Follow Process
+## Red Flags and Rationalizations
 
-If you catch yourself thinking:
-- "Quick fix for now, investigate later"
-- "Just try changing X and see if it works"
-- "Add multiple changes, run tests"
-- "Skip the test, I'll manually verify"
-- "It's probably X, let me fix that"
-- "I don't fully understand but this might work"
-- "Pattern says X but I'll adapt it differently"
-- "Here are the main problems: [lists fixes without investigation]"
-- Proposing solutions before tracing data flow
-- **"One more fix attempt" (when you have already tried 2 or more)**
-- **Each fix reveals a new problem in a different place**
+If you catch yourself thinking any of these, STOP and take the action:
+
+| Thought | Action |
+|---------|--------|
+| "Quick fix for now, investigate later" | Return to Phase 1. |
+| "Just try changing X and see if it works" | Form a hypothesis first (Phase 3). |
+| "It's probably X, let me fix that" / "I see the problem, let me fix it" | Seeing symptoms ≠ understanding the root cause. Investigate first. |
+| "I don't fully understand but this might work" | You do not know. Say so. Research more. |
+| "Here are the main problems: [fixes]" / proposing solutions before tracing data flow | That is a symptom list, not an investigation. Trace the data first. |
+| "Add multiple changes, run tests" / "Multiple fixes at once saves time" | ONE change at a time — you cannot isolate what worked. |
+| "Skip the test, I'll manually verify" / "I'll write the test after the fix works" | Test first. A test written first proves the fix. |
+| "Pattern says X but I'll adapt it differently" / "Reference too long, I'll adapt" | Read the reference completely. Partial understanding guarantees bugs. |
+| "Issue is simple, don't need process" | Simple issues have root causes too. The process is fast for simple bugs. |
+| "Emergency, no time for process" | Systematic debugging is FASTER than guess-and-check thrashing. |
+| **"One more fix attempt" (after 2+ failures)** | 3+ failures = an architectural problem. Question the fundamentals. Discuss with your human partner before more fixes. |
+| **Each fix reveals a new problem in a different place** | Same signal: wrong architecture, not failed hypothesis. See Phase 4.5. |
 
 **ALL of these mean: STOP. Return to Phase 1.**
-
-**If 3+ fixes failed:** Question the architecture (see Phase 4.5)
 
 ## Signals You're Doing It Wrong
 
@@ -241,19 +240,6 @@ If you catch yourself thinking:
 - "We're stuck?" (frustrated) - Your approach is not working
 
 **When you see these:** STOP. Return to Phase 1.
-
-## Common Rationalizations
-
-| Excuse | Reality |
-|--------|---------|
-| "Issue is simple, don't need process" | Simple issues have root causes too. The process is fast for simple bugs. |
-| "Emergency, no time for process" | Systematic debugging is FASTER than guess-and-check thrashing. |
-| "Just try this first, then investigate" | The first fix sets the pattern. Do it right from the start. |
-| "I'll write test after confirming fix works" | Untested fixes do not stick. A test written first proves the fix. |
-| "Multiple fixes at once saves time" | You cannot isolate what worked. This causes new bugs. |
-| "Reference too long, I'll adapt the pattern" | Partial understanding guarantees bugs. Read it completely. |
-| "I see the problem, let me fix it" | Seeing symptoms ≠ understanding the root cause. |
-| "One more fix attempt" (after 2+ failures) | 3+ failures = an architectural problem. Question the pattern. Do not fix again. |
 
 ## Quick Reference
 

@@ -7,7 +7,7 @@ description: Use when executing implementation plans with independent tasks in t
 
 Execute the plan by dispatching a fresh implementer subagent per task. Then dispatch a single review subagent per task that checks spec compliance and code quality in one pass.
 
-**Announce at start:** "I'm using subagent-driven-development to execute this plan."
+**Announce at start:** "Using subagent-driven-development to execute this plan."
 
 **Operating rules:**
 
@@ -18,63 +18,18 @@ Execute the plan by dispatching a fresh implementer subagent per task. Then disp
 
 ## When to Use
 
-```dot
-digraph when_to_use {
-    "Have implementation plan?" [shape=diamond];
-    "Tasks mostly independent?" [shape=diamond];
-    "Plan substantive?" [shape=diamond];
-    "subagent-driven-development" [shape=box];
-    "executing-plans" [shape=box];
-    "Manual execution or brainstorm first" [shape=box];
-
-    "Have implementation plan?" -> "Tasks mostly independent?" [label="yes"];
-    "Have implementation plan?" -> "Manual execution or brainstorm first" [label="no"];
-    "Tasks mostly independent?" -> "Plan substantive?" [label="yes"];
-    "Tasks mostly independent?" -> "Manual execution or brainstorm first" [label="no - tightly coupled"];
-    "Plan substantive?" -> "subagent-driven-development" [label="yes, 3+ tasks"];
-    "Plan substantive?" -> "executing-plans" [label="no - 1-2 trivial tasks"];
-}
+```
+IF no implementation plan exists:
+    brainstorm first, or execute manually
+ELSE IF tasks are tightly coupled:
+    manual execution
+ELSE IF the plan is substantive (3+ tasks):
+    subagent-driven-development
+ELSE (1-2 trivial tasks):
+    executing-plans
 ```
 
 ## The Process
-
-```dot
-digraph process {
-    rankdir=TB;
-
-    subgraph cluster_per_task {
-        label="Per Task";
-        "Dispatch implementer subagent\n(./implementer-prompt.md)" [shape=box];
-        "NEEDS_CONTEXT or BLOCKED?" [shape=diamond];
-        "Add context or adjust task,\nthen re-dispatch" [shape=box];
-        "Check implementer report,\ntests, and commit" [shape=box];
-        "Dispatch implementation reviewer\n(./implementation-reviewer-prompt.md)" [shape=box];
-        "Both review dimensions pass?" [shape=diamond];
-        "Re-dispatch implementer with findings,\nthen re-review" [shape=box];
-        "Mark task complete" [shape=box];
-    }
-
-    "Read plan, extract all tasks with full text,\ncreate task tracking" [shape=box];
-    "More tasks remain?" [shape=diamond];
-    "Dispatch final implementation reviewer\nfor the entire change" [shape=box];
-    "Use finishing-a-development-branch" [shape=box, style=filled, fillcolor=lightgreen];
-
-    "Read plan, extract all tasks with full text,\ncreate task tracking" -> "Dispatch implementer subagent\n(./implementer-prompt.md)";
-    "Dispatch implementer subagent\n(./implementer-prompt.md)" -> "NEEDS_CONTEXT or BLOCKED?";
-    "NEEDS_CONTEXT or BLOCKED?" -> "Add context or adjust task,\nthen re-dispatch" [label="yes"];
-    "Add context or adjust task,\nthen re-dispatch" -> "Dispatch implementer subagent\n(./implementer-prompt.md)";
-    "NEEDS_CONTEXT or BLOCKED?" -> "Check implementer report,\ntests, and commit" [label="no"];
-    "Check implementer report,\ntests, and commit" -> "Dispatch implementation reviewer\n(./implementation-reviewer-prompt.md)";
-    "Dispatch implementation reviewer\n(./implementation-reviewer-prompt.md)" -> "Both review dimensions pass?";
-    "Both review dimensions pass?" -> "Re-dispatch implementer with findings,\nthen re-review" [label="no"];
-    "Re-dispatch implementer with findings,\nthen re-review" -> "Dispatch implementation reviewer\n(./implementation-reviewer-prompt.md)";
-    "Both review dimensions pass?" -> "Mark task complete" [label="yes"];
-    "Mark task complete" -> "More tasks remain?";
-    "More tasks remain?" -> "Dispatch implementer subagent\n(./implementer-prompt.md)" [label="yes"];
-    "More tasks remain?" -> "Dispatch final implementation reviewer\nfor the entire change" [label="no"];
-    "Dispatch final implementation reviewer\nfor the entire change" -> "Use finishing-a-development-branch";
-}
-```
 
 1. Read the plan once. Extract every task with its full text. Create task tracking.
 2. Per task:

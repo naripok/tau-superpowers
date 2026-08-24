@@ -7,7 +7,7 @@ description: Use when implementation is complete, all tests pass, and you need t
 
 Verify tests, sync living specs onto the branch, then merge locally or open a PR.
 
-**Announce at start:** "I'm using the finishing-a-development-branch skill to complete this work."
+**Announce at start:** "Using finishing-a-development-branch to complete this work."
 
 ## The Process
 

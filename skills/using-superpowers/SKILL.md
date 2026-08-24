@@ -27,7 +27,7 @@ These are tool calls, not tasks. Dispatch subagents only for work that is:
 - **Risk-bearing:** incorrect work can introduce bugs
 - **Time-consuming:** more than a few tool calls
 
-Subagents earn their isolated context window when the work is substantive or long-running. Substantive work means many steps or a deep investigation that can bloat this session's context. Long-running work has a duration that must not block this session. Never dispatch a subagent and then perform the same read or command yourself. The dispatch replaces your tool calls for that work.
+Never dispatch a subagent and then perform the same read or command yourself. The dispatch replaces your tool calls for that work.
 
 ## Instruction Priority
 
@@ -37,7 +37,7 @@ Subagents earn their isolated context window when the work is substantive or lon
 
 ## How Skills Work
 
-Tau initially places only each skill's name, description, and path in the system prompt. When a skill applies, read its `SKILL.md` before you act. Then follow its instructions. Users can invoke a skill explicitly with `/skill:<name>`. Resolve supporting files relative to the skill directory.
+Tau initially places only each skill's name, description, and path in the system prompt. Users can invoke a skill explicitly with `/skill:<name>`. Resolve supporting files relative to the skill directory.
 
 The `task` tool handles subagent dispatch (see [`references/tau-tools.md`](references/tau-tools.md)). A child does not inherit this conversation, so every delegated task must be self-contained.
 
@@ -45,38 +45,18 @@ The `task` tool handles subagent dispatch (see [`references/tau-tools.md`](refer
 
 Invoke relevant or requested skills BEFORE any response or action. Announce each one: "Using [skill] to [purpose]".
 
-```dot
-digraph skill_flow {
-    "User message received" [shape=doublecircle];
-    "Building something new?" [shape=doublecircle];
-    "Proposal + feature spec exist?" [shape=diamond];
-    "Invoke brainstorming skill" [shape=box];
-    "Simple operation?" [shape=diamond];
-    "Might any skill apply?" [shape=diamond];
-    "Read SKILL.md" [shape=box];
-    "Announce: 'Using [skill] to [purpose]'" [shape=box];
-    "Has checklist?" [shape=diamond];
-    "Create task tracking per item" [shape=box];
-    "Follow skill exactly" [shape=box];
-    "Do it directly" [shape=box, style=filled, fillcolor=lightgreen];
-    "Respond (including clarifications)" [shape=doublecircle];
-
-    "Building something new?" -> "Proposal + feature spec exist?";
-    "Proposal + feature spec exist?" -> "Invoke brainstorming skill" [label="no — artifacts missing"];
-    "Proposal + feature spec exist?" -> "Simple operation?" [label="yes — artifacts exist"];
-    "Invoke brainstorming skill" -> "Simple operation?";
-
-    "User message received" -> "Simple operation?";
-    "Simple operation?" -> "Do it directly" [label="yes"];
-    "Simple operation?" -> "Might any skill apply?" [label="no"];
-    "Might any skill apply?" -> "Read SKILL.md" [label="yes, even 1%"];
-    "Might any skill apply?" -> "Respond (including clarifications)" [label="definitely not"];
-    "Read SKILL.md" -> "Announce: 'Using [skill] to [purpose]'";
-    "Announce: 'Using [skill] to [purpose]'" -> "Has checklist?";
-    "Has checklist?" -> "Create task tracking per item" [label="yes"];
-    "Has checklist?" -> "Follow skill exactly" [label="no"];
-    "Create task tracking per item" -> "Follow skill exactly";
-}
+```
+IF building something new AND the proposal + feature spec do not both exist:
+    invoke brainstorming first
+IF it is a simple operation (list above):
+    do it directly — no skill, no subagent
+ELSE IF any skill might apply (even 1%):
+    read its SKILL.md
+    announce: "Using [skill] to [purpose]"
+    if it has a checklist, create task tracking per item
+    follow the skill exactly
+ELSE:
+    respond (including clarifications)
 ```
 
 ## Skill Priority

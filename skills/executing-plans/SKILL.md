@@ -7,7 +7,7 @@ description: Use when you have a written implementation plan to execute inline i
 
 Load the plan. Review it critically. Execute all tasks. When the work is complete, report.
 
-**Announce at start:** "I'm using the executing-plans skill to implement this plan."
+**Announce at start:** "Using executing-plans to implement this plan."
 
 For plans with 3+ substantive tasks, use subagent-driven-development instead. Use this skill for simple plans (1-2 tasks or trivial changes).
 
@@ -48,7 +48,7 @@ After every 3 tasks (or at the plan's stated checkpoints), dispatch a `code-revi
 
 After you complete and check all tasks:
 
-- Announce: "I'm using the finishing-a-development-branch skill to complete this work."
+- Announce: "Using finishing-a-development-branch to complete this work."
 - **REQUIRED SUB-SKILL:** Use finishing-a-development-branch
 - **Report deviations:** in the final implementation summary, explicitly call out every place where execution required a change of course from the plan — the flaw found, why the change was needed, and its implications
 
