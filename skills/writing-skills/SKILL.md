@@ -1,6 +1,6 @@
 ---
 name: writing-skills
-description: Use when creating new skills, editing existing skills, or verifying skills work before deployment
+description: Use when creating new skills, editing existing skills, or checking that skills work before deployment
 ---
 
 # Writing Skills
@@ -89,7 +89,7 @@ What goes wrong + the correct action.
 
 ## Description Rules
 
-The description answers only one question: "Should I read this skill right now?"
+The description answers only one question: "Does this skill apply now?"
 
 - Start with "Use when..." and list concrete triggers, symptoms, situations
 - Describe the problem (race conditions, flaky tests), not language-specific symptoms. If the skill is technology-specific, say so explicitly.
@@ -97,7 +97,7 @@ The description answers only one question: "Should I read this skill right now?"
 - Never summarize the process or workflow
 
 ```yaml
-# BAD: workflow summary the agent may follow instead of reading the skill
+# BAD: workflow summary the agent can follow instead of reading the skill
 description: Use when executing plans - dispatches subagent per task with review between tasks
 
 # GOOD: triggering conditions only

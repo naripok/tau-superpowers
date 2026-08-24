@@ -97,9 +97,9 @@ Follow the header with a **commands section**. Give the exact project commands t
 - [Behavior 1 — one named test per behavior]
 - [Behavior 2]
 
-**Verify:** `[exact commands]` — expected: all pass
+**Check:** `[exact commands]` — expected: all pass
 
-- [ ] Write the failing tests for the behaviors above; run them and confirm each fails for the expected reason
+- [ ] Write the failing tests for the behaviors above. Run them and check that each fails for the expected reason
 - [ ] Implement the interface and behavior
 - [ ] Run verification (tests, lint, type check)
 - [ ] Commit: `git add <files> && git commit -m "feat: <specific change>"`

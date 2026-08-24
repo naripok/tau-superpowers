@@ -17,9 +17,9 @@ Copy this checklist into your working notes. Mark each item as you complete it. 
 
 - [ ] **Read living specs** — check `docs/specs/` for relevant domain specs. They describe current system behavior. If no spec exists for the domain, the feature spec will define its initial requirements
 - [ ] **Explore project context** — files, docs, recent commits
-- [ ] **Ask clarifying questions** — purpose, constraints, success criteria. Assess scope first: if the request spans multiple independent subsystems, help the user decompose it into sub-projects, each with its own brainstorm → spec → plan → implementation cycle. Batch independent questions in one message; prefer multiple-choice
+- [ ] **Ask clarifying questions** — purpose, constraints, success criteria. Assess scope first. If the request spans multiple independent subsystems, help the user decompose it into sub-projects. Each sub-project gets its own brainstorm, spec, plan, and implementation cycle. Batch independent questions in one message. Prefer multiple-choice
 - [ ] **Propose 2-3 approaches** — with trade-offs and your recommendation. Lead with your recommendation
-- [ ] **Present the complete design** — get user approval. One message, scaled to complexity. Cover: architecture, components, data flow, error handling, testing. Get a single approval for the whole design; if anything does not make sense, go back and clarify it
+- [ ] **Present the complete design** — get user approval. One message, scaled to complexity. Cover: architecture, components, data flow, error handling, testing. Get a single approval for the whole design. If anything does not make sense, go back and clarify it
 - [ ] **Set up the worktree** — invoke using-git-worktrees. Commit all artifacts and code to this branch, never to the default branch
 - [ ] **Write the proposal** — `docs/design/YYYY-MM-DD-<topic>-proposal.md`
 - [ ] **Write the feature spec** — `docs/design/YYYY-MM-DD-<topic>-spec.md`

@@ -2,7 +2,7 @@
 
 Use this template when dispatching the implementation reviewer subagent — for a single task, a checkpoint batch, or the final whole-change review.
 
-**Purpose:** Verify, in one pass, that the implementation matches its specification (spec compliance) and is well-built (code quality). The report has one section per dimension.
+**Purpose:** Check, in one pass, that the implementation matches its specification (spec compliance) and is well-built (code quality). The report has one section per dimension.
 
 This is a template for constructing the `task` string of the Tau `task` tool. Call it with this argument shape after replacing every placeholder:
 
@@ -17,11 +17,15 @@ This is a template for constructing the `task` string of the Tau `task` tool. Ca
 }
 ```
 
-**Required inputs:** the feature spec's full text (without it the reviewer reports NEEDS_CONTEXT), the task text (or full task list for the final review), every relevant file path, the complete diff, and the verification output.
+**Required inputs:**
+- The feature spec's full text — without it the reviewer reports NEEDS_CONTEXT
+- The task text, or the full task list for the final review
+- Every relevant file path
+- The complete diff and the verification output
 
 **Scope variants:**
 - Per-task review: fill `[SCOPE NOTE]` with "This task is one step in a larger plan. Check whether THIS task implemented what it was asked to implement — not whether the full feature spec is satisfied."
-- Final review: fill `[SCOPE NOTE]` with "This is the final review of the entire change. Verify the FULL feature spec is satisfied across all tasks: every ADDED requirement present, every MODIFIED reflected, every REMOVED gone, nothing extra."
+- Final review: fill `[SCOPE NOTE]` with "This is the final review of the entire change. Check that the FULL feature spec is satisfied across all tasks: every ADDED requirement present, every MODIFIED reflected, every REMOVED gone, nothing extra."
 
 ```markdown
     You are reviewing an implementation against its specification and for code quality, in one pass.
@@ -46,7 +50,7 @@ This is a template for constructing the `task` string of the Tau `task` tool. Ca
 
     ## Implementation Evidence
 
-    **Files you may read:** [LIST EVERY RELEVANT FILE PATH]
+    **Files you can read:** [LIST EVERY RELEVANT FILE PATH]
 
     **Controller-provided diff and verification output:**
 
@@ -83,7 +87,7 @@ This is a template for constructing the `task` string of the Tau `task` tool. Ca
     - Is the implementation the simplest code that satisfies the contract? Flag
       speculative edge-case handling, defensive checks for states that cannot
       occur, and error paths that no requirement names.
-    - Do tests verify real behavior (not mocks), cover the contract's scenarios,
+    - Do tests check real behavior (not mocks), cover the contract's scenarios,
       and have docstrings saying what behavior they prove and why?
     - Is the code clean, maintainable, well-named? Security or performance problems?
     - Is cyclomatic complexity low — a single valid path per function where possible?
@@ -113,19 +117,19 @@ This is a template for constructing the `task` string of the Tau `task` tool. Ca
 
     **Verdict:** Compliant | Issues found
 
-    - ✅ [what was verified, with file:line references]
+    - ✅ [what was checked, with file:line references]
     - ❌ [what is missing, extra, or wrong, with file:line references]
 
     ### Code Quality
 
     **Critical (must fix):**
-    - [file:line] what's wrong, why it matters, how to fix
+    - [file:line] what is wrong, why it matters, how to fix
 
     **Important (should fix):**
-    - [file:line] what's wrong, why it matters, how to fix
+    - [file:line] what is wrong, why it matters, how to fix
 
     **Minor (nice to have):**
-    - [file:line] what could be improved
+    - [file:line] what can be improved
 
     End with exactly one status line: **Status: DONE**, **Status: DONE_WITH_CONCERNS**,
     **Status: BLOCKED**, or **Status: NEEDS_CONTEXT**.

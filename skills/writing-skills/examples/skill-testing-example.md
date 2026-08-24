@@ -160,7 +160,7 @@ Tau instructs `task` children not to invoke ambient skills, so embedding the com
 
 ## Interpreting Results
 
-Prefer the shortest description that reliably triggers relevant cases and rejects near misses. If a workflow-summary variant appears to perform well, check the tool activity or the answer. Make sure that the agent actually read the full `SKILL.md`. Parroting the metadata is not success.
+Prefer the shortest description that reliably triggers relevant cases and rejects near misses. If a workflow-summary variant appears to work well, check the tool activity or the answer. Make sure that the agent actually read the full `SKILL.md`. Parroting the metadata is not success.
 
 After selecting a description:
 

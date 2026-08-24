@@ -60,7 +60,7 @@ test('retry works', async () => {
 Vague name, tests mock not code
 </Bad>
 
-### Verify RED — Watch It Fail (Mandatory)
+### Check RED — Watch It Fail (Mandatory)
 
 ```bash
 npm test path/to/test.test.ts
@@ -80,7 +80,7 @@ Check:
 
 Write the simplest code that passes the test. Do not add extra features, options that nobody asked for, refactoring of other code, or "improvements" beyond the test.
 
-### Verify GREEN — Watch It Pass (Mandatory)
+### Check GREEN — Watch It Pass (Mandatory)
 
 ```bash
 npm test path/to/test.test.ts
@@ -94,7 +94,7 @@ Check:
 
 **Test fails?** Fix the code, not the test.
 
-**Other tests fail?** Fix now.
+**Other tests fail?** Fix them.
 
 ### REFACTOR — Clean Up
 

@@ -215,8 +215,8 @@ BEFORE creating mock responses:
 
   Actions:
     1. Examine actual API response from docs/examples
-    2. Include ALL fields system might consume downstream
-    3. Verify mock matches real response schema completely
+    2. Include ALL fields the system can consume downstream
+    3. Check that the mock matches the real response schema completely
 
   Critical:
     If you're creating a mock, you must understand the ENTIRE structure

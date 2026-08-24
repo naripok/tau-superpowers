@@ -5,13 +5,13 @@ description: Use when implementation is complete, all tests pass, and you need t
 
 # Finishing a Development Branch
 
-Verify tests, sync living specs onto the branch, then merge locally or open a PR.
+Check tests, sync living specs onto the branch, then merge locally or open a PR.
 
 **Announce at start:** "Using finishing-a-development-branch to complete this work."
 
 ## The Process
 
-### Step 1: Verify Tests
+### Step 1: Check Tests
 
 Run the project's full test suite, fresh:
 
@@ -62,7 +62,7 @@ git commit -m "sync: update <domain> spec(s)"
 Present exactly these two options:
 
 ```
-Implementation complete. How should I integrate it?
+Implementation complete. How do I integrate it?
 
 1. Merge <feature-branch> into <base-branch> locally
 2. Push and create a Pull Request

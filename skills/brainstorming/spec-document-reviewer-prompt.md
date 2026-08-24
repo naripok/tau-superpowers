@@ -2,7 +2,7 @@
 
 Use this template when dispatching a spec document reviewer subagent.
 
-**Purpose:** Verify the feature spec is complete, truly behavioral, and ready for implementation planning.
+**Purpose:** Check that the feature spec is complete, truly behavioral, and ready for implementation planning.
 
 **Dispatch after:** The feature spec is written to `docs/design/`.
 

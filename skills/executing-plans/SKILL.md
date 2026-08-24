@@ -20,7 +20,7 @@ For plans with 3+ substantive tasks, use subagent-driven-development instead. Us
 3. If you have concerns, raise them with your human partner first
 4. If you have no concerns, copy the plan checklist into your working notes. Then proceed
 
-### Step 2: Verify the Workspace
+### Step 2: Check the Workspace
 
 Work on the feature branch or worktree created during brainstorming. Never work directly on the default branch.
 
@@ -50,7 +50,7 @@ After you complete and check all tasks:
 
 - Announce: "Using finishing-a-development-branch to complete this work."
 - **REQUIRED SUB-SKILL:** Use finishing-a-development-branch
-- **Report deviations:** in the final implementation summary, explicitly call out every place where execution required a change of course from the plan — the flaw found, why the change was needed, and its implications
+- **Report deviations:** in the final implementation summary, call out every place where execution changed course from the plan. State the flaw, why the change was needed, and its implications
 
 ## When to Stop and Ask for Help
 

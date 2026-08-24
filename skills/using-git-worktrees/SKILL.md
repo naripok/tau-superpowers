@@ -47,7 +47,7 @@ if [ -f pyproject.toml ]; then poetry install; fi
 if [ -f go.mod ]; then go mod download; fi
 ```
 
-### 3. Verify a Clean Baseline
+### 3. Check a Clean Baseline
 
 Run the project's test suite (`npm test` / `cargo test` / `pytest` / `go test ./...`).
 

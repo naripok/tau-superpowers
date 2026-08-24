@@ -84,7 +84,7 @@ Fill every placeholder, then dispatch with:
     - Sound design decisions? Security or performance problems in the changed code?
 
     **Testing:**
-    - Tests verify real behavior (not mocks)? The required scenarios covered? All passing?
+    - Tests check real behavior (not mocks)? The required scenarios covered? All passing?
 
     **Production readiness (only when the requirements name it):**
     - Migration strategy for schema changes? Backward compatibility?
@@ -101,7 +101,7 @@ Fill every placeholder, then dispatch with:
 
     Return exactly one section with the exact heading `## Code Review`. Your
     complete final message is relayed verbatim to the controller, so every
-    actionable point must be self-contained: file:line, what's wrong, why it
+    actionable point must be self-contained: file:line, what is wrong, why it
     matters, how to fix.
 
     ## Code Review
@@ -115,7 +115,7 @@ Fill every placeholder, then dispatch with:
     - [file:line] What's wrong, why it matters, how to fix
 
     **Minor (nice to have):**
-    - [file:line] What could be improved
+    - [file:line] What can be improved
 
     End with exactly one status line: **Status: DONE**, **Status: DONE_WITH_CONCERNS**,
     **Status: BLOCKED**, or **Status: NEEDS_CONTEXT**.

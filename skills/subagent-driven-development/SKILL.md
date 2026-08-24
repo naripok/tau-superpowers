@@ -39,7 +39,7 @@ ELSE (1-2 trivial tasks):
    d. Dispatch the implementation reviewer (`./implementation-reviewer-prompt.md`). Give it the full feature-spec text, the task text, and the implementer's report. Also give it every relevant file path, the diff, and the verification output
    e. The reviewer reports on two dimensions — **Spec Compliance** and **Code Quality**. Evaluate the findings before acting on them (see receiving-code-review). Drop findings that demand work beyond the task's contract. If either dimension has findings, re-dispatch the implementer with the original task, current state, and the findings. Then re-dispatch the reviewer with updated evidence. Repeat until both pass
    f. Mark the task complete
-3. After the last task: dispatch the implementation reviewer over the entire change. The final review verifies the FULL feature spec (per-task reviews only check their own task)
+3. After the last task: dispatch the implementation reviewer over the entire change. The final review checks the FULL feature spec. Per-task reviews only check their own task
 4. Invoke finishing-a-development-branch
 
 ## Handling Implementer Status
@@ -63,7 +63,7 @@ Never re-dispatch a stuck implementer with no changes — a plain restart is not
 | **Task text** | What this task was asked to do |
 | **Implementer report + file paths + diff + verification output** | Evidence |
 
-**Per-task scope:** a single spec requirement can span several tasks. The per-task reviewer checks "did this task implement what was asked", not "is the full requirement satisfied". The final review verifies full-spec compliance.
+**Per-task scope:** a single spec requirement can span several tasks. The per-task reviewer checks "did this task implement what was asked", not "is the full requirement satisfied". The final review checks full-spec compliance.
 
 **Spec discrepancies:** if the reviewer reports a mismatch between code and feature spec, decide:
 

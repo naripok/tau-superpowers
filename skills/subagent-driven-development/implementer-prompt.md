@@ -47,7 +47,7 @@ The child has no controller conversation history, cannot converse mid-task, and 
        signatures, and the expected behavior. The exact implementation within
        that contract is your decision
     2. Follow TDD explicitly. Write the failing tests for the task's "Tests must
-       prove" list first. Run them and confirm that each fails for the expected
+       prove" list first. Run them and check that each fails for the expected
        reason. Implement the minimum to pass. Run the tests again. Then refactor
     3. Run the task's verification commands
     4. Commit your work
@@ -106,7 +106,7 @@ The child has no controller conversation history, cannot converse mid-task, and 
     - Did I follow existing codebase patterns?
 
     **Testing:**
-    - Do tests verify real behavior, not mock behavior?
+    - Do tests check real behavior, not mock behavior?
     - Did I watch each test fail before implementing?
     - Are the "Tests must prove" behaviors all covered?
 

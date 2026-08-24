@@ -18,7 +18,7 @@ WHEN receiving code review feedback:
 
 1. READ: Complete feedback without reacting
 2. UNDERSTAND: Restate requirement in own words (or ask)
-3. VERIFY: Check against codebase reality
+3. CHECK: Compare with codebase reality
 4. EVALUATE: Technically sound for THIS codebase?
 5. RESPOND: Technical acknowledgment or reasoned pushback
 6. IMPLEMENT: One item at a time, test each
@@ -44,7 +44,7 @@ IF any item is unclear:
   STOP - do not implement anything yet
   ASK for clarification on unclear items
 
-WHY: Items may be related. Partial understanding = wrong implementation.
+WHY: Items can be related. Partial understanding = wrong implementation.
 ```
 
 **Example:**
@@ -76,8 +76,8 @@ BEFORE implementing:
 IF suggestion seems wrong:
   Push back with technical reasoning
 
-IF can't easily verify:
-  Say so: "I can't verify this without [X]. Should I [investigate/ask/proceed]?"
+IF you cannot check easily:
+  Say so: "I cannot check this without [X]. Do I investigate, ask, or proceed?"
 
 IF conflicts with your human partner's prior decisions:
   Stop and discuss with your human partner first
@@ -89,7 +89,7 @@ IF conflicts with your human partner's prior decisions:
 IF reviewer suggests "implementing properly":
   grep codebase for actual usage
 
-  IF unused: "This endpoint isn't called. Remove it (YAGNI)?"
+  IF unused: "This endpoint is not called. Remove it (YAGNI)?"
   IF used: Then implement properly
 ```
 
@@ -103,7 +103,7 @@ FOR multi-item feedback:
      - Simple fixes (typos, imports)
      - Complex fixes (refactoring, logic)
   3. Test each fix individually
-  4. Verify no regressions
+  4. Check for regressions
 ```
 
 ## When To Push Back
@@ -138,7 +138,7 @@ When feedback IS correct:
 If you pushed back and were wrong:
 ```
 ✅ "You were right - I checked [X] and it does [Y]. Implementing now."
-✅ "Verified this and you're correct. My initial understanding was wrong because [reason]. Fixing."
+✅ "Checked this and you are correct. My initial understanding was wrong because [reason]. Fixing."
 
 ❌ Long apology
 ❌ Defending why you pushed back

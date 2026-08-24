@@ -1,6 +1,6 @@
 ---
 name: using-superpowers
-description: Use when implementing new features or applications, or starting complex multi-step tasks that may benefit from structured workflows like brainstorming, TDD, or debugging. NOT for simple questions or straightforward operations.
+description: Use when implementing new features or applications, or starting complex multi-step tasks that can benefit from structured workflows like brainstorming, TDD, or debugging. NOT for simple questions or straightforward operations.
 ---
 
 **Subagents:** If a controller dispatched you as a subagent to execute a specific task, skip this skill.
@@ -13,7 +13,7 @@ Do NOT invoke skills or dispatch subagents for operations that are fast and carr
 
 - Reading 1-3 files to understand code, configuration, or output
 - Making a single edit to a file
-- Running a simple command (ls, grep, find, git status, etc.)
+- Running a simple command (for example: ls, grep, find, git status)
 - Answering a question based on information you already have
 - Searching the codebase for a string or pattern
 - Inspecting test output or error logs
@@ -27,7 +27,7 @@ These are tool calls, not tasks. Dispatch subagents only for work that is:
 - **Risk-bearing:** incorrect work can introduce bugs
 - **Time-consuming:** more than a few tool calls
 
-Never dispatch a subagent and then perform the same read or command yourself. The dispatch replaces your tool calls for that work.
+Never dispatch a subagent and then do the same read or command yourself. The dispatch replaces your tool calls for that work.
 
 ## Instruction Priority
 
@@ -50,7 +50,7 @@ IF building something new AND the proposal + feature spec do not both exist:
     invoke brainstorming first
 IF it is a simple operation (list above):
     do it directly — no skill, no subagent
-ELSE IF any skill might apply (even 1%):
+ELSE IF any skill can apply (even 1%):
     read its SKILL.md
     announce: "Using [skill] to [purpose]"
     if it has a checklist, create task tracking per item

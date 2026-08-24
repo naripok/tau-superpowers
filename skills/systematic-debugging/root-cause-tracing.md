@@ -2,7 +2,7 @@
 
 ## Overview
 
-Bugs often manifest deep in the call stack (git init in the wrong directory, a file created in the wrong location, a database opened with the wrong path). Your instinct is to fix where the error appears. That treats a symptom.
+Bugs often manifest deep in the call stack, for example git init in the wrong directory or a file created in the wrong location. Your instinct is to fix where the error appears. That treats a symptom.
 
 **Core principle:** Trace backward through the call chain until you find the original trigger. Then fix at the source.
 

@@ -92,7 +92,7 @@ Fix the 3 failing tests in src/agents/agent-tool-abort.test.ts:
 
 These are timing/race condition issues. Your task:
 
-1. Read the test file and understand what each test verifies
+1. Read the test file and understand what each test checks
 2. Identify root cause - timing issues or actual bugs?
 3. Fix by:
    - Replacing arbitrary timeouts with event-based waiting

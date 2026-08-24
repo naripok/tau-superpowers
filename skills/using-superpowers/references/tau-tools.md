@@ -47,7 +47,7 @@ Every task in one call must be independent: items share no state and cannot see 
 
 ### When to dispatch
 
-Dispatch a subagent only for substantive multi-step work that benefits from an isolated context window. Also dispatch a subagent for long-running work that must not block the parent session. Simple reads, searches, commands, and small edits are the parent's own tool calls. A subagent replaces the parent's tool calls for its task. Never dispatch a subagent and then perform the same work yourself.
+Dispatch a subagent only for substantive multi-step work that benefits from an isolated context window. Also dispatch a subagent for long-running work that must not block the parent session. Simple reads, searches, commands, and small edits are the parent's own tool calls. A subagent replaces the parent's tool calls for its task. Never dispatch a subagent and then do the same work yourself.
 
 ## Common Options
 
@@ -127,7 +127,7 @@ model = "deepseek/deepseek-v4-flash-0731"
 reasoningEffort = "xhigh"
 ```
 
-Loaded config files and dropped-config diagnostics appear in `details.configPaths` and `details.configDiagnostics`. Tau also reports in those fields every section whose agent name matches no bundled, user, or project definition. A typo therefore cannot silently no-op. Edits to the file apply to the next `task` call. You do not need to reload Tau.
+Loaded config files and dropped-config diagnostics appear in `details.configPaths` and `details.configDiagnostics`. Tau also reports in those fields every section whose agent name matches no bundled, user, or project definition. As a result, a typo cannot silently no-op. Edits to the file apply to the next `task` call. You do not need to reload Tau.
 
 The fields are independent and map directly to Tau's separate provider and model settings:
 

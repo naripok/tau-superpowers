@@ -70,11 +70,11 @@ Do not test:
 | TDD Phase | Skill Testing | What You Do |
 |-----------|---------------|-------------|
 | **RED** | Baseline test | Run the scenario WITHOUT the skill, watch the agent fail |
-| **Verify RED** | Capture rationalizations | Document the exact failures verbatim |
+| **Check RED** | Capture rationalizations | Document the exact failures verbatim |
 | **GREEN** | Write skill | Address the specific baseline failures |
-| **Verify GREEN** | Pressure test | Run the scenario WITH the skill, check compliance |
+| **Check GREEN** | Pressure test | Run the scenario WITH the skill, check compliance |
 | **REFACTOR** | Plug holes | Find new rationalizations, add counters |
-| **Stay GREEN** | Re-verify | Test again, check compliance |
+| **Stay GREEN** | Re-check | Test again, check compliance |
 
 This is the same cycle as code TDD with a different test format.
 
@@ -121,11 +121,11 @@ Run this with the RED `task` call. If the child chooses B or C, capture rational
 
 Write the skill to address the specific baseline failures you documented. Do not add extra content for hypothetical cases. Write only enough to address the actual failures you observed.
 
-Run the same scenarios with the GREEN `task` call, embedding the complete candidate skill text. The child must now comply.
+Run the same scenarios with the GREEN `task` call, embedding the complete candidate skill text. The child must comply.
 
 If the agent still fails, the skill is unclear or incomplete. Revise and re-test.
 
-## VERIFY GREEN: Pressure Testing
+## CHECK GREEN: Pressure Testing
 
 **Goal:** Check that agents follow the rules when they want to break them.
 
@@ -194,7 +194,7 @@ Use this scenario preamble inside the RED/GREEN harness prompts:
 ```markdown
 IMPORTANT: Treat this as a realistic decision. You must choose one offered option.
 Do not avoid the choice by asking a hypothetical question.
-Explain what you would do, but do not modify files or run commands.
+Explain the action you choose. Do not modify files or run commands.
 ```
 
 Keep the decision realistic without falsely asking a test child to mutate the project. In GREEN, place the complete skill before the identical scenario. A path or skill name alone is not enough, because `task` children must not rely on ambient skill discovery.
@@ -263,7 +263,7 @@ description: Use when you wrote code before tests, when tempted to test after, o
 
 Add the symptoms of an agent that is ABOUT to violate.
 
-### Re-verify After Refactoring
+### Re-check After Refactoring
 
 **Re-test the same scenarios with the updated skill.**
 
@@ -283,7 +283,7 @@ The agent must now:
 ```markdown
 your human partner: You read the skill and chose Option C anyway.
 
-How could that skill have been written differently to make
+How can that skill be written differently to make
 it crystal clear that Option A was the only acceptable answer?
 ```
 
@@ -399,11 +399,11 @@ Passing the tests once ≠ bulletproof.
 | TDD Phase | Skill Testing | Success Criteria |
 |-----------|---------------|------------------|
 | **RED** | Run the scenario without the skill | The agent fails, document the rationalizations |
-| **Verify RED** | Capture exact wording | Verbatim documentation of failures |
+| **Check RED** | Capture exact wording | Verbatim documentation of failures |
 | **GREEN** | Write the skill addressing the failures | The agent now complies with the skill |
-| **Verify GREEN** | Re-test scenarios | The agent follows the rule under pressure |
+| **Check GREEN** | Re-test scenarios | The agent follows the rule under pressure |
 | **REFACTOR** | Close loopholes | Add counters for new rationalizations |
-| **Stay GREEN** | Re-verify | The agent still complies after refactoring |
+| **Stay GREEN** | Re-check | The agent still complies after refactoring |
 
 ## The Bottom Line
 
