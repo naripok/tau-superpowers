@@ -159,11 +159,3 @@ digraph principle {
 **Before operation:** Log before the dangerous operation, not after it fails
 **Include context:** Directory, cwd, environment variables, timestamps
 **Capture stack:** `new Error().stack` shows the complete call chain
-
-## Real-World Impact
-
-From a debugging session (2025-10-03):
-- Found the root cause through a 5-level trace
-- Fixed at the source (getter validation)
-- Added 4 layers of defense
-- 1847 tests passed, zero pollution

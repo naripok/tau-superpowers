@@ -18,6 +18,8 @@ Do NOT invoke skills or dispatch subagents for operations that are fast and carr
 - Searching the codebase for a string or pattern
 - Inspecting test output or error logs
 
+**Editing discipline:** make targeted edits rather than rewriting whole files to change a few lines. If an edit does not apply, fix the search text and retry — do not fall back to a full rewrite.
+
 These are tool calls, not tasks. Dispatch subagents only for work that is:
 
 - **Multi-step:** 3+ distinct actions with judgment between them

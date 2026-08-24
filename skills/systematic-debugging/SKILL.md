@@ -231,13 +231,13 @@ If you catch yourself thinking:
 
 **If 3+ fixes failed:** Question the architecture (see Phase 4.5)
 
-## your human partner's Signals You're Doing It Wrong
+## Signals You're Doing It Wrong
 
 **Watch for these redirections:**
 - "Is that not happening?" - You made an assumption without a check
 - "Will it show us...?" - You did not add evidence gathering
 - "Stop guessing" - You are proposing fixes without understanding
-- "Ultrathink this" - Question the fundamentals, not only the symptoms
+- "Question the fundamentals" - Re-examine core assumptions, not just the symptoms
 - "We're stuck?" (frustrated) - Your approach is not working
 
 **When you see these:** STOP. Return to Phase 1.
@@ -286,11 +286,3 @@ These techniques are part of systematic debugging. You can find them in this dir
 **Related skills:**
 - **test-driven-development** - For creating the failing test case (Phase 4, Step 1)
 - **verification-before-completion** - Check that the fix worked before you claim success
-
-## Real-World Impact
-
-From debugging sessions:
-- Systematic approach: 15-30 minutes to fix
-- Random fixes approach: 2-3 hours of thrashing
-- First-time fix rate: 95% vs 40%
-- New bugs introduced: Near zero vs common

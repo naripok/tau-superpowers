@@ -50,6 +50,7 @@ After you complete and check all tasks:
 
 - Announce: "I'm using the finishing-a-development-branch skill to complete this work."
 - **REQUIRED SUB-SKILL:** Use finishing-a-development-branch
+- **Report deviations:** in the final implementation summary, explicitly call out every place where execution required a change of course from the plan — the flaw found, why the change was needed, and its implications
 
 ## When to Stop and Ask for Help
 

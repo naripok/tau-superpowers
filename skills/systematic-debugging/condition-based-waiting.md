@@ -105,11 +105,3 @@ await new Promise(r => setTimeout(r, 200));   // Then: wait for timed behavior
 1. First, wait for the triggering condition
 2. Base the delay on known timing, not on guessing
 3. Add a comment that explains WHY
-
-## Real-World Impact
-
-From a debugging session (2025-10-03):
-- Fixed 15 flaky tests across 3 files
-- Pass rate: 60% → 100%
-- Execution time: 40% faster
-- No more race conditions

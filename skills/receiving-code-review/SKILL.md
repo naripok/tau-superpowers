@@ -27,7 +27,7 @@ WHEN receiving code review feedback:
 ## Forbidden Responses
 
 **NEVER:**
-- "You're absolutely right!" (explicit AGENTS.md violation)
+- "You're absolutely right!"
 - "Great point!" / "Excellent feedback!" (performative)
 - "Let me implement that now" (before verification)
 
@@ -35,7 +35,6 @@ WHEN receiving code review feedback:
 - Restate the technical requirement
 - Ask clarifying questions
 - If the suggestion is wrong, push back with technical reasoning
-- Start working (actions > words)
 
 ## Handling Unclear Feedback
 
@@ -125,8 +124,6 @@ Push back when:
 - Ask specific questions
 - Reference working tests/code
 - If the issue is architectural, involve your human partner
-
-**If you are uncomfortable pushing back out loud, the signal is:** "Strange things are afoot at the Circle K"
 
 ## Acknowledging Correct Feedback
 
