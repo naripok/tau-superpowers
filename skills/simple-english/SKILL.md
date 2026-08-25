@@ -20,10 +20,12 @@ When asked to write or rewrite technical text:
 
 1. **Select the mode** (pragmatic or strict — the table that follows).
 2. **Classify each passage** as procedural or descriptive. Every other rule depends on this.
-3. **Correct your vocabulary before drafting.** In strict mode, the dictionary rejects check/verify/confirm/ensure as verbs. Replace them by intent: `make sure that` (verify a state), `examine` (look for faults), `measure` (get a value). In pragmatic mode, pick one and keep it. Pick ONE noun for config/settings (all are valid technical nouns — pick one and keep it). Use no other word for these concepts in the whole document.
-4. **Apply the rules** from the catalog that follows.
-5. **Do the self-check** before you deliver. This step is not optional.
-6. **Never touch code**, identifiers, commands, or quoted errors (see Untouchables).
+3. **Protect the source before drafting.** Record the information in each subject, action, object, modifier, explicit logical relationship, actor, and established technical name. A rewrite must preserve this information and its semantic role.
+4. **Correct your vocabulary before drafting.** In strict mode, the dictionary rejects check/verify/confirm/ensure as verbs. Replace them by intent: `make sure that` (verify a state), `examine` (look for faults), `measure` (get a value). In pragmatic mode, pick one and keep it. Pick ONE noun for config/settings (all are valid technical nouns — pick one and keep it). Use no other word for these concepts in the whole document.
+5. **Use the smallest sufficient repair.** Follow the least-change procedure that follows before you split a sentence.
+6. **Apply the rules** from the catalog that follows.
+7. **Do the self-check** before you deliver. This step is not optional.
+8. **Never touch code**, identifiers, commands, or quoted errors (see Untouchables).
 
 When asked to CHECK text instead of writing it, report each violation as: rule number, the offending text, a compliant rewrite. Cite only rule numbers that exist in this file. Do not cite rule numbers from memory. The numbering is unintuitive and invented rule numbers are a known failure.
 
@@ -44,6 +46,27 @@ When asked to CHECK text instead of writing it, report each violation as: rule n
 | Unit rule | One instruction per sentence (5.2) | One topic per paragraph (6.5), max six sentences per paragraph (6.6) |
 
 Do not mix the two in one passage. A "Getting started" section is procedural. An "Architecture" section is descriptive. A note inside a procedure is descriptive (25-word limit, no imperative).
+
+## Least-Change Rewrite Procedure
+
+Use the smallest sufficient repair for each noncompliant sentence. Count the words before you repair it. Mark a procedural sentence with more than 20 words or a descriptive sentence with more than 25 words. Use this order and stop after the first repair that gives a clear, compliant sentence:
+
+1. Replace only the noncompliant word or form. Do not change information in a compliant subject, action, object, modifier, or technical name.
+2. Convert a phrase to a finite clause in the same sentence. Use this repair for a prohibited `-ing` verb form when possible.
+3. Reorder the clauses without changing their relationships or semantic roles.
+4. **Mandatory split:** Split a marked sentence if it still exceeds its limit after the earlier repairs. Never return an over-limit sentence unchanged. Also split a sentence that contains more than one instruction, violates a safety rule, or is not clear. In all other cases, do not split.
+
+A cause, condition, method, purpose, contrast, or result is not a separate fact by itself. Keep it with the main assertion if the sentence stays compliant and clear.
+
+After a split, state each original logical relationship explicitly. Use a connector such as "because," "then," "as a result," or "but." Sentence adjacency does not state the relationship. Use a clear pronoun or repeat an established name across the new sentences. Do not create a shortened name.
+
+Do not add a cause, intention, judgment, mechanism, degree of certainty, or technical name. Use only information from the source and its established context.
+
+Do not shorten by removing a source component or changing its semantic role. For example, "sends the update to each cluster" cannot become "updates each cluster." The first phrase acts on the update, but the second phrase acts on each cluster. If a faithful sentence remains over its limit, split it.
+
+**Before:** Heading rewrites frequently change the meaning by renaming named concepts, frameworks, and terms of art.
+
+**After:** Heading rewrites frequently change the meaning because they rename named concepts, frameworks, and terms of art.
 
 ## THE RULE CATALOG
 
@@ -104,7 +127,7 @@ The standard rejects "could" even for possibility: write "an explosion can occur
 **After:** The migration completed. The database rebuilds the table.
 
 **Before:** The flag can be set in the config file, making restarts unnecessary.
-**After:** You can set the flag in the config file. Then a restart is not necessary.
+**After:** When you set the flag in the config file, a restart is not necessary.
 
 **Before:** The temperature must be adjusted.
 **After:** Adjust the temperature.
@@ -141,7 +164,7 @@ Rule 4.2 is the anti-terseness rule. STE is short sentences with complete gramma
 
 | Rule | Instruction |
 |---|---|
-| 6.1 | Give information gradually: one new fact per sentence. |
+| 6.1 | Give information gradually: one main assertion per sentence. A related cause, condition, method, purpose, contrast, or result can stay in that sentence. |
 | 6.2 | Use key words and phrases to give the text a logical structure. |
 | 6.3 | Maximum 25 words per sentence. |
 | 6.4 | Group related information in paragraphs. |
@@ -149,6 +172,8 @@ Rule 4.2 is the anti-terseness rule. STE is short sentences with complete gramma
 | 6.6 | Maximum six sentences per paragraph. |
 
 No imperative in descriptive text. Descriptions explain. Procedures instruct.
+
+Rule 6.1 does not make each related clause a new fact. Keep a closely related explanation with its assertion if the result meets Rule 6.3 and the other rules.
 
 ### Section 7 — Safety instructions (Rules 7.1-7.3)
 
@@ -271,7 +296,7 @@ These are technical names (Rules 1.5, 8.6). Leave them exact, even when they bre
 - UI labels and button names ("click the **Save** button" — quoted text, counts as one word)
 - Numbers with units — each counts as one word in the sentence limit
 
-Facts are untouchable too. Rewrite the style, not the content. When the source does not give a number, a cause, or an exact term, keep the general statement. Do not invent specifics to look concrete.
+Facts are untouchable too. Rewrite the style, not the content. Preserve the information and semantic role of each subject, action, object, modifier, claim, logical relationship, actor, technical name, and degree of certainty. Use context only when it establishes that information. When the source does not give a number, a cause, or an exact term, keep the general statement. Do not invent specifics to look concrete.
 
 ## Beyond Documentation
 
@@ -279,13 +304,15 @@ The same rules apply to error messages, runbooks, incident reports, release note
 
 ## Self-Check Before You Deliver
 
-This step is not optional. Run these five checks on your draft:
+This step is not optional. Run these seven checks on your draft:
 
-1. Count words in your three longest sentences. Over the 20/25 limit → split them.
-2. Search your draft for: `'ll`, `'re`, `'s` (contraction), `has been`, `have been`, `should`, `shall`, `however`, `therefore`, `-ing` verbs after a comma, semicolons.
-3. Search for every `if` and `when`. Each one stands at the START of its sentence, before the command. "Increase the timeout if the network is slow" → "If the network is slow, increase the timeout."
-4. Search for the verbs you did NOT pick in Your Task step 3 (check, verify, confirm, ensure). STRICT MODE: route each hit by intent — `make sure that`, `examine`, or `measure`. Pragmatic mode: replace each hit with your chosen verb.
-5. Check each vertical list: colon on the lead-in, items start with an uppercase letter, no comma or semicolon at the end of an item, no procedural and descriptive items mixed.
+1. Compare the draft with the source. Make sure that each source component keeps its information and semantic role. This includes each subject, action, object, modifier, claim, relationship, actor, technical name, and degree of certainty. Restore each compliant source component that the repair did not have to change.
+2. Examine every split. If a finite clause or clause reordering gives a compliant and clear sentence, remove the split. Make sure that each necessary split states every original logical relationship explicitly.
+3. Count words in your three longest sentences. Over the 20/25 limit → split them. This command is mandatory. Never return an over-limit sentence unchanged.
+4. Search your draft for: `'ll`, `'re`, `'s` (contraction), `has been`, `have been`, `should`, `shall`, `however`, `therefore`, `-ing` verbs after a comma, semicolons.
+5. Search for every `if` and `when`. Each one stands at the START of its sentence, before the command. "Increase the timeout if the network is slow" → "If the network is slow, increase the timeout."
+6. Search for the verbs you did NOT pick in Your Task step 4 (check, verify, confirm, ensure). STRICT MODE: route each hit by intent — `make sure that`, `examine`, or `measure`. Pragmatic mode: replace each hit with your chosen verb.
+7. Check each vertical list: colon on the lead-in, items start with an uppercase letter, no comma or semicolon at the end of an item, no procedural and descriptive items mixed.
 
 Fix what you find, then deliver. For a full audit, run `references/checklist.md`.
 
