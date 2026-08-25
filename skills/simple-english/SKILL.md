@@ -89,7 +89,7 @@ This step is not optional. Run these eight checks on your draft:
 2. **Splits (Rule 17, Rule 18).** Examine every split. If a finite clause or a reorder gives a clear sentence within the limits, remove the split. Each necessary split states every original logical relationship explicitly.
 3. **Word count (Rule 1, Rule 16).** Count the words in your three longest sentences. A sentence over its limit must be split (Rule 17). Never deliver an over-limit sentence unchanged.
 4. **Banned patterns (Rule 6, Rule 7, Rule 8, Rule 9, Rule 10).** Search the draft for `'ll`, `'re`, `'s`, `has been`, `have been`, `should`, `shall`, `however`, `therefore`, `e.g.`, `i.e.`, `etc.`, an `-ing` verb after a comma (`, making`), and `;`. Each hit outside code and quoted text is a violation.
-5. **Condition placement (Rule 3).** Search for every `if` and `when`. Each stands at the start of its sentence, before the command.
+5. **Condition placement (Rule 3).** Search for every `if` and `when`. In an instruction, each stands at the start of its sentence, before the command.
 6. **Term consistency (Rule 13).** Search for the pick-family terms you did not choose: check, verify, confirm, ensure, "make sure that". Scan for config/settings and run/execute rotations. Replace each hit with your chosen term.
 7. **Lists (Rule 11).** Check each vertical list: colon on the lead-in, uppercase first letter on each item, a period only on a full-sentence item, no nested lists, no instructions mixed with facts.
 8. **Untouchables (Rule 20).** Make sure that code, identifiers, quoted errors, UI labels, and numbers with units are unchanged.
