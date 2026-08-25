@@ -215,7 +215,7 @@ Known part-of-speech rulings, useful as patterns:
 
 | Word | Ruling |
 |---|---|
-| test, check, work | Noun only. "Do a test", not "test the pump". "Check that X" becomes "make sure that X". |
+| test, check, work | Noun only. "Do a test", not "test the pump". "Check that X" becomes your chosen verb. |
 | oil | Technical noun (TN) only. For the verb, the dictionary gives "lubricate": "Lubricate the linkage with oil." |
 | help | Verb only. For the noun, the dictionary gives "aid": "with the aid of". |
 | fall (noun) | Rejected. Use "decrease" for a reduction in value. Use FALL (verb) only for physical movement downward by gravity: "Make sure that the tools do not fall into the engine." |
