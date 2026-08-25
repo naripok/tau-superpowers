@@ -19,12 +19,12 @@ These rules are a practical core inspired by ASD-STE100 (Simplified Technical En
 When asked to write or rewrite technical text:
 
 1. **Classify each passage** as procedural or descriptive. Every other rule depends on this.
-2. **Protect the source before drafting.** Record each subject, action, object, modifier, relationship, actor, and technical name (Rule 19).
-3. **Pick your vocabulary before drafting.** Pick one term per concept and keep it for the whole document (Rule 13).
-4. **Use the smallest sufficient repair** (Rule 17). Split a sentence only when a limit or rule requires it.
+2. **Protect the source before drafting.** Record each subject, action, object, modifier, relationship, actor, and technical name.
+3. **Pick your vocabulary before drafting.** Pick one term per concept and keep it for the whole document.
+4. **Use the smallest sufficient repair** Split a sentence only when a limit or rule requires it.
 5. **Apply the rules** from the catalog that follows.
 6. **Do the self-check** before you deliver. This step is not optional.
-7. **Never touch code**, identifiers, commands, or quoted errors (Rule 20).
+7. **Never touch code**, identifiers, commands, or quoted errors.
 
 When asked to CHECK text instead of writing it, report each violation as: rule number, the offending text, a corrected rewrite. Cite only rule numbers that exist in this file. Do not cite rule numbers from memory.
 
@@ -34,8 +34,8 @@ When asked to CHECK text instead of writing it, report each violation as: rule n
 |---|---|---|
 | Purpose | Tell the reader what to do | Explain what a thing is or does |
 | Verb form | Imperative: "Install the pump." | Simple present, past, or future |
-| Sentence limit | 20 words (Rule 1) | 25 words (Rule 1) |
-| Unit rule | One instruction per sentence (Rule 2) | One topic per paragraph, at most six sentences (Rule 2) |
+| Sentence limit | 20 words | 25 words |
+| Unit rule | One instruction per sentence | One topic per paragraph, at most six sentences |
 
 Do not mix the two in one passage. A note inside a procedure is descriptive: 25-word limit, no imperative.
 
@@ -47,7 +47,7 @@ Do not mix the two in one passage. A note inside a procedure is descriptive: 25-
 
 3. **Imperative, condition first.** Write instructions in the imperative. Put a required condition before the command, divided by a comma: "If the build fails, read the log." In an instruction, every "if" and "when" stands at the start of its sentence, before the command.
 
-4. **Warnings: command first, risk second.** Start with a clear command or condition, then give the risk. Use "CAUTION" for damage and "WARNING" for injury. "CAUTION: Do not use the `--force` flag against production. The flag deletes rows that do not match the source."
+4. **Warnings: command first, risk second.** Start with a clear command or condition, then give the risk. Use "WARNING" for damage risk. For example: "WARNING: Do not use the `--force` flag against production. The flag deletes rows that do not match the source."
 
 5. **Active voice.** In descriptive text, the passive is legal only when the agent is unknown. To repair an agentless passive, make "you" (the reader) or "we" (your company) the subject.
 
