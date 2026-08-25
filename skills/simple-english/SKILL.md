@@ -2,13 +2,13 @@
 name: simple-english
 description: |
   Write or rewrite technical text with the rules of ASD-STE100 Simplified
-  Technical English so it is clear, unambiguous, and free of AI slop. Use for
-  documentation, READMEs, runbooks, procedures, error messages, release notes,
-  incident reports, and API guides. Also use when the user says "STE",
-  "Simplified Technical English", "ASD-STE100", "de-slop", "make this
-  readable", "write for non-native readers", or asks for docs that translate
-  well. Enforces the standard's 53 rules: 20/25-word sentence limits, one word
-  one meaning, simple tenses, active voice, condition before command.
+  Technical English so it is clear and unambiguous. Use for documentation,
+  READMEs, runbooks, procedures, error messages, release notes, incident
+  reports, and API guides. Also use when the user says "STE", "Simplified
+  Technical English", "ASD-STE100", "make this readable", "write for
+  non-native readers", or asks for docs that translate well. Enforces the
+  standard's 53 rules: 20/25-word sentence limits, one word one meaning,
+  simple tenses, active voice, condition before command.
 license: MIT
 compatibility: claude-code cursor codex gemini-cli opencode
 metadata:
@@ -18,7 +18,7 @@ metadata:
 
 # Simple English: Write Like an Aerospace Manual
 
-Write technical text with the rules of ASD-STE100 Simplified Technical English. STE is the controlled language that aerospace and defense manufacturers use for maintenance documentation. The rules exist so that a tired reader who is not a native English speaker cannot misread an instruction. They remove the usual signs of AI-generated text as a side effect: long sentences, synonym rotation, hedges, filler, and decorative clauses.
+Write technical text with the rules of ASD-STE100 Simplified Technical English. STE is the controlled language that aerospace and defense manufacturers use for maintenance documentation. The rules exist so that a tired reader who is not a native English speaker cannot misread an instruction.
 
 Write for that tired reader. Each sentence must survive one read.
 
@@ -224,9 +224,6 @@ Known part-of-speech rulings, useful as patterns:
 | may (permission) | can |
 | would (hypothetical) | can, or restructure: "If X occurs, Y occurs." |
 
-### Slop-to-simple substitutions
-
-AI-generated docs overuse a known set of words. `references/word-swaps.md` maps each one to a plain replacement. Read it when you rewrite existing text. If a word carries no fact, delete it instead of replacing it.
 ### Consistency pass
 
 Collapse synonym rotations to one term each (Rules 1.11, 9.4). The two lists that follow work differently.
@@ -302,7 +299,7 @@ Fix what you find, then deliver. For a full audit, run `references/checklist.md`
 
 ## Full Example
 
-**Before (real unedited AI output):**
+**Before:**
 
 > **Connection timeouts.** If sqlpipe hangs or fails with `dial tcp: i/o timeout`, check that the host running sqlpipe can reach the Postgres port (usually 5432) — this is often a security group or firewall rule blocking the connection. If you're connecting to a managed database (RDS, Cloud SQL, etc.), confirm the instance allows connections from sqlpipe's IP. You can also try increasing `source.connect_timeout_seconds` in your config, since a slow network path can trip the default timeout even when the connection eventually succeeds.
 
@@ -325,5 +322,4 @@ No tool can guarantee STE compliance. If the user asks for a compliance claim, s
 ## References
 
 - `references/checklist.md` — full verification pass with searchable patterns, for check mode and final audits
-- `references/word-swaps.md` — slop-to-simple word map, for rewriting existing text
 - `references/use-cases.md` — long-form adaptations: error messages, runbooks, incident reports, commits, UI copy, i18n
