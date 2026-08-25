@@ -64,9 +64,9 @@ Do not add a cause, intention, judgment, mechanism, degree of certainty, or tech
 
 Do not shorten by removing a source component or changing its semantic role. For example, "sends the update to each cluster" cannot become "updates each cluster." The first phrase acts on the update, but the second phrase acts on each cluster. If a faithful sentence remains over its limit, split it.
 
-**Before:** The tool removes the file by overwriting the data.
+**Before:** The tool removes the file after overwriting the data.
 
-**After:** The tool removes the file because it overwrites the data.
+**After:** The tool removes the file after it overwrites the data.
 
 ## THE RULE CATALOG
 
