@@ -22,7 +22,7 @@ Tau discovers skills from these directories in increasing precedence:
 3. `<cwd>/.tau/skills/`
 4. `<cwd>/.agents/skills/`
 
-Each skill is a directory containing `SKILL.md`. A higher-precedence skill with the same name overrides a lower-precedence one. Tau initially injects only each skill's name, description, and path into the system prompt. When the description matches its task, the agent reads the full `SKILL.md`. If you change a skill in an active TUI, run `/reload`. Users invoke a skill explicitly with `/skill:<name> [request]`.
+Each skill is a directory that contains `SKILL.md`. A higher-precedence skill with the same name overrides a lower-precedence one. Tau initially injects only the name, description, and path of each skill into the system prompt. When the description matches the task of the agent, the agent reads the full `SKILL.md`. If you change a skill in an active TUI, run `/reload`. Users invoke a skill explicitly with `/skill:<name> [request]`.
 
 ## When to Create a Skill
 
@@ -39,9 +39,9 @@ Each skill is a directory containing `SKILL.md`. A higher-precedence skill with 
 
 ## Skill Types
 
-- **Technique** — concrete method with steps (condition-based-waiting, root-cause-tracing)
-- **Pattern** — way of thinking about problems
-- **Reference** — API docs, syntax guides, tool documentation
+- **Technique**: a concrete method with steps (condition-based-waiting, root-cause-tracing)
+- **Pattern**: a way of thinking about problems
+- **Reference**: API docs, syntax guides, tool documentation
 
 ## Directory Structure
 
@@ -52,7 +52,7 @@ Each skill is a directory containing `SKILL.md`. A higher-precedence skill with 
     supporting-file.*     # Only for heavy reference or reusable tools
 ```
 
-Keep the directory name and frontmatter `name` identical. All skills share one flat namespace.
+Keep the directory name and the frontmatter `name` identical. All skills share one flat namespace.
 
 **Separate files for:** heavy reference (100+ lines), reusable tools/scripts/templates.
 
@@ -60,10 +60,10 @@ Keep the directory name and frontmatter `name` identical. All skills share one f
 
 ## SKILL.md Structure
 
-**Frontmatter (YAML)** — two required fields (see [agentskills.io/specification](https://agentskills.io/specification) for all supported fields):
+**Frontmatter (YAML)**: two required fields (see [agentskills.io/specification](https://agentskills.io/specification) for all supported fields):
 
 - `name`: 1-64 characters. Use only lowercase letters, numbers, and single hyphens. No leading or trailing hyphen. The name must match the parent directory.
-- `description`: 1-1024 characters (keep under 500). Third person. Starts with "Use when...". Lists triggering conditions, symptoms, and contexts. **NEVER summarize the skill's process or workflow in the description**. An agent can follow the summary instead of reading the skill body
+- `description`: 1-1024 characters (keep under 500). Third person. Starts with "Use when...". Lists triggering conditions, symptoms, and contexts. **NEVER summarize the process or workflow of the skill in the description**. An agent can follow the summary instead of reading the skill body.
 
 **Body:**
 
@@ -91,7 +91,8 @@ What goes wrong + the correct action.
 
 The description answers only one question: "Does this skill apply now?"
 
-- Start with "Use when..." and list concrete triggers, symptoms, situations
+- Start with "Use when...".
+- List concrete triggers, symptoms, and situations.
 - Describe the problem (race conditions, flaky tests), not language-specific symptoms. If the skill is technology-specific, say so explicitly.
 - Third person
 - Never summarize the process or workflow
@@ -158,9 +159,9 @@ Write decisions as pseudocode IF/ELSE blocks. Keep one representation per proced
 
 Write rules as unambiguous procedure:
 
-- State the rule, its boundaries, and its exceptions explicitly
-- Give decision rules for edge cases ("test passes immediately → you're testing existing behavior; fix the test"), not justifications
-- For discipline-enforcing skills (TDD, verification): close known workarounds explicitly ("delete means delete: don't keep it as reference, don't adapt it"). State that violating the letter of the rule violates its spirit. Provide a red-flags list the agent can self-check against. For the tone and announcement mechanics of discipline skills, see `persuasion-principles.md`.
+- State the rule, its boundaries, and its exceptions explicitly.
+- Give decision rules for edge cases ("test passes immediately → you're testing existing behavior; fix the test"), not justifications.
+- For discipline-enforcing skills (TDD, verification): close known workarounds explicitly ("delete means delete: don't keep it as reference, don't adapt it"). State that violating the letter of the rule violates its spirit. Provide a red-flags list that the agent can self-check against. For the tone and announcement mechanics of discipline skills, see `persuasion-principles.md`.
 - Do not explain why a rule exists, what research supports it, or what goes wrong philosophically. The agent follows the skill instead of debating it.
 
 ## Testing Skills
@@ -171,13 +172,13 @@ The Iron Law (applies to new skills AND edits):
 NO SKILL WITHOUT A FAILING TEST FIRST
 ```
 
-If you wrote or edited a skill without testing, delete the change and start over.
+If you wrote or edited a skill without testing, delete the change. Then start over.
 
 **Test cycle** (methodology: `testing-skills-with-subagents.md`):
 
-1. **RED** — Run a pressure scenario with an isolated subagent WITHOUT the skill text. Record the exact behavior and rationalizations verbatim.
-2. **GREEN** — Write the minimal skill addressing those specific failures. Run the same scenarios WITH the skill text included in the dispatch. Check that the agent now complies.
-3. **REFACTOR** — Plug each new loophole the agent finds. Re-check until bulletproof.
+1. **RED**: Run a pressure scenario with an isolated subagent WITHOUT the skill text. Record the exact behavior and rationalizations verbatim.
+2. **GREEN**: Write the minimal skill that addresses those specific failures. Run the same scenarios WITH the skill text included in the dispatch. Check that the agent now complies.
+3. **REFACTOR**: Plug each new loophole that the agent finds. Re-check until bulletproof.
 
 **Test approach by skill type:**
 
@@ -190,7 +191,7 @@ If you wrote or edited a skill without testing, delete the change and start over
 
 ## Deployment Checklist
 
-Before moving to the next skill, complete this checklist for EACH skill. Deploying an untested skill is deploying untested code.
+Before you move to the next skill, complete this checklist for EACH skill. Deploying an untested skill is deploying untested code.
 
 **RED:**
 - [ ] Create pressure scenarios (3+ combined pressures for discipline skills)
@@ -214,8 +215,8 @@ Before moving to the next skill, complete this checklist for EACH skill. Deployi
 
 ## Anti-Patterns
 
-- **Narrative examples** ("In session 2025-10-03, we found...") — not reusable. State the rule instead.
-- **Multi-language example files** — mediocre quality, maintenance burden. Use one excellent example.
-- **Dot graphs and rendered diagrams** — use a pseudocode decision block instead. Keep one representation per procedure.
-- **Generic labels** (helper1, step3) — labels carry semantic meaning
-- **Rationale sections** ("Why this matters", "The psychology of...") — delete them. Procedure only.
+- **Narrative examples** ("In session 2025-10-03, we found..."): not reusable. State the rule instead.
+- **Multi-language example files**: mediocre quality, maintenance burden. Use one excellent example.
+- **Dot graphs and rendered diagrams**: use a pseudocode decision block instead. Keep one representation per procedure.
+- **Generic labels** (helper1, step3): labels carry semantic meaning.
+- **Rationale sections** ("Why this matters", "The psychology of..."): delete them. Procedure only.

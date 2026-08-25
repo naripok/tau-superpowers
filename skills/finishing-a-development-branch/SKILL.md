@@ -5,7 +5,7 @@ description: Use when implementation is complete, all tests pass, and you need t
 
 # Finishing a Development Branch
 
-Check tests, sync living specs onto the branch, then merge locally or open a PR.
+Check the tests. Sync the living specs onto the branch. Then merge locally or open a PR.
 
 **Announce at start:** "Using finishing-a-development-branch to complete this work."
 
@@ -13,7 +13,7 @@ Check tests, sync living specs onto the branch, then merge locally or open a PR.
 
 ### Step 1: Check Tests
 
-Run the project's full test suite, fresh:
+Run the full test suite of the project, fresh:
 
 ```bash
 npm test / cargo test / pytest / go test ./...
@@ -114,7 +114,7 @@ EOF
 )"
 ```
 
-Until the PR is merged, keep the branch and worktree.
+Until the PR is merged, keep the branch and the worktree.
 
 ## Red Flags
 
@@ -133,8 +133,8 @@ Until the PR is merged, keep the branch and worktree.
 ## Integration
 
 **Called by:**
-- **subagent-driven-development** — after the final review passes
-- **executing-plans** — after all tasks complete
+- **subagent-driven-development**: after the final review passes
+- **executing-plans**: after all tasks complete
 
 **Pairs with:**
-- **using-git-worktrees** — removes the worktree that skill created
+- **using-git-worktrees**: removes the worktree that skill created

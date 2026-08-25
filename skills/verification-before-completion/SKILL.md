@@ -11,21 +11,21 @@ description: Use when about to claim work is complete, fixed, or passing, before
 NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE
 ```
 
-If you have not run the verification command in this message, you cannot claim it passes. Violating the letter of this rule is violating its spirit.
+If you have not run the verification command in this message, you cannot claim it passes. To violate the letter of this rule is to violate its spirit.
 
 ## The Gate
 
-Before claiming any status or expressing satisfaction:
+Before you claim any status or express satisfaction:
 
 1. **IDENTIFY:** What command proves this claim?
-2. **RUN:** Execute the full command — fresh, complete
-3. **READ:** Full output, exit code, failure count
+2. **RUN:** Run the full command fresh and complete
+3. **READ:** Read the full output, the exit code, and the failure count
 4. **CHECK:** Does the output match the claim?
    - No → state the actual status, with evidence
    - Yes → state the claim, with the evidence
-5. Only then make the claim
+5. Make the claim only then
 
-Skipping any step is lying, not checking.
+To skip a step is to lie, not to check.
 
 ## Claims and Required Evidence
 
@@ -44,9 +44,9 @@ Skipping any step is lying, not checking.
 - Using "should", "probably", "seems to"
 - Expressing satisfaction before verification ("Great!", "Perfect!", "Done!")
 - About to commit/push/PR without verification
-- Trusting an agent's success report without checking the diff
+- Trusting a success report from an agent without checking the diff
 - Relying on partial verification
-- Any wording implying success without having run verification
+- Any wording that implies success without running verification
 
 ## Patterns
 
@@ -90,6 +90,6 @@ Skipping any step is lying, not checking.
 Always, before:
 
 - Any success/completion claim, expression of satisfaction, or positive statement about work state
-- Committing, PR creation, marking a task complete
+- Committing, PR creation, task completion
 - Moving to the next task
-- Accepting a delegated agent's result
+- Accepting a result from a delegated agent

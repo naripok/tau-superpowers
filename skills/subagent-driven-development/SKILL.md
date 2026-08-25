@@ -35,24 +35,24 @@ ELSE (1-2 trivial tasks):
 2. Per task:
    a. Dispatch the implementer (`./implementer-prompt.md`)
    b. Handle the reported status (below)
-   c. Check the implementer's report: tests ran and pass, work committed, self-review done
-   d. Dispatch the implementation reviewer (`./implementation-reviewer-prompt.md`). Give it the full feature-spec text, the task text, and the implementer's report. Also give it every relevant file path, the diff, and the verification output
-   e. The reviewer reports on two dimensions — **Spec Compliance** and **Code Quality**. Evaluate the findings before acting on them (see receiving-code-review). Drop findings that demand work beyond the task's contract. If either dimension has findings, re-dispatch the implementer with the original task, current state, and the findings. Then re-dispatch the reviewer with updated evidence. Repeat until both pass
+   c. Check the implementer report: tests ran and pass, work committed, self-review done
+   d. Dispatch the implementation reviewer (`./implementation-reviewer-prompt.md`). Give it the full feature-spec text, the task text, and the implementer report. Also give it every relevant file path, the diff, and the verification output
+   e. The reviewer reports on two dimensions: **Spec Compliance** and **Code Quality**. Evaluate the findings before you act on them (see receiving-code-review). Drop findings that demand work beyond the task contract. If either dimension has findings, re-dispatch the implementer with the original task, current state, and the findings. Then re-dispatch the reviewer with updated evidence. Repeat until both pass
    f. Mark the task complete
-3. After the last task: dispatch the implementation reviewer over the entire change. The final review checks the FULL feature spec. Per-task reviews only check their own task
+3. After the last task: dispatch the implementation reviewer over the entire change. The final review checks the FULL feature spec. Per-task reviews check only their own task
 4. Invoke finishing-a-development-branch
 
 ## Handling Implementer Status
 
 **DONE:** Proceed to review.
 
-**DONE_WITH_CONCERNS:** Read the concerns. If they affect correctness or scope, resolve them before review. If they are observations, note them and proceed.
+**DONE_WITH_CONCERNS:** Read the concerns. If they affect correctness or scope, resolve them before review. If they are observations, note them. Then proceed.
 
-**NEEDS_CONTEXT:** Supply the missing information in a new complete prompt and re-dispatch.
+**NEEDS_CONTEXT:** Re-dispatch with the missing information in a new complete prompt.
 
-**BLOCKED:** Assess the blocker. If context is missing, add it and re-dispatch. If the task is oversized, split it. If the plan itself is wrong, escalate to the user.
+**BLOCKED:** Assess the blocker. If context is missing, add it. Then re-dispatch. If the task is oversized, split it. If the plan itself is wrong, escalate to the user.
 
-Never re-dispatch a stuck implementer with no changes — a plain restart is not a fix.
+Never re-dispatch a stuck implementer with no changes, because a plain restart is not a fix.
 
 ## Review Inputs
 
@@ -63,12 +63,12 @@ Never re-dispatch a stuck implementer with no changes — a plain restart is not
 | **Task text** | What this task was asked to do |
 | **Implementer report + file paths + diff + verification output** | Evidence |
 
-**Per-task scope:** a single spec requirement can span several tasks. The per-task reviewer checks "did this task implement what was asked", not "is the full requirement satisfied". The final review checks full-spec compliance.
+**Per-task scope:** A single spec requirement can span several tasks. The per-task reviewer checks "did this task implement what was asked", not "is the full requirement satisfied". The final review checks full-spec compliance.
 
-**Spec discrepancies:** if the reviewer reports a mismatch between code and feature spec, decide:
+**Spec discrepancies:** If the reviewer reports a mismatch between code and feature spec, decide:
 
-- (a) Fix the code — the spec is correct, the implementation is wrong
-- (b) Update the feature spec — the implementation is correct, the spec was incomplete or wrong. After a spec update, re-check that every requirement still has a task with tests, then re-review
+- (a) Fix the code: the spec is correct but the implementation is wrong
+- (b) Update the feature spec: the implementation is correct but the spec was incomplete or wrong. After a spec update, re-check that every requirement still has a task with tests. Then re-review
 
 ## Example Task Cycle
 
@@ -96,20 +96,20 @@ Reviewer: Verdict Approved; both dimensions clean
 ## Red Flags
 
 **Never:**
-- Implement on the default branch — work happens on the branch/worktree created during brainstorming
+- Implement on the default branch: work happens on the branch/worktree created during brainstorming
 - Dispatch implementers in parallel (they share the working tree)
-- Make a subagent read the plan file — provide the full task text instead
+- Make a subagent read the plan file. Provide the full task text instead
 - Skip the per-task review or the final review
 - Proceed while either review dimension has open findings
 - Start the next task before both dimensions pass
 - Re-dispatch a stuck implementer unchanged
-- Fix a failed task yourself — dispatch a fix subagent with specific instructions
+- Fix a failed task yourself. Instead, dispatch a fix subagent with specific instructions
 - Accept "close enough" on spec compliance
 
 ## Integration
 
-- **using-git-worktrees** — the workspace, created during brainstorming
-- **writing-plans** — creates the plan this skill executes
-- **test-driven-development** — the implementer prompt embeds its discipline. Subagents cannot invoke skills, so the prompts carry the required behavior
-- **requesting-code-review** — ad-hoc reviews outside the plan workflow
-- **finishing-a-development-branch** — after the final review passes
+- **using-git-worktrees**: the workspace, created during brainstorming
+- **writing-plans**: creates the plan this skill executes
+- **test-driven-development**: the implementer prompt embeds its discipline. Subagents cannot invoke skills, so the prompts carry the required behavior
+- **requesting-code-review**: ad-hoc reviews outside the plan workflow
+- **finishing-a-development-branch**: after the final review passes

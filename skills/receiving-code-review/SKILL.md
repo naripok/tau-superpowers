@@ -29,7 +29,7 @@ WHEN receiving code review feedback:
 **NEVER:**
 - "You're absolutely right!"
 - "Great point!" / "Excellent feedback!" (performative)
-- "Thanks for [anything]" — no gratitude
+- "Thanks for [anything]" (no gratitude)
 - "Let me implement that now" (before verification)
 
 **INSTEAD:**
@@ -114,7 +114,7 @@ Push back when:
 - The suggestion violates YAGNI (unused feature)
 - The suggestion is technically incorrect for this stack
 - Legacy/compatibility reasons exist
-- The suggestion conflicts with your human partner's architectural decisions
+- The suggestion conflicts with the architectural decisions of your human partner
 
 **How to push back:**
 - Use technical reasoning, not defensiveness
@@ -145,7 +145,7 @@ If you pushed back and were wrong:
 ❌ Over-explaining
 ```
 
-State the correction factually and move on.
+State the correction factually. Then continue.
 
 ## Common Mistakes
 
@@ -169,7 +169,7 @@ Reviewer: "Remove legacy code"
 
 ## GitHub Thread Replies
 
-When replying to inline review comments on GitHub, reply in the comment thread (`gh api repos/{owner}/{repo}/pulls/{pr}/comments/{id}/replies`), not as a top-level PR comment.
+When you reply to an inline review comment on GitHub, reply in the comment thread: `gh api repos/{owner}/{repo}/pulls/{pr}/comments/{id}/replies`. Do not write a top-level PR comment.
 
 ## The Bottom Line
 

@@ -49,10 +49,10 @@ if [ -f go.mod ]; then go mod download; fi
 
 ### 3. Check a Clean Baseline
 
-Run the project's test suite (`npm test` / `cargo test` / `pytest` / `go test ./...`).
+Run the test suite of the project (`npm test` / `cargo test` / `pytest` / `go test ./...`).
 
-- **Tests fail:** report the failures. Ask whether to proceed or investigate
-- **Tests pass:** report ready
+- **Tests fail:** report the failures. Ask whether to proceed or investigate.
+- **Tests pass:** report ready.
 
 ### 4. Report Location
 
@@ -65,11 +65,11 @@ Ready to implement <feature-name>
 ## Red Flags
 
 **Never:**
-- Create a worktree without checking that git ignores `.worktrees/`
+- Create a worktree before you check that git ignores `.worktrees/`
 - Skip the baseline test check
-- Proceed with failing tests without asking
+- Proceed with failing tests before you ask
 - Place worktrees anywhere other than `<project_root>/.worktrees/`
-- If the workflow already created a worktree, create a second one — check first with `git worktree list`
+- If a worktree already exists, create a second one. Check first with `git worktree list`.
 
 **Always:**
 - Before you create a worktree, check that git ignores the directory
@@ -79,8 +79,8 @@ Ready to implement <feature-name>
 ## Integration
 
 **Called by:**
-- **brainstorming** — after design approval, before writing any artifact. Commit all artifacts and code to this branch
-- **executing-plans** / **subagent-driven-development** — check that execution happens inside the existing worktree. Do not create a second one
+- **brainstorming**: after design approval, before writing any artifact. Commit all artifacts and code to this branch.
+- **executing-plans** / **subagent-driven-development**: check that execution happens inside the existing worktree. Do not create a second one.
 
 **Pairs with:**
-- **finishing-a-development-branch** — removes the worktree after a local merge
+- **finishing-a-development-branch**: removes the worktree after a local merge.

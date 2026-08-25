@@ -15,18 +15,18 @@ Turn ideas into an approved proposal and behavioral feature spec through collabo
 
 Copy this checklist into your working notes. Mark each item as you complete it. Complete the items in order:
 
-- [ ] **Read living specs** — check `docs/specs/` for relevant domain specs. They describe current system behavior. If no spec exists for the domain, the feature spec will define its initial requirements
-- [ ] **Explore project context** — files, docs, recent commits
-- [ ] **Ask clarifying questions** — purpose, constraints, success criteria. Assess scope first. If the request spans multiple independent subsystems, help the user decompose it into sub-projects. Each sub-project gets its own brainstorm, spec, plan, and implementation cycle. Batch independent questions in one message. Prefer multiple-choice
-- [ ] **Propose 2-3 approaches** — with trade-offs and your recommendation. Lead with your recommendation
-- [ ] **Present the complete design** — get user approval. One message, scaled to complexity. Cover: architecture, components, data flow, error handling, testing. Get a single approval for the whole design. If anything does not make sense, go back and clarify it
-- [ ] **Set up the worktree** — invoke using-git-worktrees. Commit all artifacts and code to this branch, never to the default branch
-- [ ] **Write the proposal** — `docs/design/YYYY-MM-DD-<topic>-proposal.md`
-- [ ] **Write the feature spec** — `docs/design/YYYY-MM-DD-<topic>-spec.md`
-- [ ] **Dispatch the spec reviewer** — use `spec-document-reviewer-prompt.md`. Loop until the reviewer approves
-- [ ] **User reviews proposal + spec** — if the user requests changes: fix them. Re-run the spec reviewer. Re-present
+- [ ] **Read living specs**: Check `docs/specs/` for relevant domain specs. They describe current system behavior. If no spec exists for the domain, the feature spec will define its initial requirements.
+- [ ] **Explore project context**: files, docs, recent commits
+- [ ] **Ask clarifying questions**: purpose, constraints, success criteria. Assess scope first. If the request spans multiple independent subsystems, help the user decompose it into sub-projects. Each sub-project gets its own brainstorm, spec, plan, and implementation cycle. Batch independent questions in one message. Prefer multiple-choice
+- [ ] **Propose 2-3 approaches**: with trade-offs and your recommendation. Lead with your recommendation
+- [ ] **Present the complete design**: Get user approval. One message, scaled to complexity. Cover: architecture, components, data flow, error handling, testing. Get a single approval for the whole design. If anything does not make sense, clarify it again with the user
+- [ ] **Set up the worktree**: Invoke using-git-worktrees. Commit all artifacts and code to this branch, never to the default branch
+- [ ] **Write the proposal**: `docs/design/YYYY-MM-DD-<topic>-proposal.md`
+- [ ] **Write the feature spec**: `docs/design/YYYY-MM-DD-<topic>-spec.md`
+- [ ] **Dispatch the spec reviewer**: Use `spec-document-reviewer-prompt.md`. Loop until the reviewer approves
+- [ ] **User reviews proposal + spec**: If the user requests changes, fix them. Re-run the spec reviewer. Re-present both artifacts
 - [ ] **Commit the artifacts to the branch**
-- [ ] **Invoke writing-plans** — the only skill that comes next
+- [ ] **Invoke writing-plans**: the only skill that comes next
 
 ## Design Rules
 
@@ -46,7 +46,7 @@ Write both artifacts per the writing-developer-facing-text skill, pragmatic mode
 
 ### Proposal
 
-Captures **why** and **what scope**. Save to `docs/design/YYYY-MM-DD-<topic>-proposal.md`.
+The proposal captures **why** and **what scope**. Save to `docs/design/YYYY-MM-DD-<topic>-proposal.md`.
 
 ```markdown
 # Proposal: <Topic>
@@ -105,9 +105,9 @@ The system SHALL <behavioral description>.
 (Brief explanation of why.)
 ```
 
-**If modifying an existing domain** (living spec exists): write ADDED/MODIFIED/REMOVED sections relative to the current living spec.
+**If modifying an existing domain** (living spec exists): Write ADDED/MODIFIED/REMOVED sections relative to the current living spec.
 
-**If creating a new domain** (no living spec exists): everything is ADDED.
+**If creating a new domain** (no living spec exists): Everything is ADDED.
 
 **If the change has no behavioral impact** (refactoring, internal restructure):
 
@@ -125,7 +125,7 @@ No requirements added, modified, or removed.
 - Every requirement MUST use RFC 2119 keywords (SHALL, MUST, SHOULD)
 - Every requirement MUST have at least one scenario with GIVEN/WHEN/THEN
 - Scenarios MUST be testable. If you cannot write a test for a scenario, it is not a behavioral requirement
-- Requirements describe WHAT the system does, not HOW — no class names, library choices, or file paths (those belong in the proposal's Approach section)
+- Requirements describe WHAT the system does, not HOW: no class names, library choices, or file paths. Those belong in the Approach section of the proposal
 - Requirement names must be descriptive and under 50 characters
 - Use one `## Domain:` section per affected domain
 
@@ -133,8 +133,8 @@ No requirements added, modified, or removed.
 
 Dispatch a `document-review` subagent using `spec-document-reviewer-prompt.md`.
 
-- **Issues found:** fix the spec. Re-dispatch the reviewer. Loop until the reviewer approves
-- **Fundamental issues:** the spec is architecture instead of behavior, or the approach is wrong at the behavioral level. Present the findings to the user. Ask whether to revise the approach. Do not silently rewrite the spec
+- **Issues found:** Fix the spec. Re-dispatch the reviewer. Loop until the reviewer approves
+- **Fundamental issues:** The spec is architecture instead of behavior, or the approach is wrong at the behavioral level. Present the findings to the user. Ask whether to revise the approach. Do not silently rewrite the spec
 - Until the reviewer approves, do NOT proceed to the user gate
 
 ### User Gate
@@ -152,4 +152,4 @@ git commit -m "docs: proposal and feature spec for <topic>"
 
 ### Transition
 
-Invoke the writing-plans skill. Do NOT invoke any other skill — writing-plans is the only next step.
+Invoke the writing-plans skill. Do NOT invoke any other skill: writing-plans is the only next step.

@@ -38,7 +38,7 @@ Use for ANY technical issue:
 - A previous fix did not work
 - You do not fully understand the issue
 
-Do not skip it for simple bugs, hurry, or pressure — systematic is faster than thrashing.
+Do not skip it for simple bugs, hurry, or pressure. Systematic debugging is faster than thrashing.
 
 ## The Four Phases
 
@@ -220,7 +220,7 @@ If you catch yourself thinking any of these, STOP and take the action:
 | "It's probably X, let me fix that" / "I see the problem, let me fix it" | Seeing symptoms ≠ understanding the root cause. Investigate first. |
 | "I don't fully understand but this might work" | You do not know. Say so. Research more. |
 | "Here are the main problems: [fixes]" / proposing solutions before tracing data flow | That is a symptom list, not an investigation. Trace the data first. |
-| "Add multiple changes, run tests" / "Multiple fixes at once saves time" | ONE change at a time — you cannot isolate what worked. |
+| "Add multiple changes, run tests" / "Multiple fixes at once saves time" | ONE change at a time, because you cannot isolate what worked. |
 | "Skip the test, I'll manually verify" / "I'll write the test after the fix works" | Test first. A test written first proves the fix. |
 | "Pattern says X but I'll adapt it differently" / "Reference too long, I'll adapt" | Read the reference completely. Partial understanding guarantees bugs. |
 | "Issue is simple, don't need process" | Simple issues have root causes too. The process is fast for simple bugs. |

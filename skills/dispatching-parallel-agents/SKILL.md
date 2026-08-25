@@ -7,7 +7,7 @@ description: Use when facing 2+ independent substantive tasks with no shared sta
 
 ## Overview
 
-You delegate tasks to specialized agents with isolated context. Craft their instructions and context precisely, so that they stay focused and succeed at their task. They must never inherit your session's context or history — you construct exactly what they need.
+You delegate tasks to specialized agents with isolated context. Craft their instructions and context precisely. Then the agents stay focused and succeed at their task. They must never inherit the context or history of your session. You must construct exactly what they need.
 
 **Core principle:** Dispatch one agent per independent problem domain. Let them work concurrently.
 
@@ -22,11 +22,11 @@ See the [Tau `task` tool reference](../using-superpowers/references/tau-tools.md
 - No shared state between investigations
 
 **Do not use when:**
-- Failures are related — fixing one can fix the others
+- Failures are related, so fixing one can fix the others
 - Understanding requires seeing the entire system
 - Agents can interfere with each other (same files, same resources)
-- Exploratory debugging — you do not know what is broken yet
-- Simple operations, or work completable in 1-2 tool calls — do it yourself (see using-superpowers)
+- Exploratory debugging where you do not know what is broken yet
+- Simple operations, or work completable in 1-2 tool calls: you must do this work yourself (see using-superpowers)
 
 ## The Pattern
 
@@ -37,7 +37,7 @@ Group failures by what is broken:
 - File B tests: Batch completion behavior
 - File C tests: Abort functionality
 
-Each domain is independent - fixing tool approval does not affect abort tests.
+Each domain is independent because fixing tool approval does not affect abort tests.
 
 ### 2. Create Focused Agent Tasks
 
@@ -45,7 +45,7 @@ Each agent gets one focused, self-contained prompt: specific scope, clear goal, 
 
 ### 3. Dispatch in Parallel
 
-Call the Tau `task` tool once, with all tasks in one `tasks` array (call schema: `../using-superpowers/references/tau-tools.md`). Children run concurrently — at most four at a time — and results keep input order:
+Call the Tau `task` tool once, with all tasks in one `tasks` array (call schema: `../using-superpowers/references/tau-tools.md`). Children run concurrently, at most four at a time. Results keep the input order:
 
 ```json
 {
@@ -73,15 +73,15 @@ When agents return:
 - Resolve `DONE_WITH_CONCERNS`, `BLOCKED`, and `NEEDS_CONTEXT` explicitly. If an agent needs more context, re-dispatch it with a complete prompt
 - Check that fixes do not conflict
 - Run the full test suite
-- Spot check the changes — agents can make systematic errors
+- Spot check the changes because agents can make systematic errors
 - Integrate all changes
 
 ## Agent Prompt Structure
 
 Good agent prompts are:
-1. **Focused** - One clear problem domain
-2. **Self-contained** - All context needed to understand the problem
-3. **Specific about output** - What the agent must return
+1. **Focused:** One clear problem domain
+2. **Self-contained:** All context needed to understand the problem
+3. **Specific about output:** What the agent must return
 
 ```markdown
 Fix the 3 failing tests in src/agents/agent-tool-abort.test.ts:
@@ -106,14 +106,14 @@ Return: Summary of what you found and what you fixed.
 
 ## Common Mistakes
 
-**❌ Too broad:** "Fix all the tests" - agent gets lost
-**✅ Specific:** "Fix agent-tool-abort.test.ts" - focused scope
+**❌ Too broad:** "Fix all the tests": the agent gets lost
+**✅ Specific:** "Fix agent-tool-abort.test.ts": focused scope
 
-**❌ No context:** "Fix the race condition" - the agent does not know where
+**❌ No context:** "Fix the race condition": the agent does not know where
 **✅ Context:** Paste the error messages and test names
 
 **❌ No constraints:** The agent can refactor everything
 **✅ Constraints:** "Do NOT change production code" or "Fix tests only"
 
-**❌ Vague output:** "Fix it" - you do not know what changed
+**❌ Vague output:** "Fix it": you do not know what changed
 **✅ Specific:** "Return summary of root cause and changes"

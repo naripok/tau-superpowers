@@ -36,19 +36,19 @@ git diff "$BASE_SHA".."$HEAD_SHA"
 
 **2. Choose the template:**
 
-- Plan-driven work (a feature spec exists): use `../subagent-driven-development/implementation-reviewer-prompt.md` — one pass covering spec compliance and code quality
-- Ad-hoc work (no feature spec): use `code-reviewer.md` in this directory — code quality against stated requirements
+- Plan-driven work (a feature spec exists): use `../subagent-driven-development/implementation-reviewer-prompt.md` for one pass that covers spec compliance and code quality
+- Ad-hoc work (no feature spec): use `code-reviewer.md` in this directory to check code quality against the stated requirements
 
-**3. Fill the template and dispatch** with the `task` tool — `agent: "code-review"`, `task: <filled prompt>` (call schema: `../using-superpowers/references/tau-tools.md`).
+**3. Fill the template and dispatch** with the `task` tool: `agent: "code-review"`, `task: <filled prompt>` (call schema: `../using-superpowers/references/tau-tools.md`).
 
-Embed the complete diff, verification output, and every relevant file path. The result content is the reviewer's complete final message: the strict `## Code Review` report (verdict + findings) ending in the status line.
+Embed the complete diff, verification output, and every relevant file path. The result content is the complete final message of the reviewer: the strict `## Code Review` report (verdict + findings) that ends in the status line.
 
 **4. Act on feedback:**
 
 - Fix Critical issues immediately
-- Before proceeding, fix Important issues
+- Before you proceed, fix Important issues
 - Note Minor issues for later
-- If the reviewer is wrong, push back with technical reasoning (see receiving-code-review)
+- If the reviewer is wrong, state your disagreement with technical reasoning (see receiving-code-review)
 - Reject findings that demand work beyond the stated requirements (see receiving-code-review)
 
 ## Red Flags
@@ -60,6 +60,6 @@ Embed the complete diff, verification output, and every relevant file path. The 
 
 ## Integration
 
-- **subagent-driven-development** — per-task and final reviews use the implementation reviewer template
-- **executing-plans** — checkpoint review after each batch of tasks
-- **Ad-hoc** — before merge, when stuck
+- **subagent-driven-development**: per-task and final reviews use the implementation reviewer template
+- **executing-plans**: checkpoint review after each batch of tasks
+- **Ad-hoc**: before a merge, when stuck

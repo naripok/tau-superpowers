@@ -5,7 +5,7 @@ description: Use when implementing new features or applications, or starting com
 
 **Subagents:** If a controller dispatched you as a subagent to execute a specific task, skip this skill.
 
-If a skill can apply to what you are doing, even at 1% probability, read its `SKILL.md` before you act. Then follow it. If the skill does not apply, discard it. Continue with your task.
+If a skill can apply to your task, even at 1% probability, read its `SKILL.md` before you act. Then follow it. If the skill does not apply, discard it. Continue with your task.
 
 ## Simple Operations — No Skill Needed
 
@@ -16,9 +16,9 @@ Do NOT invoke skills or dispatch subagents for operations that are fast and carr
 - Running a simple command (for example: ls, grep, find, git status)
 - Answering a question based on information you already have
 - Searching the codebase for a string or pattern
-- Inspecting test output or error logs
+- Inspecting test output or error logs.
 
-**Editing discipline:** make targeted edits rather than rewriting whole files to change a few lines. If an edit does not apply, fix the search text and retry — do not fall back to a full rewrite.
+**Editing discipline:** make targeted edits. Do not rewrite whole files to change a few lines. If an edit does not apply, fix the search text. Then retry the edit. Do not rewrite the full file instead.
 
 These are tool calls, not tasks. Dispatch subagents only for work that is:
 
@@ -31,17 +31,17 @@ Never dispatch a subagent and then do the same read or command yourself. The dis
 
 ## Instruction Priority
 
-1. **User's explicit instructions** (AGENTS.md, direct requests) — highest priority
-2. **Superpowers skills** — override default system behavior where they conflict
-3. **Default system prompt** — lowest priority
+1. **User's explicit instructions** (AGENTS.md, direct requests): highest priority.
+2. **Superpowers skills**: override default system behavior where they conflict.
+3. **Default system prompt**: lowest priority.
 
 ## Writing Standard
 
-Write all developer-facing text per the writing-developer-facing-text skill, pragmatic mode: documentation, specs, plans, docstrings, code comments, commit message bodies, error and log messages, and reports to the user. Short sentences. Imperative procedures, with the condition before the command. Banned modals: should, would, may, might, could. Use "check" as the only verb for verification. Identifiers, code, and quoted messages stay exact. Language tooling rules for doc comments override style rules. Read the writing-developer-facing-text SKILL.md before you write or rewrite a long document.
+Write all developer-facing text per the writing-developer-facing-text skill. Use pragmatic mode. This text includes documentation, specs, plans, docstrings, code comments, commit message bodies, error and log messages, and reports to the user. Short sentences. Imperative procedures, with the condition before the command. Banned modals: should, would, may, might, could. Use "check" as the only verb for verification. Identifiers, code, and quoted messages stay exact. Language tooling rules for doc comments override style rules. Read the writing-developer-facing-text SKILL.md before you write or rewrite a long document.
 
 ## How Skills Work
 
-Tau initially places only each skill's name, description, and path in the system prompt. Users can invoke a skill explicitly with `/skill:<name>`. Resolve supporting files relative to the skill directory.
+Tau initially places only the name, description, and path of each skill in the system prompt. Users can invoke a skill explicitly with `/skill:<name>`. Resolve supporting files relative to the skill directory.
 
 The `task` tool handles subagent dispatch (see [`references/tau-tools.md`](references/tau-tools.md)). A child does not inherit this conversation, so every delegated task must be self-contained.
 
@@ -67,10 +67,10 @@ ELSE:
 
 When multiple skills can apply:
 
-1. **Process skills first** (brainstorming, systematic-debugging) — they determine HOW to approach the task
-2. **Implementation skills second** (domain-specific) — they guide execution
+1. **Process skills first** (brainstorming, systematic-debugging): they determine HOW to approach the task.
+2. **Implementation skills second** (domain-specific): they guide execution.
 
 "Let's build X" → brainstorming first, then implementation skills.
 "Fix this bug" → systematic-debugging first, then domain-specific skills.
 
-**What counts as "already brainstormed":** brainstorming is complete when the proposal (`docs/design/YYYY-MM-DD-<topic>-proposal.md`) and the feature spec (`docs/design/YYYY-MM-DD-<topic>-spec.md`) both exist. A conversation about the idea is not brainstorming. If the artifacts do not exist, invoke brainstorming, even if you have already discussed the idea at length.
+**What counts as "already brainstormed":** brainstorming is complete when the proposal (`docs/design/YYYY-MM-DD-<topic>-proposal.md`) and the feature spec (`docs/design/YYYY-MM-DD-<topic>-spec.md`) both exist. A conversation about the idea is not brainstorming. If the artifacts do not exist, invoke brainstorming. Do this even if you already discussed the idea at length.

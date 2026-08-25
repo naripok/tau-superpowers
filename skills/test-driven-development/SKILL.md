@@ -13,19 +13,19 @@ NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST
 
 Write the test first. Watch it fail. Write minimal code to pass. If you wrote code before the test, delete it and start over. Do not keep it as a reference. Do not adapt it. Do not look at it. Violating the letter of this rule is violating its spirit.
 
-**When to use:** always — new features, bug fixes, refactoring, behavior changes.
+**When to use:** always: new features, bug fixes, refactoring, behavior changes.
 
-**Exceptions** (require your human partner's approval): throwaway prototypes, generated code, configuration files.
+**Exceptions** (require the approval of your human partner): throwaway prototypes, generated code, configuration files.
 
 ## The Cycle: Red-Green-Refactor
 
 ### RED — Write the Failing Test
 
-One minimal test that shows the expected behavior:
+Write one minimal test that shows the expected behavior:
 
-- One behavior per test
-- The name describes the behavior
-- Use real code. Mock only when unavoidable
+- Test one behavior per test
+- Describe the behavior in the test name
+- Use real code. When a mock is unavoidable, use a mock
 
 <Good>
 ```typescript
@@ -72,7 +72,7 @@ Check:
 - The failure message is the expected one
 - It fails because the behavior is missing, not because of typos
 
-**Test passes immediately?** You are testing existing behavior. Fix the test.
+**Test passes immediately?** You test existing behavior. Fix the test.
 
 **Test errors?** Fix the error. Re-run until it fails correctly.
 
