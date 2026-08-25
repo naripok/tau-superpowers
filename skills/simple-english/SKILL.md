@@ -18,23 +18,15 @@ Write for that tired reader. Each sentence must survive one read.
 
 When asked to write or rewrite technical text:
 
-1. **Select the mode** (pragmatic or strict — the table that follows).
-2. **Classify each passage** as procedural or descriptive. Every other rule depends on this.
-3. **Protect the source before drafting.** Record the information in each subject, action, object, modifier, explicit logical relationship, actor, and established technical name. A rewrite must preserve this information and its semantic role.
-4. **Correct your vocabulary before drafting.** In strict mode, the dictionary rejects check/verify/confirm/ensure as verbs. Replace them by intent: `make sure that` (verify a state), `examine` (look for faults), `measure` (get a value). In pragmatic mode, pick one and keep it. Pick ONE noun for config/settings (all are valid technical nouns — pick one and keep it). Use no other word for these concepts in the whole document.
-5. **Use the smallest sufficient repair.** Follow the least-change procedure that follows before you split a sentence.
-6. **Apply the rules** from the catalog that follows.
-7. **Do the self-check** before you deliver. This step is not optional.
-8. **Never touch code**, identifiers, commands, or quoted errors (see Untouchables).
+1. **Classify each passage** as procedural or descriptive. Every other rule depends on this.
+2. **Protect the source before drafting.** Record the information in each subject, action, object, modifier, explicit logical relationship, actor, and established technical name. A rewrite must preserve this information and its semantic role.
+3. **Correct your vocabulary before drafting.** The dictionary rejects check/verify/confirm/ensure as verbs. Pick one and keep it. Pick ONE noun for config/settings (all are valid technical nouns — pick one and keep it). Use no other word for these concepts in the whole document.
+4. **Use the smallest sufficient repair.** Follow the least-change procedure that follows before you split a sentence.
+5. **Apply the rules** from the catalog that follows.
+6. **Do the self-check** before you deliver. This step is not optional.
+7. **Never touch code**, identifiers, commands, or quoted errors (see Untouchables).
 
 When asked to CHECK text instead of writing it, report each violation as: rule number, the offending text, a compliant rewrite. Cite only rule numbers that exist in this file. Do not cite rule numbers from memory. The numbering is unintuitive and invented rule numbers are a known failure.
-
-## Two Modes
-
-| Mode | When | What you apply |
-|---|---|---|
-| **Pragmatic** (default) | Docs, READMEs, error messages — the user wants clear text | All structural rules. Domain words stay ("idempotent", "webhook"). |
-| **Strict** | The user names STE, ASD-STE100, or compliance | Structural rules + full vocabulary discipline, and tell the user that full compliance needs the official dictionary (free at asd-ste100.org). |
 
 ## Classify the Text
 
@@ -91,7 +83,7 @@ Do not shorten by removing a source component or changing its semantic role. For
 | 1.13 | Do not use technical verbs as nouns. |
 | 1.14 | Use American English spelling. |
 
-In pragmatic mode, rules 1.5, 1.8, and 1.12 do the heavy lifting: your domain vocabulary is legal. The ones agents break are 1.7, 1.11, and 1.13.
+Rules 1.5, 1.8, and 1.12 do the heavy lifting: your domain vocabulary is legal. The ones agents break are 1.7, 1.11, and 1.13.
 
 **Before:** You can webhook the event, then do a deploy.
 **After:** Send the event to the webhook. Then deploy the service.
@@ -217,7 +209,7 @@ GR-6 for software docs: "e.g." → "for example", "i.e." → "that is", and dele
 
 ## VOCABULARY DISCIPLINE
 
-The official dictionary (~900 approved words, ~1,200 banned words with alternatives) is copyrighted by ASD and is not reproduced here. Its mechanics apply without it: **one word, one meaning, one part of speech.** Issue 9 adds a quick-reference list of approved verbs in the dictionary introduction — in strict mode, check your verbs against the official standard.
+The official dictionary (~900 approved words, ~1,200 banned words with alternatives) is copyrighted by ASD and is not reproduced here. Its mechanics apply without it: **one word, one meaning, one part of speech.**
 
 Known part-of-speech rulings, useful as patterns:
 
@@ -245,19 +237,19 @@ Known part-of-speech rulings, useful as patterns:
 
 Collapse synonym rotations to one term each (Rules 1.11, 9.4). The two lists that follow work differently.
 
-**Technical nouns — not in the dictionary. Pick one and keep it consistent (both modes):**
+**Technical nouns — not in the dictionary. Pick one and keep it consistent:**
 
 - config / configuration / settings / options → pick one
 
-**Dictionary rulings — the standard has already chosen. Use the approved word (strict mode). Or pick one and keep it consistent (pragmatic mode):**
+**Dictionary rulings — the standard has already chosen. Pick one and keep it consistent:**
 
 | You wrote | Dictionary status | Use instead |
 |---|---|---|
-| check (verb) / verify / confirm / ensure | All rejected as verbs | Strict, by intent: `make sure that` (verify a state), `examine` (look for faults: "examine the log"), `measure` (get a value), or the noun: "do a check of". Pragmatic: pick one and keep it. |
+| check (verb) / verify / confirm / ensure | All rejected as verbs | Pick one and keep it. |
 | validate | Not in dictionary | Use as technical verb (Rule 1.12), or replace with `make sure that` |
-| delete / drop (verb) / destroy | All rejected as dictionary verbs | Strict: `erase` (data), `remove` (physical). In computer contexts `delete` is also a legal technical verb (Rule 1.12). Avoid `drop` and `destroy`. |
+| delete / drop (verb) / destroy | All rejected as dictionary verbs | In computer contexts `delete` is a legal technical verb (Rule 1.12). Avoid `drop` and `destroy`. |
 | remove | Approved verb | Keep it |
-| run / execute | Both rejected | `operate` for run, `do` for execute (strict); pick one (pragmatic) |
+| run / execute | Both rejected | Pick one and keep it. |
 | invoke / launch | Not in dictionary | Use as technical verbs (Rule 1.12) |
 | display (verb) / render / present (verb) | All rejected | `show` covers most software cases. Official alternatives: display → `show`, render → `make`, present → `give`, `show` |
 | issue | Not in dictionary | Use as technical noun, or replace with `problem` (approved) |
@@ -311,7 +303,7 @@ This step is not optional. Run these seven checks on your draft:
 3. Count words in your three longest sentences. Over the 20/25 limit → split them. This command is mandatory. Never return an over-limit sentence unchanged.
 4. Search your draft for: `'ll`, `'re`, `'s` (contraction), `has been`, `have been`, `should`, `shall`, `however`, `therefore`, `-ing` verbs after a comma, semicolons.
 5. Search for every `if` and `when`. Each one stands at the START of its sentence, before the command. "Increase the timeout if the network is slow" → "If the network is slow, increase the timeout."
-6. Search for the verbs you did NOT pick in Your Task step 4 (check, verify, confirm, ensure). STRICT MODE: route each hit by intent — `make sure that`, `examine`, or `measure`. Pragmatic mode: replace each hit with your chosen verb.
+6. Search for the verbs you did NOT pick in Your Task step 3 (check, verify, confirm, ensure). Replace each hit with your chosen verb.
 7. Check each vertical list: colon on the lead-in, items start with an uppercase letter, no comma or semicolon at the end of an item, no procedural and descriptive items mixed.
 
 Fix what you find, then deliver. For a full audit, run `references/checklist.md`.
@@ -340,5 +332,5 @@ No tool can guarantee STE compliance. If the user asks for a compliance claim, s
 
 ## References
 
-- `references/checklist.md` — full verification pass with searchable patterns, for check mode and final audits
+- `references/checklist.md` — full verification pass with searchable patterns, for CHECK requests and final audits
 - `references/use-cases.md` — long-form adaptations: error messages, runbooks, incident reports, commits, UI copy, i18n

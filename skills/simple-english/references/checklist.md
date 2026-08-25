@@ -46,7 +46,7 @@ Search the draft for each pattern. Every hit outside code blocks and quoted text
 13. **Completeness.** Articles present, "that" present after "make sure", no telegraph style (Rule 4.2).
 14. **Untouchables intact.** Code, identifiers, quoted errors, UI labels, and proper nouns are unchanged.
 
-## When reporting violations (check mode)
+## When reporting violations (CHECK requests)
 
 For each violation give: the rule number, the offending text, and a compliant rewrite. Cite only rule numbers that appear in SKILL.md.
 End the report with this statement when the user asked for STE compliance: "No tool can guarantee ASD-STE100 compliance. Final approval rests with the writer. The official standard is a free download at asd-ste100.org."
