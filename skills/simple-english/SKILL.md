@@ -36,7 +36,7 @@ When asked to CHECK text instead of writing it, report each violation as: rule n
 | **Pragmatic** (default) | Docs, READMEs, error messages — the user wants clear text | All structural rules. Domain words stay ("idempotent", "webhook"). |
 | **Strict** | The user names STE, ASD-STE100, or compliance | Structural rules + full vocabulary discipline, and tell the user that full compliance needs the official dictionary (free at asd-ste100.org). |
 
-## Step 1: Classify the Text
+## Classify the Text
 
 | | Procedural (instructions) | Descriptive (explanations) |
 |---|---|---|
@@ -64,9 +64,9 @@ Do not add a cause, intention, judgment, mechanism, degree of certainty, or tech
 
 Do not shorten by removing a source component or changing its semantic role. For example, "sends the update to each cluster" cannot become "updates each cluster." The first phrase acts on the update, but the second phrase acts on each cluster. If a faithful sentence remains over its limit, split it.
 
-**Before:** Heading rewrites frequently change the meaning by renaming named concepts, frameworks, and terms of art.
+**Before:** The tool removes the file by overwriting the data.
 
-**After:** Heading rewrites frequently rename named concepts, frameworks, and terms of art and thus change the meaning.
+**After:** The tool removes the file because it overwrites the data.
 
 ## THE RULE CATALOG
 
