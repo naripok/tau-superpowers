@@ -49,12 +49,12 @@ Do not mix the two in one passage. A "Getting started" section is procedural. An
 
 ## Least-Change Rewrite Procedure
 
-Use the smallest sufficient repair for each noncompliant sentence. Count the words before you repair it. Mark a procedural sentence with more than 20 words or a descriptive sentence with more than 25 words. Use this order and stop after the first repair that gives a clear, compliant sentence:
+Use the smallest sufficient repair for each noncompliant sentence. Count each word before you repair the sentence. Do not estimate the count. A multi-word technical noun counts as multiple words unless Rule 8.6 or 8.7 counts it as one. Mark a procedural sentence with 21 or more words or a descriptive sentence with 26 or more words. A 26-word descriptive sentence is over the limit. Do not return it unchanged. Use this order and stop after the first repair that gives a clear, compliant sentence:
 
 1. Replace only the noncompliant word or form. Do not change information in a compliant subject, action, object, modifier, or technical name.
 2. Convert a phrase to a finite clause in the same sentence. Use this repair for a prohibited `-ing` verb form when possible.
 3. Reorder the clauses without changing their relationships or semantic roles.
-4. **Mandatory split:** Split a marked sentence if it still exceeds its limit after the earlier repairs. Never return an over-limit sentence unchanged. Also split a sentence that contains more than one instruction, violates a safety rule, or is not clear. In all other cases, do not split.
+4. **Mandatory split:** Split a marked sentence if it still exceeds its limit after the earlier repairs. Never return an over-limit sentence unchanged. Also split a sentence that contains more than one instruction, combines a safety command with its risk, or is not clear. In all other cases, do not split.
 
 A cause, condition, method, purpose, contrast, or result is not a separate fact by itself. Keep it with the main assertion if the sentence stays compliant and clear.
 
@@ -66,7 +66,7 @@ Do not shorten by removing a source component or changing its semantic role. For
 
 **Before:** Heading rewrites frequently change the meaning by renaming named concepts, frameworks, and terms of art.
 
-**After:** Heading rewrites frequently change the meaning because they rename named concepts, frameworks, and terms of art.
+**After:** Heading rewrites frequently rename named concepts, frameworks, and terms of art and thus change the meaning.
 
 ## THE RULE CATALOG
 
