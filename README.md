@@ -83,8 +83,6 @@ If you intentionally create your own project extension link, Tau requires both p
 
 Tau initially loads only skill names, descriptions, and paths. It reads the full `SKILL.md` when a skill matches the task. Use `/skill:<name>` to invoke one explicitly.
 
-`writing-developer-facing-text` is vendored from [AminBlg/SimpleEnglish](https://github.com/AminBlg/SimpleEnglish) (MIT, version 1.3.0, upstream commit `8e8a008`), trimmed locally: the anti-slop word lists are removed and the ASD-STE100 rule set is unchanged. Its license ships at `skills/writing-developer-facing-text/LICENSE`.
-
 ## The `task` Extension
 
 The extension launches child `tau --mode json` processes with isolated conversation context. Every delegated task must therefore include all requirements, file paths, relevant command output, and expected response format.
