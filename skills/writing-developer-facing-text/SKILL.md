@@ -1,10 +1,10 @@
 ---
 name: writing-developer-facing-text
 description: |
-  Use when writing or rewriting developer-facing text — documentation,
+  Use when writing or rewriting developer-facing text: documentation,
   READMEs, runbooks, procedures, error messages, release notes, incident
-  reports, commit messages, agent prompts, UI copy — to make it clear,
-  short, and unambiguous. Also when the user says "make this readable"
+  reports, commit messages, agent prompts, UI copy. Use it to make the
+  text clear, short, and unambiguous. Also when the user says "make this readable"
   or "simplify this text", or asks for text that translates well.
 ---
 
@@ -57,7 +57,7 @@ Do not mix the two in one passage. A note inside a procedure is descriptive: 25-
 
 8. **Complete grammar.** No contractions. Do not omit words to shorten sentences: keep the articles, keep "that". Wrong: "Ensure file exists before running." Right: "Make sure that the file exists before you run the command."
 
-9. **No semicolons.** Write two sentences instead.
+9. **No semicolons or em dashes.** Both marks let a writer build long unreadable sentences. Write two sentences instead. If the second part explains or lists the first, use a colon (Rule 11).
 
 10. **Plain substitutes.** "However" becomes "but". "Therefore" becomes "as a result". "e.g." becomes "for example", "i.e." becomes "that is", and "etc." is deleted: name the items or write "and more". Delete filler words: "simply", "easily", "seamlessly", "robust".
 
@@ -88,7 +88,7 @@ This step is not optional. Run these eight checks on your draft:
 1. **Preservation (Rule 19).** Compare the draft with the source. Each source component keeps its information and semantic role. Restore each component that the repair did not have to change.
 2. **Splits (Rule 17, Rule 18).** Examine every split. If a finite clause or a reorder gives a clear sentence within the limits, remove the split. Each necessary split states every original logical relationship explicitly.
 3. **Word count (Rule 1, Rule 16).** Count the words in your three longest sentences. A sentence over its limit must be split (Rule 17). Never deliver an over-limit sentence unchanged.
-4. **Banned patterns (Rule 6, Rule 7, Rule 8, Rule 9, Rule 10).** Search the draft for `'ll`, `'re`, `'s`, `has been`, `have been`, `should`, `shall`, `however`, `therefore`, `e.g.`, `i.e.`, `etc.`, an `-ing` verb after a comma (`, making`), and `;`. Each hit outside code and quoted text is a violation.
+4. **Banned patterns (Rule 6, Rule 7, Rule 8, Rule 9, Rule 10).** Search the draft for `'ll`, `'re`, `'s`, `has been`, `have been`, `should`, `shall`, `however`, `therefore`, `e.g.`, `i.e.`, `etc.`, an `-ing` verb after a comma (`, making`), `;`, and `—`. Each hit outside code and quoted text is a violation.
 5. **Condition placement (Rule 3).** Search for every `if` and `when`. In an instruction, each stands at the start of its sentence, before the command.
 6. **Term consistency (Rule 13).** Search for the pick-family terms you did not choose: check, verify, confirm, ensure, "make sure that". Scan for config/settings and run/execute rotations. Replace each hit with your chosen term.
 7. **Lists (Rule 11).** Check each vertical list: colon on the lead-in, uppercase first letter on each item, a period only on a full-sentence item, no nested lists, no instructions mixed with facts.
@@ -100,15 +100,15 @@ Fix what you find, then deliver.
 
 The same rules apply wherever misreading has a cost. Each case names the passage type and the adaptation.
 
-- **Error messages and CLI output** — procedural. An error message is a 2 a.m. instruction to a stressed reader. State what happened in the simple past, state the cause if known, then give the command or condition to fix it: "Connection to the database failed. The password for user `app` was not correct. Set `DB_PASSWORD` and connect again."
-- **Runbooks** — procedural. One instruction per step, conditions first, warnings before the step (Rule 4). Enforce the 20-word limit hard: an operator under pager stress reads each sentence once.
-- **Incident reports and postmortems** — descriptive. Simple past only: a timeline in the present perfect hides when things happened. State what is known and write "unknown" for the rest. "We have identified an issue that may have impacted some users" becomes "Between 14:02 and 14:31 UTC, 12% of requests failed."
-- **Commit messages and PR descriptions** — imperative subject, descriptive body. Apply the substitutes (Rule 10) and the 25-word limit to the body. Delete "this PR aims to".
-- **Release notes** — descriptive. One entry, one change, one sentence where possible. Breaking changes follow the warning pattern (Rule 4): command first, then the risk.
-- **Agent prompts** — procedural. A prompt is a procedure for a reader that cannot ask questions. One instruction per sentence (Rule 2), one term per concept (Rule 13), conditions first (Rule 3), never "should" (Rule 7).
-- **Support macros and status pages** — descriptive, 25-word limit. Skip the apology formula and state the facts: "The API was down for 18 minutes. Uploads made during this time were saved and will process today."
-- **UI copy and empty states** — procedural, hard length limits. Buttons and labels are untouchable names (Rule 20). Body copy follows the rules: "No projects yet. Create a project to start."
-- **Translation and localization prep** — any passage type. One meaning per word plus complete grammar (Rule 8, Rule 13) removes most translation ambiguity. Localized docs get fewer errors at a lower cost.
+- **Error messages and CLI output**: procedural. An error message is a 2 a.m. instruction to a stressed reader. State what happened in the simple past, state the cause if known, then give the command or condition to fix it: "Connection to the database failed. The password for user `app` was not correct. Set `DB_PASSWORD` and connect again."
+- **Runbooks**: procedural. One instruction per step, conditions first, warnings before the step (Rule 4). Enforce the 20-word limit hard: an operator under pager stress reads each sentence once.
+- **Incident reports and postmortems**: descriptive. Simple past only: a timeline in the present perfect hides when things happened. State what is known and write "unknown" for the rest. "We have identified an issue that may have impacted some users" becomes "Between 14:02 and 14:31 UTC, 12% of requests failed."
+- **Commit messages and PR descriptions**: imperative subject, descriptive body. Apply the substitutes (Rule 10) and the 25-word limit to the body. Delete "this PR aims to".
+- **Release notes**: descriptive. One entry, one change, one sentence where possible. Breaking changes follow the warning pattern (Rule 4): command first, then the risk.
+- **Agent prompts**: procedural. A prompt is a procedure for a reader that cannot ask questions. One instruction per sentence (Rule 2), one term per concept (Rule 13), conditions first (Rule 3), never "should" (Rule 7).
+- **Support macros and status pages**: descriptive, 25-word limit. Skip the apology formula and state the facts: "The API was down for 18 minutes. Uploads made during this time were saved and will process today."
+- **UI copy and empty states**: procedural, hard length limits. Buttons and labels are untouchable names (Rule 20). Body copy follows the rules: "No projects yet. Create a project to start."
+- **Translation and localization prep**: any passage type. One meaning per word plus complete grammar (Rule 8, Rule 13) removes most translation ambiguity. Localized docs get fewer errors at a lower cost.
 
 ## Full Example
 
