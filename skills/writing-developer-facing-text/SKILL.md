@@ -1,5 +1,5 @@
 ---
-name: simple-english
+name: writing-developer-facing-text
 description: |
   Use when writing or rewriting developer-facing text — documentation,
   READMEs, runbooks, procedures, error messages, release notes, incident

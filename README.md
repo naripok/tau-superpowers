@@ -71,19 +71,19 @@ If you intentionally create your own project extension link, Tau requires both p
 | `finishing-a-development-branch` | Verify, sync living specs, and merge or open a PR |
 | `receiving-code-review` | Evaluate review feedback with technical verification |
 | `requesting-code-review` | Request focused review before completion |
-| `simple-english` | Write developer-facing text with ASD-STE100 Simplified Technical English rules |
 | `subagent-driven-development` | Execute plan tasks with fresh implementer and reviewer contexts, one two-dimension review per task |
 | `systematic-debugging` | Diagnose root causes before changing code |
 | `test-driven-development` | Apply red-green-refactor discipline |
 | `using-git-worktrees` | Isolate feature work in Git worktrees |
 | `using-superpowers` | Discover and apply the workflow skills |
 | `verification-before-completion` | Require fresh evidence before completion claims |
+| `writing-developer-facing-text` | Write developer-facing text with ASD-STE100 Simplified Technical English rules |
 | `writing-plans` | Turn a feature spec into contract-based implementation plans |
 | `writing-skills` | Author and test Tau Agent Skills |
 
 Tau initially loads only skill names, descriptions, and paths. It reads the full `SKILL.md` when a skill matches the task. Use `/skill:<name>` to invoke one explicitly.
 
-`simple-english` is vendored from [AminBlg/SimpleEnglish](https://github.com/AminBlg/SimpleEnglish) (MIT, version 1.3.0, upstream commit `8e8a008`), trimmed locally: the anti-slop word lists are removed and the ASD-STE100 rule set is unchanged. Its license ships at `skills/simple-english/LICENSE`.
+`writing-developer-facing-text` is vendored from [AminBlg/SimpleEnglish](https://github.com/AminBlg/SimpleEnglish) (MIT, version 1.3.0, upstream commit `8e8a008`), trimmed locally: the anti-slop word lists are removed and the ASD-STE100 rule set is unchanged. Its license ships at `skills/writing-developer-facing-text/LICENSE`.
 
 ## The `task` Extension
 

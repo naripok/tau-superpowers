@@ -33,7 +33,7 @@ Check the named document against the controller-provided requirements and contex
 - **Alignment:** the plan covers every ADDED/MODIFIED requirement in the feature spec, with no scope creep beyond it. Every task traces to a spec requirement.
 - **Decomposability:** plan tasks have clear boundaries and actionable steps, sized for one implementer working without mid-task conversation.
 - **Consistency and scope:** no internal contradictions. The document stays focused enough for a single implementation plan and contains nothing unrequested (YAGNI).
-- **Style:** the document follows simple-english (pragmatic mode) — short sentences, imperative procedures, no banned modals (should, would, may, might, could). RFC 2119 keywords (SHALL, MUST, SHOULD) in requirement statements stay legal.
+- **Style:** the document follows writing-developer-facing-text (pragmatic mode) — short sentences, imperative procedures, no banned modals (should, would, may, might, could). RFC 2119 keywords (SHALL, MUST, SHOULD) in requirement statements stay legal.
 
 Flag only issues that cause real problems at the next gate: a missing scenario, a contradictory requirement, an architecture detail masquerading as behavior, a spec requirement without a task. Do not demand requirements, scenarios, or tasks for cases that the proposal does not name. Approve documents that are fit for purpose.
 
