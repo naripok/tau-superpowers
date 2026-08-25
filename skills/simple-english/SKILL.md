@@ -6,11 +6,6 @@ description: |
   reports, API guides — with the rules of ASD-STE100 Simplified Technical
   English. Also when the user says "STE", "Simplified Technical English",
   "ASD-STE100", "make this readable", or asks for text that translates well.
-license: MIT
-compatibility: claude-code cursor codex gemini-cli opencode
-metadata:
-  version: "1.3.0"
-  standard: ASD-STE100 Issue 9 (2025-01-15)
 ---
 
 # Simple English: Write Like an Aerospace Manual
