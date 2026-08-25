@@ -82,11 +82,11 @@ Each trial asks for only the rewritten passage. Use pragmatic mode unless the sc
 
 **Check:** Run all commands in the Commands section. Run each isolated behavior scenario without the candidate skill and record the result verbatim. At least one baseline result must violate its named expectation before the skill changes. Run the same scenarios with the complete candidate skill and record the results verbatim. All candidate results must satisfy their named expectations.
 
-- [ ] Write the behavior scenarios in the test record. Run isolated baseline trials without the candidate skill. Record each result verbatim and check that at least one result fails for the expected reason.
-- [ ] Update the skill with the rewrite priority, repair order, Rule 6.1 boundary, split safeguards, consistent examples, and self-check additions.
-- [ ] Run the same isolated trials with the complete candidate skill. Record each result verbatim and check that all results satisfy their expectations.
-- [ ] Run `tests/test-install.sh`, the `rg` guidance check, `git diff --check`, and the final diff review.
-- [ ] Commit: `git add skills/simple-english/SKILL.md docs/skill-tests/2026-08-25-simple-english-minimal-rewrites.md && git commit -m "docs: prefer minimal simple-English rewrites"`
+- [x] Write the behavior scenarios in the test record. Run isolated baseline trials without the candidate skill. Record each result verbatim and check that at least one result fails for the expected reason.
+- [x] Update the skill with the rewrite priority, repair order, Rule 6.1 boundary, split safeguards, consistent examples, and self-check additions.
+- [x] Run the same isolated trials with the complete candidate skill. Record each result verbatim and check that all results satisfy their expectations.
+- [x] Run `tests/test-install.sh`, the `rg` guidance check, `git diff --check`, and the final diff review.
+- [x] Commit: `git add skills/simple-english/SKILL.md docs/skill-tests/2026-08-25-simple-english-minimal-rewrites.md && git commit -m "docs: prefer minimal simple-English rewrites"`
 
 ---
 
