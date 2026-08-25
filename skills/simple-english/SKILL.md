@@ -1,14 +1,11 @@
 ---
 name: simple-english
 description: |
-  Write or rewrite technical text with the rules of ASD-STE100 Simplified
-  Technical English so it is clear and unambiguous. Use for documentation,
+  Use when writing or rewriting developer-facing text — documentation,
   READMEs, runbooks, procedures, error messages, release notes, incident
-  reports, and API guides. Also use when the user says "STE", "Simplified
-  Technical English", "ASD-STE100", "make this readable", "write for
-  non-native readers", or asks for docs that translate well. Enforces the
-  standard's 53 rules: 20/25-word sentence limits, one word one meaning,
-  simple tenses, active voice, condition before command.
+  reports, API guides — with the rules of ASD-STE100 Simplified Technical
+  English. Also when the user says "STE", "Simplified Technical English",
+  "ASD-STE100", "make this readable", or asks for text that translates well.
 license: MIT
 compatibility: claude-code cursor codex gemini-cli opencode
 metadata:

@@ -1,6 +1,6 @@
 ---
 name: writing-skills
-description: Use when creating new skills, editing existing skills, or checking that skills work before deployment
+description: Use when creating or editing skills, or checking that skills work before deployment
 ---
 
 # Writing Skills

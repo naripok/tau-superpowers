@@ -1,6 +1,6 @@
 ---
 name: using-superpowers
-description: Use when implementing new features or applications, or starting complex multi-step tasks that can benefit from structured workflows like brainstorming, TDD, or debugging. NOT for simple questions or straightforward operations.
+description: Use when implementing new features or applications, or starting complex multi-step tasks that benefit from structured workflows (brainstorming, TDD, debugging). NOT for simple questions or straightforward operations.
 ---
 
 **Subagents:** If a controller dispatched you as a subagent to execute a specific task, skip this skill.
