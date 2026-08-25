@@ -45,7 +45,7 @@ Do not mix the two in one passage. A note inside a procedure is descriptive: 25-
 
 2. **One instruction per sentence**, unless two actions happen at the same time. A step can have a second sentence for an immediate result or limit. Descriptive text: one main assertion per sentence, one topic per paragraph, at most six sentences per paragraph.
 
-3. **Imperative, condition first.** Write instructions in the imperative. Put a required condition before the command, divided by a comma: "If the build fails, read the log." Every "if" and "when" stands at the start of its sentence.
+3. **Imperative, condition first.** Write instructions in the imperative. Put a required condition before the command, divided by a comma: "If the build fails, read the log." In an instruction, every "if" and "when" stands at the start of its sentence, before the command.
 
 4. **Warnings: command first, risk second.** Start with a clear command or condition, then give the risk. Use "CAUTION" for damage and "WARNING" for injury. "CAUTION: Do not use the `--force` flag against production. The flag deletes rows that do not match the source."
 
@@ -65,7 +65,7 @@ Do not mix the two in one passage. A note inside a procedure is descriptive: 25-
 
 12. **Articles.** Put an article ("the", "a", "an") or a demonstrative ("this", "these") before a noun where applicable. Exception: no article when an identifier follows the noun: "Restart pod web-7f9b2", not "Restart the pod web-7f9b2".
 
-13. **One concept, one term.** Pick one term and keep it for the whole document. Pick one of check, verify, confirm, ensure. Pick one of config, configuration, settings. Pick one of run, execute. Do not write "config" here and "settings" there.
+13. **One concept, one term.** Pick one term and keep it for the whole document. Pick one of check, verify, confirm, ensure, "make sure that". Pick one of config, configuration, settings. Pick one of run, execute. Do not write "config" here and "settings" there.
 
 14. **Domain vocabulary and substitutes.** The technical nouns and verbs of your project are legal ("webhook", "deploy", "compile"). No word list can reject them. "Validate" works as a technical verb, or write "make sure that". "Delete" is a legal technical verb in computer contexts: avoid "drop" and "destroy".
 
@@ -90,7 +90,7 @@ This step is not optional. Run these eight checks on your draft:
 3. **Word count (Rule 1, Rule 16).** Count the words in your three longest sentences. A sentence over its limit must be split (Rule 17). Never deliver an over-limit sentence unchanged.
 4. **Banned patterns (Rule 6, Rule 7, Rule 8, Rule 9, Rule 10).** Search the draft for `'ll`, `'re`, `'s`, `has been`, `have been`, `should`, `shall`, `however`, `therefore`, `e.g.`, `i.e.`, `etc.`, an `-ing` verb after a comma (`, making`), and `;`. Each hit outside code and quoted text is a violation.
 5. **Condition placement (Rule 3).** Search for every `if` and `when`. Each stands at the start of its sentence, before the command.
-6. **Term consistency (Rule 13).** Search for the verbs you did not pick: check, verify, confirm, ensure. Scan for config/settings and run/execute rotations. Replace each hit with your chosen term.
+6. **Term consistency (Rule 13).** Search for the pick-family terms you did not choose: check, verify, confirm, ensure, "make sure that". Scan for config/settings and run/execute rotations. Replace each hit with your chosen term.
 7. **Lists (Rule 11).** Check each vertical list: colon on the lead-in, uppercase first letter on each item, a period only on a full-sentence item, no nested lists, no instructions mixed with facts.
 8. **Untouchables (Rule 20).** Make sure that code, identifiers, quoted errors, UI labels, and numbers with units are unchanged.
 
@@ -106,7 +106,7 @@ The same rules apply wherever misreading has a cost. Each case names the passage
 - **Commit messages and PR descriptions** — imperative subject, descriptive body. Apply the substitutes (Rule 10) and the 25-word limit to the body. Delete "this PR aims to".
 - **Release notes** — descriptive. One entry, one change, one sentence where possible. Breaking changes follow the warning pattern (Rule 4): command first, then the risk.
 - **Agent prompts** — procedural. A prompt is a procedure for a reader that cannot ask questions. One instruction per sentence (Rule 2), one term per concept (Rule 13), conditions first (Rule 3), never "should" (Rule 7).
-- **Support macros and status pages** — descriptive. Skip the apology formula and state the facts: "The API was down for 18 minutes. Uploads made during this time were saved and will process today."
+- **Support macros and status pages** — descriptive, 25-word limit. Skip the apology formula and state the facts: "The API was down for 18 minutes. Uploads made during this time were saved and will process today."
 - **UI copy and empty states** — procedural, hard length limits. Buttons and labels are untouchable names (Rule 20). Body copy follows the rules: "No projects yet. Create a project to start."
 - **Translation and localization prep** — any passage type. One meaning per word plus complete grammar (Rule 8, Rule 13) removes most translation ambiguity. Localized docs get fewer errors at a lower cost.
 
@@ -116,7 +116,7 @@ Before:
 
 > **Connection timeouts.** If sqlpipe hangs or fails with `dial tcp: i/o timeout`, check that the host running sqlpipe can reach the Postgres port (usually 5432) — often a security group or firewall rule blocks it. If you're connecting to a managed database (RDS, Cloud SQL, etc.), confirm the instance allows connections from sqlpipe's IP. You can also try increasing `source.connect_timeout_seconds`, since a slow network can trip the default timeout.
 
-After (classified procedural, verb pick "make sure", conditions first, one instruction per sentence):
+After (classified procedural, verb pick "make sure that", conditions first, one instruction per sentence):
 
 > **Connection timeouts.** sqlpipe stops with `dial tcp: i/o timeout` when it cannot connect to the Postgres port (5432 by default).
 >
