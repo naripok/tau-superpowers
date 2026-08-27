@@ -67,15 +67,15 @@ Tau resolves a relative `cwd` from the parent Tau session's working directory. `
 
 ## Bundled Agent Profiles
 
-| Agent | Tau tool policy | Default provider/model/reasoning | Use for |
-|---|---|---|---|
-| `general-purpose` | Normal built-in coding tools | Parent session's active provider, model, and thinking effort | Implementation, scouting, exploration, and tasks requiring commands or edits |
-| `read-only` | Allows only `read` | Parent session's active provider, model, and thinking effort | Substantial multi-file investigation and review of named files |
-| `implementation` | Normal built-in coding tools | `openrouter:deepseek/deepseek-v4-flash-0731` at `high` | Implementation tasks, TDD, running verification |
-| `code-review` | `read` + read-only `bash` | `openrouter:deepseek/deepseek-v4-flash-0731` at `xhigh` | Code quality review, spec compliance review, final review |
-| `document-review` | `read` + read-only `bash` | `openrouter:deepseek/deepseek-v4-flash-0731` at `xhigh` | Feature-spec review and plan review at the design workflow gates |
+| Agent | Tau tool policy | Use for |
+|---|---|---|
+| `general-purpose` | Normal built-in coding tools | Implementation, scouting, exploration, and tasks requiring commands or edits |
+| `read-only` | Allows only `read` | Substantial multi-file investigation and review of named files |
+| `implementation` | Normal built-in coding tools | Implementation tasks, TDD, running verification |
+| `code-review` | `read` + read-only `bash` | Code quality review, spec compliance review, final review |
+| `document-review` | `read` + read-only `bash` | Feature-spec review and plan review at the design workflow gates |
 
-The three pinned cells are the bundled defaults. You can override them per agent through the subagent config file (`[agents.<name>]`). See Provider, Model, and Thinking Effort Selection below.
+You can override provider, model, and thinking level per agent through the subagent config file (`[agents.<name>]`). See Provider, Model, and Thinking Effort Selection below.
 
 Review-profile agents (`code-review`, `document-review`) can call `read` and `bash`. Their instructions restrict `bash` strictly to read-only operations. The allowed operations are `git diff`/`log`/`show`/`status`, `grep`/`rg`/`find` searches, and reading files with unknown exact paths. The instructions forbid changing repo or environment state. Forbidden actions include git writes, file creation or deletion, installs, test or build runs, and background processes.
 
@@ -85,7 +85,7 @@ The plain `read-only` agent remains stricter: it can call only `read`, no `bash`
 
 `code-review` returns a strict `## Code Review` report that ends in the status line. `document-review` returns a strict `## Document Review` report that ends in the status line. The child's complete final assistant message is the result content. Tau relays the full report verbatim, with no heading extraction.
 
-Agent definitions can pin `provider`, `model`, and `reasoningEffort` in their frontmatter. Unless a skill, the config file, or the user explicitly prescribes the override, **do not override pinned values**. The `implementation` definition pins `provider: "openrouter"`, `model: "deepseek/deepseek-v4-flash-0731"`, and `reasoningEffort: "high"`. The `code-review` and `document-review` definitions pin the same model at `reasoningEffort: "xhigh"`.
+Agent definitions can pin `provider`, `model`, and `reasoningEffort` in their frontmatter. Unless a skill, the config file, or the user explicitly prescribes the override, **do not override pinned values**.
 
 ## Custom Agents, Scope, and Approval
 
@@ -113,18 +113,13 @@ Per-field resolution, highest first:
 4. the subagent config file `[defaults]` section
 5. the parent session's active provider, model, and thinking level.
 
-The config file is `superpowers-subagent.toml` in `~/.tau/` or the nearest ancestor `<project>/.tau/` (project shadows user per key). A copy that encodes the current defaults ships at `extensions/superpowers-subagent/superpowers-subagent.example.toml`:
+The config file is `superpowers-subagent.toml` in `~/.tau/` or the nearest ancestor `<project>/.tau/` (project shadows user per key). An example file ships at `extensions/superpowers-subagent/superpowers-subagent.example.toml`:
 
 ```toml
 [defaults]
 # provider = "openai"
 # model = "gpt-5.6-sol"
 # reasoningEffort = "medium"   # off | minimal | low | medium | high | xhigh
-
-[agents.code-review]
-provider = "openrouter"
-model = "deepseek/deepseek-v4-flash-0731"
-reasoningEffort = "xhigh"
 ```
 
 Loaded config files and dropped-config diagnostics appear in `details.configPaths` and `details.configDiagnostics`. Tau also reports in those fields every section whose agent name matches no bundled, user, or project definition. As a result, a typo cannot silently no-op. Edits to the file apply to the next `task` call. You do not need to reload Tau.

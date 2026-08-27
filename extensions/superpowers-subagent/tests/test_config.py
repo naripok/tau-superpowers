@@ -231,12 +231,12 @@ def test_unreadable_config_file_is_skipped_with_diagnostic(tmp_path: Path) -> No
     assert any("Could not read subagent config" in message for message in config.diagnostics)
 
 
-def test_shipped_example_config_is_valid_and_encodes_current_defaults(
+def test_shipped_example_config_is_valid_and_contains_no_active_overrides(
     tmp_path: Path,
 ) -> None:
-    """Prove the shipped example config parses cleanly and pins the bundled
-    implementation and review agents to their current defaults, so copying it
-    into a dotfiles-managed `~/.tau` keeps dispatch behavior unchanged."""
+    """Prove the shipped example config parses cleanly and carries no active
+    overrides, so copying it into a dotfiles-managed `~/.tau` keeps dispatch
+    behavior unchanged."""
 
     example = Path(__file__).resolve().parents[1] / "superpowers-subagent.example.toml"
     assert example.is_file()
@@ -248,29 +248,4 @@ def test_shipped_example_config_is_valid_and_encodes_current_defaults(
 
     assert config.diagnostics == ()
     assert config.defaults == EMPTY_OVERRIDES
-    assert config.agents == (
-        (
-            "code-review",
-            AgentOverrides(
-                provider="openrouter",
-                model="z-ai/glm-5.3",
-                reasoning_effort="medium",
-            ),
-        ),
-        (
-            "document-review",
-            AgentOverrides(
-                provider="openrouter",
-                model="z-ai/glm-5.3",
-                reasoning_effort="medium",
-            ),
-        ),
-        (
-            "implementation",
-            AgentOverrides(
-                provider="openrouter",
-                model="deepseek/deepseek-v4-flash-0731",
-                reasoning_effort="xhigh",
-            ),
-        ),
-    )
+    assert config.agents == ()

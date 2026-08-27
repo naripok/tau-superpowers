@@ -78,7 +78,7 @@ The extension SHALL discover Markdown agent definitions in three increasing-prec
 
 Definitions SHALL contain scalar YAML frontmatter with non-empty string `name` and `description` values. They MAY contain `profile` (`general-purpose`, `read-only`, or `review`), `provider`, `model`, and `reasoningEffort` (one of `off`, `minimal`, `low`, `medium`, `high`, `xhigh`); profile SHALL default to `general-purpose`. Unknown metadata SHALL be ignored. Malformed, unreadable, incomplete, empty optional, unknown-profile, or unknown-reasoning-effort definitions SHALL be skipped with diagnostics that do not expose the body.
 
-The bundled definitions are `general-purpose`, `read-only`, `implementation` (general-purpose profile, `openrouter:deepseek/deepseek-v4-flash-0731`, `high`), `code-review` (review profile, `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh`, strict `## Code Review` report format ending in the status line), and `document-review` (review profile, `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh`, strict `## Document Review` report format ending in the status line). These frontmatter pins are the default layer only and are overridable by the subagent configuration file and call-level values described under the overrides requirement.
+The bundled definitions are `general-purpose`, `read-only`, `implementation` (general-purpose profile), `code-review` (review profile, strict `## Code Review` report format ending in the status line), and `document-review` (review profile, strict `## Document Review` report format ending in the status line). They set no frontmatter provider, model, or reasoning-effort values, so they fall through to the configuration file and parent-session values described under the overrides requirement.
 
 #### Scenario: Same-name override
 
@@ -185,7 +185,7 @@ The appended prompt SHALL preserve the selected agent body and state that the ch
 - THEN the agent provider is passed to `--provider`
 - AND the call model is passed to `--model`
 
-#### Scenario: Config shadows a bundled pin
+#### Scenario: Config shadows a definition pin
 
 - GIVEN the config file sets `[agents.<name>]` model and the agent definition pins provider and model
 - WHEN child argv is built
@@ -235,7 +235,7 @@ The appended prompt SHALL preserve the selected agent body and state that the ch
 
 A `superpowers-subagent.toml` file SHALL be optional and discovered in the same directories Tau reads its other durable configs from: the user Tau home (`~/.tau/`) and the nearest ancestor `<cwd>/.tau/` directory with a file, mirroring agent-definition discovery. The project file SHALL shadow the user file per key, so a partial project config overrides only the keys it sets.
 
-The file SHALL support a `[defaults]` table (provider, model, `reasoningEffort` fallbacks for every agent) and `[agents.<name>]` tables with the same keys. Values SHALL be non-empty strings; `reasoningEffort` SHALL be one of `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, normalized case-insensitively. An absent or empty file SHALL leave the parent-inheritance defaults intact, so installing the shipped example (which pins the bundled implementation and review agents to their current values) SHALL NOT change behavior. Unknown keys, wrong-typed tables, empty strings, and invalid thinking levels SHALL be dropped with a diagnostic. A section whose agent name matches no bundled, user, or project definition SHALL be reported as a config diagnostic rather than silently no-oping, so a typo in an `[agents.<name>]` heading cannot be mistaken for an applied override.
+The file SHALL support a `[defaults]` table (provider, model, `reasoningEffort` fallbacks for every agent) and `[agents.<name>]` tables with the same keys. Values SHALL be non-empty strings; `reasoningEffort` SHALL be one of `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, normalized case-insensitively. An absent or empty file SHALL leave the parent-inheritance defaults intact, so installing the shipped example SHALL NOT change behavior. Unknown keys, wrong-typed tables, empty strings, and invalid thinking levels SHALL be dropped with a diagnostic. A section whose agent name matches no bundled, user, or project definition SHALL be reported as a config diagnostic rather than silently no-oping, so a typo in an `[agents.<name>]` heading cannot be mistaken for an applied override.
 
 The loaded file paths and diagnostics SHALL be recorded on every Task result as `configPaths` and `configDiagnostics` when non-empty. Missing files SHALL NOT produce diagnostics. A malformed or unreadable file SHALL be skipped with a diagnostic and SHALL NOT block other files or dispatch. Config edits SHALL apply to the next `task` call without a Tau reload.
 

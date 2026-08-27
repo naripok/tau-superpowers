@@ -98,15 +98,15 @@ FINISHING
 
 The full argument and result contract is in the [Tau `task` tool reference](../skills/using-superpowers/references/tau-tools.md). Workflow dispatches use five bundled agents:
 
-| Agent | Tool access | Default provider/model/reasoning | Workflow use |
-| --- | --- | --- | --- |
-| `implementation` | Tau's normal built-in coding tools | `openrouter:deepseek/deepseek-v4-flash-0731`, `high` | One implementation task at a time |
-| `code-review` | `read` + read-only `bash`, enforced by a public hook | `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh` | Per-task, checkpoint, and final implementation review of named files; returns a strict `## Code Review` report ending in a status line |
-| `document-review` | `read` + read-only `bash`, enforced by a public hook | `openrouter:deepseek/deepseek-v4-flash-0731`, `xhigh` | Feature-spec and plan review at the design gates; returns a strict `## Document Review` report ending in a status line |
-| `general-purpose` | Tau's normal built-in coding tools | Parent session's active provider/model/thinking | Unpinned implementation or scouting work |
-| `read-only` | Only the `read` tool, enforced by a public hook | Parent session's active provider/model/thinking | Unpinned substantial read-only investigation of named files |
+| Agent | Tool access | Workflow use |
+| --- | --- | --- |
+| `implementation` | Tau's normal built-in coding tools | One implementation task at a time |
+| `code-review` | `read` + read-only `bash`, enforced by a public hook | Per-task, checkpoint, and final implementation review of named files; returns a strict `## Code Review` report ending in a status line |
+| `document-review` | `read` + read-only `bash`, enforced by a public hook | Feature-spec and plan review at the design gates; returns a strict `## Document Review` report ending in a status line |
+| `general-purpose` | Tau's normal built-in coding tools | Unpinned implementation or scouting work |
+| `read-only` | Only the `read` tool, enforced by a public hook | Unpinned substantial read-only investigation of named files |
 
-These are the defaults, not guarantees: the user can override any of them per agent with the subagent config file (`[agents.<name>]` in `superpowers-subagent.toml`). Agents without a pin at any layer inherit the parent session's active provider, model, and thinking level at dispatch time.
+The user can override provider, model, and thinking level per agent with the subagent config file (`[agents.<name>]` in `superpowers-subagent.toml`). Agents without a pin at any layer inherit the parent session's active provider, model, and thinking level at dispatch time.
 
 A typical reviewer call supplies every readable path and embeds any information the reviewer cannot obtain with `read`:
 

@@ -8,9 +8,9 @@ The project combines ideas and material from [obra/superpowers](https://github.c
 
 - 15 Tau-discoverable Agent Skills covering the full design-to-delivery workflow.
 - A `task` tool that dispatches one or more isolated Tau subprocesses.
-- Bundled child agents: `general-purpose`, tool-enforced `read-only`, `implementation` (OpenRouter DeepSeek, `xhigh` reasoning), `code-review` and `document-review` (OpenRouter GLM, `medium` reasoning, `read` + read-only `bash`, strict `## Code Review`/`## Document Review` reports). Children inherit the parent session's active provider, model, and thinking effort by default, after call-level, config-file, and agent-definition values.
+- Bundled child agents: `general-purpose`, tool-enforced `read-only`, `implementation`, `code-review`, and `document-review` (`read` + read-only `bash`, strict `## Code Review`/`## Document Review` reports). Children inherit the parent session's active provider, model, and thinking effort by default, after call-level, config-file, and agent-definition values.
 - User and project agent definitions with deterministic precedence and explicit project-agent approval.
-- A per-subagent config file (`~/.tau/superpowers-subagent.toml` and `<project>/.tau/superpowers-subagent.toml`) that pins provider, model, and `reasoningEffort` globally or per agent; a copy encoding today's defaults ships as `superpowers-subagent.example.toml`.
+- A per-subagent config file (`~/.tau/superpowers-subagent.toml` and `<project>/.tau/superpowers-subagent.toml`) that pins provider, model, and `reasoningEffort` globally or per agent; an example file ships as `superpowers-subagent.example.toml`.
 - Per-child `reasoningEffort` at call or config-file level, applied as the child's Tau thinking level.
 - Parent-model content is each child's complete final assistant message, with the complete wire messages retained in structured result details.
 
@@ -188,23 +188,13 @@ Per-field resolution, highest first:
 4. the subagent config file `[defaults]` section;
 5. the parent session's active provider, model, and thinking level.
 
-The subagent config file is a TOML file named `superpowers-subagent.toml` in either `~/.tau/` or the nearest ancestor `<project>/.tau/`, the same directories Tau reads its other durable configs from. A project file shadows the user file per key. A copy encoding today's defaults ships at `extensions/superpowers-subagent/superpowers-subagent.example.toml`; link or copy it to `~/.tau/superpowers-subagent.toml` from your dotfiles to pin current behavior:
+The subagent config file is a TOML file named `superpowers-subagent.toml` in either `~/.tau/` or the nearest ancestor `<project>/.tau/`, the same directories Tau reads its other durable configs from. A project file shadows the user file per key. An example file ships at `extensions/superpowers-subagent/superpowers-subagent.example.toml`:
 
 ```toml
 [defaults]
 # provider = "openai"
 # model = "gpt-5.6-sol"
 # reasoningEffort = "medium"   # off | minimal | low | medium | high | xhigh
-
-[agents.implementation]
-provider = "openrouter"
-model = "deepseek/deepseek-v4-flash-0731"
-reasoningEffort = "xhigh"
-
-[agents.code-review]
-provider = "openrouter"
-model = "z-ai/glm-5.3"
-reasoningEffort = "medium"
 ```
 
 Per-call overrides are separate and map directly to Tau's separate CLI settings:
@@ -265,7 +255,7 @@ The main flow is:
 skills/                                 # canonical Agent Skill sources
 extensions/superpowers-subagent/
   extension.py                          # Tau loader entry point
-  superpowers-subagent.example.toml      # current-defaults config template
+  superpowers-subagent.example.toml      # example config template
   superpowers_subagent/                 # Python implementation
   agents/                               # bundled agent definitions
   tests/                                # unit and runtime integration tests
