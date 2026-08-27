@@ -107,7 +107,7 @@ def test_nearest_project_agents_directory_wins(tmp_path: Path) -> None:
     assert find_nearest_project_agents_dir(cwd) == inner
 
 
-def test_default_discovery_finds_bundled_agents_with_pinned_config(tmp_path: Path) -> None:
+def test_default_discovery_finds_bundled_agents_without_pinned_config(tmp_path: Path) -> None:
     result = discover_agents(tmp_path, "user", user_dir=tmp_path / "none")
 
     assert set(result.by_name()) == {
@@ -119,21 +119,13 @@ def test_default_discovery_finds_bundled_agents_with_pinned_config(tmp_path: Pat
     }
     assert result.by_name()["general-purpose"].profile == "general-purpose"
     assert result.by_name()["read-only"].profile == "read-only"
-    implementation = result.by_name()["implementation"]
-    assert implementation.profile == "general-purpose"
-    assert implementation.provider == "openrouter"
-    assert implementation.model == "deepseek/deepseek-v4-flash-0731"
-    assert implementation.reasoning_effort == "xhigh"
-    code_review = result.by_name()["code-review"]
-    assert code_review.profile == "review"
-    assert code_review.provider == "openrouter"
-    assert code_review.model == "z-ai/glm-5.3"
-    assert code_review.reasoning_effort == "medium"
-    document_review = result.by_name()["document-review"]
-    assert document_review.profile == "review"
-    assert document_review.provider == "openrouter"
-    assert document_review.model == "z-ai/glm-5.3"
-    assert document_review.reasoning_effort == "medium"
+    assert result.by_name()["implementation"].profile == "general-purpose"
+    assert result.by_name()["code-review"].profile == "review"
+    assert result.by_name()["document-review"].profile == "review"
+    for agent in result.agents:
+        assert agent.provider is None
+        assert agent.model is None
+        assert agent.reasoning_effort is None
 
 
 def test_invalid_agent_files_are_skipped_with_diagnostics(tmp_path: Path) -> None:

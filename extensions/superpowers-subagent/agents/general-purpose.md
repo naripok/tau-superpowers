@@ -1,6 +1,6 @@
 ---
 name: general-purpose
-description: General-purpose subagent with full tool access. Use for implementation, scouting, exploration, and any task that requires reading and writing files or running commands.
+description: General-purpose subagent with full tool access. Use for non-trivial tasks that requires reading and writing files or running commands.
 profile: general-purpose
 ---
 
