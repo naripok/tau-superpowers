@@ -132,9 +132,9 @@ Two or more items dispatch in parallel — independent work only:
 | `description` | Short orchestration label |
 | `agentScope` | `user` (default), `project`, or `both` |
 | `confirmProjectAgents` | Require project-agent confirmation (default `true`); `false` is explicit per-call approval |
-| `provider` | Independent opaque Tau provider override |
-| `model` | Independent opaque Tau model override |
-| `reasoningEffort` | Thinking level for every child: `off`, `minimal`, `low`, `medium`, `high`, or `xhigh`. Overrides the config file and agent definition; otherwise the level falls back to the config file, then the agent definition, then the parent session's thinking level |
+| `provider` | Optional literal provider override. Omit it to inherit configuration; otherwise pass an exact configured provider name from `tau providers`. |
+| `model` | Optional literal model override. Omit it to inherit configuration; otherwise pass an exact supported model ID. |
+| `reasoningEffort` | Optional literal reasoningEffort override. Omit it to inherit configuration; otherwise pass exactly `off`, `minimal`, `low`, `medium`, `high`, or `xhigh`. It overrides the config file and agent definition; otherwise the level falls back to the config file, then the agent definition, then the parent session's thinking level. |
 | `timeoutSeconds` | Per-child timeout, greater than 0 and at most 3600; default 3600 |
 
 `cwd` is per item, resolved relative to the parent session's working directory.
@@ -178,7 +178,7 @@ The `read-only` profile loads a temporary public Tau hook that blocks every Tau 
 
 ## Provider, Model, and Thinking Effort Selection
 
-Normally omit `provider`, `model`, and `reasoningEffort`. Subagents then inherit the parent session's active provider, model, and thinking effort unless a config file, agent definition, or call value pins one. Configure durable Tau defaults with `/login` and `/model`.
+Normally omit `provider`, `model`, and `reasoningEffort`. Omission inherits configuration: subagents use the parent session's active provider, model, and thinking effort unless a config file or agent definition pins one. Each field is an optional literal override. When you provide one, use the exact configured provider name from `tau providers`, exact model ID supported by the selected provider, or one of the exact reasoning levels below. Do not use `default`, `inherit`, or `auto`; these placeholders do not select defaults and the task call rejects them. Run `tau providers` to discover configured providers and their exact supported model IDs. Configure durable Tau defaults with `/login` and `/model`.
 
 Per-field resolution, highest first:
 

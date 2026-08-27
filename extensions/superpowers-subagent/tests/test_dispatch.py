@@ -282,8 +282,8 @@ def test_validation_accepts_items_and_independent_overrides() -> None:
                 {"agent": " worker ", "task": "complete prompt", "cwd": "src"},
                 {"agent": "read-only", "task": "second prompt"},
             ],
-            "provider": "provider",
-            "model": "org/model",
+            "provider": " provider  name ",
+            "model": " org/ model-id ",
             "reasoningEffort": " XHIGH ",
             "timeoutSeconds": 2.5,
         }
@@ -293,10 +293,107 @@ def test_validation_accepts_items_and_independent_overrides() -> None:
     assert request.items[0].task == "complete prompt"
     assert request.items[0].cwd == "src"
     assert request.items[1].cwd is None
-    assert request.provider == "provider"
-    assert request.model == "org/model"
+    assert request.provider == "provider  name"
+    assert request.model == "org/ model-id"
     assert request.reasoning_effort == "xhigh"
     assert request.timeout_seconds == 2.5
+
+
+@pytest.mark.parametrize("field", ("provider", "model"))
+@pytest.mark.parametrize(
+    "value",
+    (
+        "default",
+        " DEFAULT ",
+        "DeFaUlT",
+        "inherit",
+        " INHERIT ",
+        "InHeRiT",
+        "auto",
+        " AUTO ",
+        "AuTo",
+    ),
+)
+def test_validation_rejects_reserved_literal_override_placeholders(field: str, value: str) -> None:
+    """Prove provider and model placeholders fail after whitespace and case normalization."""
+
+    with pytest.raises(ValidationFailure) as excinfo:
+        validate_arguments({"tasks": [{"agent": "a", "task": "x"}], field: value})
+
+    message = str(excinfo.value)
+    assert field in message
+    assert f"{field} must be an exact literal override" in message
+    assert "omit" in message
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("field", ("provider", "model"))
+@pytest.mark.parametrize(
+    "value",
+    (
+        "default",
+        " DEFAULT ",
+        "DeFaUlT",
+        "inherit",
+        " INHERIT ",
+        "InHeRiT",
+        "auto",
+        " AUTO ",
+        "AuTo",
+    ),
+)
+async def test_reserved_literal_override_returns_validation_result_without_child(
+    tmp_path: Path, field: str, value: str
+) -> None:
+    """Prove rejected provider and model placeholders return normally before a child starts."""
+
+    runner = FakeRunner()
+    result = await make_dispatcher(tmp_path, runner).execute(
+        {"tasks": [{"agent": "general-purpose", "task": "work"}], field: value}
+    )
+
+    assert result.text.startswith(f"Invalid parameters: {field}")
+    assert f"{field} must be an exact literal override" in result.text
+    assert "omit" in result.text
+    assert result.details["results"] == []
+    assert runner.calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("field", ("provider", "model"))
+async def test_whitespace_literal_overrides_require_non_empty_string_and_prevent_children(
+    tmp_path: Path, field: str
+) -> None:
+    """Prove whitespace-only overrides explain omission and never start a child."""
+
+    runner = FakeRunner()
+    result = await make_dispatcher(tmp_path, runner).execute(
+        {"tasks": [{"agent": "general-purpose", "task": "work"}], field: "   "}
+    )
+
+    assert result.text.startswith(f"Invalid parameters: {field}")
+    assert "non-empty string" in result.text
+    assert "omit" in result.text
+    assert result.details["results"] == []
+    assert runner.calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("field", ("provider", "model"))
+async def test_non_string_literal_overrides_require_string_and_prevent_children(
+    tmp_path: Path, field: str
+) -> None:
+    """Prove wrong-type overrides retain the string error and never start a child."""
+
+    runner = FakeRunner()
+    result = await make_dispatcher(tmp_path, runner).execute(
+        {"tasks": [{"agent": "general-purpose", "task": "work"}], field: 3}
+    )
+
+    assert result.text.startswith(f"Invalid parameters: {field}")
+    assert "must be a string" in result.text
+    assert result.details["results"] == []
+    assert runner.calls == []
 
 
 @pytest.mark.asyncio
@@ -344,6 +441,8 @@ async def test_single_item_runs_one_child_and_returns_complete_final_message(
     assert child["model"] == "call/model"
     assert child["reasoningEffort"] == "medium"
     assert child["cwd"] == str(resolve_child_cwd(tmp_path, "src"))
+    assert runner.calls[0]["provider_override"] is None
+    assert runner.calls[0]["model_override"] == "call/model"
     assert runner.calls[0]["reasoning_effort_override"] == "medium"
     # Live updates: one from the accepted message, one on completion, one
     # final backfill — the same slot-based path any child count takes. The
@@ -586,6 +685,26 @@ async def test_single_inherits_parent_thinking_level_by_default(tmp_path: Path) 
     assert call["parent_reasoning_effort"] == "medium"
     assert call["reasoning_effort_override"] is None
     assert result.details["results"][0]["reasoningEffort"] == "medium"
+
+
+@pytest.mark.asyncio
+async def test_trimmed_literal_overrides_reach_child_configuration(tmp_path: Path) -> None:
+    """Prove authoritative provider and model values reach the child trimmed."""
+
+    runner = FakeRunner()
+    await make_dispatcher(tmp_path, runner).execute(
+        {
+            "tasks": [{"agent": "read-only", "task": "work"}],
+            "provider": " openai ",
+            "model": " vendor/model name ",
+            "reasoningEffort": " HIGH ",
+        }
+    )
+
+    call = runner.calls[0]
+    assert call["provider_override"] == "openai"
+    assert call["model_override"] == "vendor/model name"
+    assert call["reasoning_effort_override"] == "high"
 
 
 @pytest.mark.asyncio

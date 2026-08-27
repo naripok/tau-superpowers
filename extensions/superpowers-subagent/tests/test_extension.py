@@ -127,6 +127,95 @@ def test_task_tool_prompt_states_threshold_and_homogeneous_tasks(monkeypatch: An
     assert "mutually exclusive" not in blob
 
 
+def test_task_schema_defines_literal_override_contract(monkeypatch: Any) -> None:
+    """Prove literal overrides state inheritance, exact-value requirements, and reasoning levels."""
+
+    monkeypatch.delenv(RECURSION_GUARD, raising=False)
+    import superpowers_subagent.extension as extension_module
+
+    monkeypatch.setattr(extension_module, "install_sidebar_section", lambda _tracker: None)
+    tau = FakeTau()
+    setup(tau)  # type: ignore[arg-type]
+
+    properties = tau.tools[0].parameters["properties"]
+    for field in ("provider", "model", "reasoningEffort"):
+        description = properties[field]["description"].lower()
+        assert "optional literal" in description
+        assert "during normal calls, omit this field" in description
+        assert "inherit" in description
+        assert "exact" in description
+        for placeholder in ("default", "inherit", "auto"):
+            assert f"`{placeholder}`" in description
+        assert "placeholders do not select defaults" in description
+    provider = properties["provider"]["description"].lower()
+    assert "tau providers" in provider
+    assert "configured provider" in provider
+    model = properties["model"]["description"].lower()
+    assert "selected provider" in model
+    assert "supported" in model
+    reasoning = properties["reasoningEffort"]
+    assert reasoning["enum"] == ["off", "minimal", "low", "medium", "high", "xhigh"]
+    for level in ("off", "minimal", "low", "medium", "high", "xhigh"):
+        assert f"`{level}`" in reasoning["description"]
+
+
+def test_task_prompt_requires_omitted_or_exact_literal_overrides(monkeypatch: Any) -> None:
+    """Prove always-visible guidance prevents placeholder values from reaching children."""
+
+    monkeypatch.delenv(RECURSION_GUARD, raising=False)
+    import superpowers_subagent.extension as extension_module
+
+    monkeypatch.setattr(extension_module, "install_sidebar_section", lambda _tracker: None)
+    tau = FakeTau()
+    setup(tau)  # type: ignore[arg-type]
+
+    guidance = " ".join(tau.tools[0].prompt_guidelines).lower()
+    assert "omit all three fields" in guidance
+    assert "provider, model, and reasoningeffort" in guidance
+    assert "optional literal overrides" in guidance
+    assert "exact literal" in guidance
+    assert "tau providers" in guidance
+    assert "configured provider" in guidance
+    assert "selected provider" in guidance
+    assert "supported" in guidance
+    for level in ("off", "minimal", "low", "medium", "high", "xhigh"):
+        assert f"`{level}`" in guidance
+    for placeholder in ("default", "inherit", "auto"):
+        assert f"`{placeholder}`" in guidance
+        assert "do not pass" in guidance
+
+
+def test_readme_documents_literal_override_contract() -> None:
+    """Prove relevant README sections define literal override relationships."""
+
+    readme = (Path(__file__).parents[3] / "README.md").read_text()
+    common_options = (
+        readme.split("### Common Options\n", maxsplit=1)[1].split("\n### ", maxsplit=1)[0].lower()
+    )
+    for field in ("provider", "model", "reasoningEffort"):
+        row = next(
+            line
+            for line in common_options.splitlines()
+            if line.startswith(f"| `{field.lower()}` |")
+        )
+        assert f"optional literal {field.lower()} override" in row
+        assert "omit it to inherit configuration" in row
+
+    selection = (
+        readme.split("## Provider, Model, and Thinking Effort Selection\n", maxsplit=1)[1]
+        .split("\n## ", maxsplit=1)[0]
+        .lower()
+    )
+    for placeholder in ("`default`", "`inherit`", "`auto`"):
+        assert placeholder in selection
+    assert "placeholders do not select defaults" in selection
+    provider_row = next(
+        line for line in common_options.splitlines() if line.startswith("| `provider` |")
+    )
+    assert "exact configured provider name from `tau providers`" in provider_row
+    assert "model id supported by the selected provider" in selection
+
+
 def test_setup_refuses_recursive_registration(monkeypatch: Any) -> None:
     monkeypatch.setenv(RECURSION_GUARD, "1")
     import superpowers_subagent.extension as extension_module

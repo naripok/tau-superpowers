@@ -54,6 +54,10 @@ def main() -> int:
         emit({"type": "agent_end", "messages": []})
         return 0
 
+    if task == "unknown-provider":
+        print("\x1b[31mUnKnOwN PrOvIdEr: made-up-provider\x1b[0m", file=sys.stderr, flush=True)
+        return 2
+
     emit(
         {
             "type": "message_end",

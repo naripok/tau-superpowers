@@ -33,6 +33,7 @@ from .utils import final_output, parse_status, resolve_child_cwd
 MAX_TASKS = 8
 MAX_CONCURRENCY = 4
 DEFAULT_TIMEOUT_SECONDS = 3600.0
+_RESERVED_OVERRIDE_PLACEHOLDERS: frozenset[str] = frozenset({"default", "inherit", "auto"})
 
 UsageObserver = Callable[[Sequence[ChildResult], bool], None]
 
@@ -341,8 +342,8 @@ def validate_arguments(arguments: Mapping[str, JSONValue]) -> ParsedRequest:
     confirm = arguments.get("confirmProjectAgents", True)
     if not isinstance(confirm, bool):
         raise ValidationFailure("confirmProjectAgents must be a boolean")
-    provider = _optional_string(arguments, "provider", nonempty=True)
-    model = _optional_string(arguments, "model", nonempty=True)
+    provider = _optional_literal_override(arguments, "provider")
+    model = _optional_literal_override(arguments, "model")
     reasoning_effort = _optional_thinking_level(arguments, "reasoningEffort")
     timeout_value = arguments.get("timeoutSeconds", DEFAULT_TIMEOUT_SECONDS)
     if (
@@ -408,6 +409,25 @@ def _optional_string(arguments: Mapping[str, JSONValue], key: str, *, nonempty: 
     if nonempty and not value.strip():
         raise ValidationFailure(f"{key} must be a non-empty string")
     return value
+
+
+def _optional_literal_override(arguments: Mapping[str, JSONValue], key: str) -> str | None:
+    """Return a trimmed literal override or reject values that imply inheritance."""
+    value = _optional_string(arguments, key, nonempty=False)
+    if value is None:
+        return None
+    normalized = value.strip()
+    if not normalized:
+        raise ValidationFailure(
+            f"{key} requires a non-empty string literal override; "
+            f"omit {key} for inherited configuration"
+        )
+    if normalized.lower() in _RESERVED_OVERRIDE_PLACEHOLDERS:
+        raise ValidationFailure(
+            f"{key} must be an exact literal override, not `default`, `inherit`, or `auto`; "
+            f"omit {key} for inherited configuration"
+        )
+    return normalized
 
 
 def _optional_thinking_level(arguments: Mapping[str, JSONValue], key: str) -> str | None:

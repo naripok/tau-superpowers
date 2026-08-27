@@ -41,7 +41,7 @@ The package SHALL keep one canonical top-level `skills/` tree and expose it to p
 
 ### Requirement: task interface and validation
 
-A `task` call SHALL provide a required non-empty `tasks` array of 1–8 items, each `{agent, task, cwd?}` with non-empty `agent` and `task` strings and an optional string `cwd` resolved relative to the parent session working directory, plus the optional common fields (`description`, `agentScope`, `confirmProjectAgents`, `provider`, `model`, `reasoningEffort`, `timeoutSeconds`). One item SHALL run a single child; two or more items SHALL run no more than four child processes concurrently and SHALL preserve input order in results. The removed top-level `agent`, `task`, `cwd`, and `chain` fields SHALL be rejected as unknown fields, as SHALL any other unknown field or item field. `description` SHALL be a display label only.
+A `task` call SHALL provide a required non-empty `tasks` array of 1–8 items, each `{agent, task, cwd?}` with non-empty `agent` and `task` strings and an optional string `cwd` resolved relative to the parent session working directory, plus the optional common fields (`description`, `agentScope`, `confirmProjectAgents`, `provider`, `model`, `reasoningEffort`, `timeoutSeconds`). Call-level provider and model fields SHALL be trimmed literal overrides: whitespace-only values and case-insensitive `default`, `inherit`, or `auto` placeholders SHALL be rejected, and omission SHALL select lower-precedence configuration. One item SHALL run a single child; two or more items SHALL run no more than four child processes concurrently and SHALL preserve input order in results. The removed top-level `agent`, `task`, `cwd`, and `chain` fields SHALL be rejected as unknown fields, as SHALL any other unknown field or item field. `description` SHALL be a display label only.
 
 An absent or empty `tasks` array, more than eight items, an invalid item (empty agent/task, non-string `cwd`, unknown item field), or an invalid common option SHALL prevent child startup and produce a normal Tau tool result describing the validation error and eligible agents.
 
@@ -174,9 +174,46 @@ The appended prompt SHALL preserve the selected agent body and state that the ch
 
 ### Requirement: Provider, model, and reasoning-effort overrides
 
-`provider` and `model` SHALL be independent opaque strings at call, config-file, and agent-definition levels. Per field, resolution SHALL fall through call-level value, then the config file's `[agents.<name>]` section, then the agent definition, then the config file's `[defaults]` section, then the parent session's active provider and model, when the parent exposes them. A value at a higher layer SHALL override only the corresponding lower-layer value. Effective values SHALL map directly to Tau's separate `--provider` and `--model` flags; values absent at every level SHALL omit their flags. The extension SHALL NOT split combined values or infer a provider from a slash-containing model identifier.
+`provider` and `model` SHALL be independent opaque strings at call, config-file, and agent-definition levels. Call-level `provider`, `model`, and `reasoningEffort` fields are optional literal overrides. Callers SHALL omit them for normal dispatch and inheritance. `default`, `inherit`, and `auto` SHALL NOT select defaults and are invalid placeholders. For call-level provider and model values, validation SHALL trim surrounding whitespace, reject values empty after trimming, and reject the reserved placeholders after case-insensitive normalization. It SHALL preserve all other internal content. A rejected override SHALL prevent every child from starting and explain that omitting the field selects inherited configuration.
+
+Per field, provider and model resolution SHALL fall through call-level value, then the config file's `[agents.<name>]` section, then the agent definition, then the config file's `[defaults]` section, then the parent session's active provider and model, when the parent exposes them. A value at a higher layer SHALL override only the corresponding lower-layer value. Effective values SHALL map directly to Tau's separate `--provider` and `--model` flags; values absent at every level SHALL omit their flags. The extension SHALL NOT split combined values or infer a provider from a slash-containing model identifier.
 
 `reasoningEffort` SHALL resolve at call, then config-file `[agents.<name>]`, then agent-definition, then config-file `[defaults]` precedence, then SHALL fall back to the parent session's active thinking level by default, so unpinned children inherit it. The effective level SHALL be mapped to the generated child extension described under child invocation and recorded as `reasoningEffort` on the child result. Invalid or empty call values SHALL be rejected before child startup; invalid agent-definition values SHALL skip that definition with a diagnostic; invalid config-file values SHALL be dropped with a config diagnostic. When no level resolves, the child runs at its ambient level and no thinking extension is generated.
+
+The task schema, always-visible prompt guidance, and README SHALL identify all three fields as optional literal overrides. They SHALL tell callers to omit the fields during normal calls and for inheritance, and state that placeholders do not select defaults. Provider guidance SHALL require an exact configured provider name from `tau providers`. Model guidance SHALL require an exact model ID supported by the selected provider. Reasoning guidance SHALL list `off`, `minimal`, `low`, `medium`, `high`, and `xhigh`.
+
+#### Scenario: Reserved override placeholders
+
+- GIVEN a task call passes `default`, `inherit`, or `auto` as provider or model with surrounding whitespace or mixed-case letters
+- WHEN request validation runs
+- THEN no child starts
+- AND content identifies the field as a literal override
+- AND content tells the caller to omit the field for inherited configuration
+
+#### Scenario: Exact literal override
+
+- GIVEN a task call passes `provider: " openai "` and `model: " vendor/model name "`
+- WHEN request validation runs
+- THEN `openai` and `vendor/model name` reach child configuration
+- AND validation changes no other content
+
+#### Scenario: Whitespace-only override
+
+- GIVEN a task call passes only whitespace as provider or model
+- WHEN request validation runs
+- THEN no child starts
+- AND content states that the field requires a non-empty string
+
+#### Scenario: Schema, prompt, and README override guidance
+
+- GIVEN a caller reads the task schema, always-visible prompt guidance, and README override documentation
+- WHEN the caller selects an override
+- THEN each source identifies provider, model, and reasoningEffort as optional literal overrides
+- AND each source tells the caller to omit the fields during normal calls and for inheritance
+- AND each source states that placeholders do not select defaults
+- AND provider guidance refers to an exact configured provider name from `tau providers`
+- AND model guidance refers to an exact model ID supported by the selected provider
+- AND reasoning guidance lists `off`, `minimal`, `low`, `medium`, `high`, and `xhigh`
 
 #### Scenario: Partial call override
 
@@ -307,6 +344,10 @@ The profiles SHALL be documented as a Tau tool-call policy, not an operating-sys
 
 The runner SHALL decode stdout as UTF-8 JSON Lines, retain validated portable messages from `message_end` events in arrival order, capture stderr separately, and ignore other valid lifecycle events. Malformed JSON and invalid `message_end` messages SHALL increment `malformedJsonLines` without discarding valid messages. A zero exit with no valid assistant message SHALL be a protocol failure.
 
+When a child exits nonzero without an existing error message, the runner SHALL create an error message containing the exit code and a cleaned stderr excerpt. Cleaning SHALL remove only ECMA-48 CSI sequences with `ESC [`, zero or more parameter bytes from `0` through `?`, zero or more intermediate bytes from space through `/`, and one final byte from `@` through `~`. It SHALL preserve all other code points. The runner SHALL clean before it truncates and SHALL retain the final 2,000 Unicode code points when stderr exceeds that limit. The error message SHALL include all cleaned stderr at or below that limit. Structured child details SHALL retain complete, unmodified stderr. An existing error message SHALL remain unchanged.
+
+If the created error's excerpt contains `Unknown provider:` case-insensitively, the error message SHALL tell the caller to omit provider, model, and reasoning overrides for configured values and to use an exact provider name from `tau providers`. If the excerpt contains `Model is not configured for provider` case-insensitively, it SHALL tell the caller to omit the model for inheritance or use an exact model ID supported by the provider. Recovery instructions SHALL depend only on the bounded excerpt.
+
 Final assistant output SHALL concatenate every text block in the last accepted assistant message in block order. Accepted assistant usage SHALL accumulate input, output, cache, and cost fields, count turns, and record the latest assistant context-token total.
 
 #### Scenario: Mixed event stream
@@ -328,6 +369,55 @@ Final assistant output SHALL concatenate every text block in the last accepted a
 - GIVEN Tau exits zero without a valid assistant message
 - WHEN the runner finalizes the child
 - THEN the result is a protocol failure with default `BLOCKED` status
+
+#### Scenario: Nonzero exit exposes cleaned stderr
+
+- GIVEN a child writes an ANSI-colored diagnostic to stderr and exits nonzero without an existing error message
+- WHEN the runner finalizes the child result
+- THEN the error message contains the exit code and diagnostic text without a CSI sequence
+- AND structured details retain the original stderr
+
+#### Scenario: Bounded Unicode stderr excerpt
+
+- GIVEN a child writes CSI text, then more than 2,000 Unicode code points, then more CSI text to stderr
+- AND the child exits nonzero without an existing error message
+- WHEN the runner finalizes the child result
+- THEN the error message contains exactly the final 2,000 cleaned Unicode code points
+- AND structured details retain complete original stderr
+
+#### Scenario: Malformed CSI text is preserved
+
+- GIVEN a child writes a trailing bare `ESC [` without a final byte and exits nonzero without an existing error message
+- WHEN the runner finalizes the child result
+- THEN the stderr excerpt retains the trailing bare `ESC [` unchanged
+
+#### Scenario: Existing error message is preserved
+
+- GIVEN a child has an error message and writes stderr before a nonzero exit
+- WHEN the runner finalizes the child result
+- THEN its error message remains unchanged
+- AND structured details retain complete stderr
+
+#### Scenario: Provider recovery
+
+- GIVEN the bounded stderr excerpt identifies an unknown provider
+- WHEN the runner creates the nonzero-exit error message
+- THEN the error message tells the caller to omit provider, model, and reasoning overrides for configured values
+- AND it refers to exact provider names from `tau providers`
+
+#### Scenario: Model recovery
+
+- GIVEN the bounded stderr excerpt identifies a model that is not configured for its provider
+- WHEN the runner creates the nonzero-exit error message
+- THEN the error message tells the caller to omit the model for inheritance
+- AND it refers to an exact model ID supported by the provider
+
+#### Scenario: Diagnostic outside stderr excerpt
+
+- GIVEN cleaned stderr identifies an unknown provider before more than 2,000 later code points
+- WHEN the runner creates the nonzero-exit error message
+- THEN the error message contains the bounded stderr excerpt
+- AND it contains no provider recovery instruction
 
 ### Requirement: final-message content and status
 
@@ -363,7 +453,7 @@ Status parsing SHALL use the last recognized case-insensitive bold or plain supp
 
 ### Requirement: Content envelope and complete details
 
-Final `content` SHALL follow the envelope contract built from child results only. With exactly one result, a successful child SHALL produce its complete final assistant message, or `(no output)` when that message has no text; a failed child SHALL produce `Agent <name> failed: <error>`, or `see details` when no error text exists. With two or more results, content SHALL begin with a `<succeeded>/<total> succeeded` line and contain one `[<agent>] (completed|failed)` section per child in input order; a section body SHALL be that child's complete final assistant message, else its error message, else `(no output)`.
+Final `content` SHALL follow the envelope contract built from child results only. With exactly one result, a successful child SHALL produce its complete final assistant message, or `(no output)` when that message has no text; a failed child SHALL produce `Agent <name> failed: <error>`, or `see details` when no error text exists. With two or more results, content SHALL begin with a `<succeeded>/<total> succeeded` line and contain one `[<agent>] (completed|failed)` section per child in input order; a section body SHALL be that child's complete final assistant message, else its error message, else `(no output)`. A failed child with no final assistant text SHALL expose the runner's actionable startup-configuration error in model-visible content, so the controller can retry with corrected arguments. Structured details SHALL retain complete stderr independently from the bounded error excerpt.
 
 Details SHALL be JSON with `schemaVersion: 2`, scope, project agent directory, discovery diagnostics, and ordered child results, and SHALL contain no `mode` or `step` fields; non-empty subagent-config file paths and diagnostics SHALL be included as `configPaths` and `configDiagnostics`; partial results SHALL include `planned`, the intended child count, so live viewers can show accurate counts before every child has produced a message, and renderers SHALL fall back to the result count when `planned` is absent. Each child result SHALL contain `agent`, `agentSource`, effective `task` and `cwd`, `exitCode`, complete accepted wire `messages`, `stderr`, usage fields, `status`, `timedOut`, `cancelled`, and `malformedJsonLines`; applicable `provider`, `model`, `reasoningEffort`, `stopReason`, and `errorMessage` fields SHALL also be included. Failure SHALL be represented through content and these fields because Tau tool results have no portable `isError` property.
 
@@ -388,6 +478,14 @@ Details SHALL be JSON with `schemaVersion: 2`, scope, project agent directory, d
 - WHEN `task` returns
 - THEN content is the concise `Agent <name> failed: <error>` form
 - AND details retain the child's partial messages and error fields
+
+#### Scenario: Recoverable startup failure
+
+- GIVEN one child fails before it emits a valid assistant message
+- AND the bounded cleaned stderr excerpt identifies an invalid provider or model
+- WHEN `task` returns
+- THEN content includes the agent name, Tau diagnostic, and matching recovery instruction
+- AND structured details retain complete stderr
 
 #### Scenario: Semantic status versus process outcome
 

@@ -343,6 +343,27 @@ async def test_coding_session_propagates_task_partial_updates_and_final_message_
 
 
 @pytest.mark.asyncio
+async def test_runtime_exposes_actionable_unknown_provider_failure_and_retains_stderr(
+    tmp_path: Path,
+    fake_tau_environment: tuple[Path, Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del fake_tau_environment
+    _runtime, tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
+
+    result = await tool.execute(
+        "unknown-provider", {"tasks": [{"agent": "general-purpose", "task": "unknown-provider"}]}
+    )
+
+    child = child_results(result)[0]
+    assert "Agent general-purpose failed" in result.text
+    assert "UnKnOwN PrOvIdEr: made-up-provider" in result.text
+    assert "omit provider, model, and reasoningEffort" in result.text
+    assert "tau providers" in result.text
+    assert child["stderr"] == "\x1b[31mUnKnOwN PrOvIdEr: made-up-provider\x1b[0m\n"
+
+
+@pytest.mark.asyncio
 async def test_runtime_retains_partial_data_for_nonzero_and_protocol_failures(
     tmp_path: Path,
     fake_tau_environment: tuple[Path, Path],

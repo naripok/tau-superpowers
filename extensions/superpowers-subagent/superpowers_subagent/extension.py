@@ -66,23 +66,37 @@ _TASK_PARAMETERS: dict[str, JSONValue] = {
         "provider": {
             "type": "string",
             "minLength": 1,
-            "description": "Opaque Tau provider override.",
+            "description": (
+                "Optional literal provider override. During normal calls, omit this field; "
+                "omitting it inherits configuration. Pass an exact configured provider name "
+                "from `tau providers`; "
+                "`default`, `inherit`, and `auto` are placeholders; placeholders do not "
+                "select defaults."
+            ),
         },
         "model": {
             "type": "string",
             "minLength": 1,
-            "description": "Opaque Tau model override; never split on slash.",
+            "description": (
+                "Optional literal model override. During normal calls, omit this field; "
+                "omitting it inherits configuration. Pass an exact model ID supported by the "
+                "selected provider; "
+                "`default`, `inherit`, and `auto` are placeholders; placeholders do not "
+                "select defaults."
+            ),
         },
         "reasoningEffort": {
             "type": "string",
             "enum": ["off", "minimal", "low", "medium", "high", "xhigh"],
             "description": (
-                "Thinking level for every child; a call-level value overrides "
-                "the config file and the agent definition. Otherwise the level "
-                "falls back to the config file, then the agent definition, then "
-                "the parent session's thinking level. Applied as the child's "
-                "Tau thinking level at session start; an unsupported level is "
-                "reported on the child's stderr."
+                "Optional literal reasoningEffort override for every child. During normal "
+                "calls, omit this field; omitting it inherits configuration. Pass exactly one "
+                "of `off`, `minimal`, "
+                "`low`, `medium`, `high`, or `xhigh`; `default`, `inherit`, and "
+                "`auto` are placeholders; placeholders do not select defaults. A call-level "
+                "value overrides the config "
+                "file and agent definition. Otherwise the level falls back to the config "
+                "file, then the agent definition, then the parent session's thinking level."
             ),
         },
         "timeoutSeconds": {
@@ -213,11 +227,15 @@ def setup(tau: ExtensionAPI) -> None:
                 "work, `code-review` or `document-review` for reviews, `read-only` "
                 "for substantial read-only investigation of named files, and "
                 "`general-purpose` for everything else.",
-                "Do not pass provider, model, or reasoningEffort in task-tool calls "
-                "unless the user requests an override or a skill prescribes it; "
-                "children inherit the parent session's provider, model, and "
-                "thinking effort by default, and durable per-agent pins belong in "
-                "the superpowers-subagent.toml config file.",
+                "Provider, model, and reasoningEffort are optional literal overrides. "
+                "During normal task-tool calls, omit all three fields: provider, model, "
+                "and reasoningEffort. Omission inherits configuration; when an override "
+                "is required, pass an exact literal override: a configured provider name "
+                "from `tau providers`, a model ID supported by the selected provider, or "
+                "exactly one of "
+                "`off`, `minimal`, `low`, `medium`, `high`, or `xhigh`. Do not pass "
+                "`default`, `inherit`, or `auto`: placeholders do not select defaults. "
+                "Durable per-agent pins belong in the superpowers-subagent.toml config file.",
                 "Handle BLOCKED and NEEDS_CONTEXT child results explicitly: BLOCKED "
                 "means the task could not be completed as dispatched — address the "
                 "blocker or change the approach; NEEDS_CONTEXT means required "

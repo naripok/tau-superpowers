@@ -10,8 +10,14 @@ from tau_coding.extensions import ExtensionRuntime, ToolCallHookEvent
 from tau_coding.resources import TauResourcePaths
 
 from superpowers_subagent.config import AgentOverrides
-from superpowers_subagent.models import AgentConfig
-from superpowers_subagent.runner import TauChildRunner, compose_child_prompt
+from superpowers_subagent.models import AgentConfig, ChildResult
+from superpowers_subagent.runner import (
+    _MAX_STDERR_EXCERPT_CODEPOINTS,
+    TauChildRunner,
+    _child_exit_error,
+    _stderr_excerpt,
+    compose_child_prompt,
+)
 from superpowers_subagent.utils import final_output
 
 
@@ -41,6 +47,204 @@ def write_fake_tau(tmp_path: Path, source: str) -> Path:
     path.write_text("#!/usr/bin/python3\n" + source, encoding="utf-8")
     path.chmod(0o755)
     return path
+
+
+def test_stderr_excerpt_removes_complete_csi_sequences_only() -> None:
+    stderr = "before\x1b[31mred\x1b[0m\x1b[2Jafter\x1b["
+
+    assert _stderr_excerpt(stderr) == "beforeredafter\x1b["
+
+
+def test_stderr_excerpt_keeps_final_bounded_unicode_codepoints() -> None:
+    assert _MAX_STDERR_EXCERPT_CODEPOINTS == 2_000
+    assert _stderr_excerpt("x" + "😀" * 2_000) == "😀" * 2_000
+
+
+@pytest.mark.parametrize(
+    ("stderr", "guidance"),
+    [
+        (
+            "uNkNoWn PrOvIdEr: typo-provider",
+            ("omit provider, model, and reasoningEffort", "tau providers", "exact provider name"),
+        ),
+        (
+            "mOdEl Is NoT cOnFiGuReD fOr PrOvIdEr: bad-model",
+            ("omit model", "exact model ID", "supported by the provider"),
+        ),
+    ],
+)
+def test_child_exit_error_adds_recovery_for_recognized_diagnostics(
+    tmp_path: Path, stderr: str, guidance: tuple[str, ...]
+) -> None:
+    result = ChildResult(
+        agent="worker", agent_source="user", task="task", cwd=str(tmp_path), exit_code=9
+    )
+    result.stderr = stderr
+
+    error = _child_exit_error(result)
+
+    assert "code 9" in error
+    assert stderr in error
+    assert all(item in error for item in guidance)
+
+
+def test_child_exit_error_uses_only_bounded_excerpt_for_recovery(tmp_path: Path) -> None:
+    result = ChildResult(
+        agent="worker", agent_source="user", task="task", cwd=str(tmp_path), exit_code=9
+    )
+    result.stderr = "Unknown provider: stale" + "x" * 2_001
+
+    error = _child_exit_error(result)
+
+    assert "Unknown provider" not in error
+    assert "omit provider" not in error
+
+
+@pytest.mark.asyncio
+async def test_runner_nonzero_exit_includes_csi_free_stderr_excerpt(tmp_path: Path) -> None:
+    raw_stderr = "\x1b[31merror\x1b[2J"
+    fake_tau = write_fake_tau(
+        tmp_path,
+        f"""import sys
+sys.stderr.write({raw_stderr!r})
+raise SystemExit(9)
+""",
+    )
+
+    result = await TauChildRunner(str(fake_tau)).run(
+        default_cwd=tmp_path,
+        agent=make_agent(tmp_path),
+        task="task",
+        cwd_override=None,
+        provider_override=None,
+        model_override=None,
+        reasoning_effort_override=None,
+        timeout_seconds=2,
+        signal=None,
+    )
+
+    assert result.error_message == "Tau child exited with code 9.\n\nTau stderr:\nerror"
+    assert result.stderr == raw_stderr
+
+
+@pytest.mark.asyncio
+async def test_runner_preserves_malformed_csi_text(tmp_path: Path) -> None:
+    raw_stderr = "failure\x1b["
+    fake_tau = write_fake_tau(
+        tmp_path,
+        f"""import sys
+sys.stderr.write({raw_stderr!r})
+raise SystemExit(9)
+""",
+    )
+
+    result = await TauChildRunner(str(fake_tau)).run(
+        default_cwd=tmp_path,
+        agent=make_agent(tmp_path),
+        task="task",
+        cwd_override=None,
+        provider_override=None,
+        model_override=None,
+        reasoning_effort_override=None,
+        timeout_seconds=2,
+        signal=None,
+    )
+
+    assert result.error_message == f"Tau child exited with code 9.\n\nTau stderr:\n{raw_stderr}"
+    assert result.stderr == raw_stderr
+
+
+@pytest.mark.asyncio
+async def test_runner_nonzero_exit_keeps_final_2000_unicode_codepoints(tmp_path: Path) -> None:
+    raw_stderr = "\x1b[31mx" + "😀" * 2_000 + "\x1b[2J"
+    excerpt = "😀" * 2_000
+    fake_tau = write_fake_tau(
+        tmp_path,
+        f"""import sys
+sys.stderr.write({raw_stderr!r})
+raise SystemExit(9)
+""",
+    )
+
+    result = await TauChildRunner(str(fake_tau)).run(
+        default_cwd=tmp_path,
+        agent=make_agent(tmp_path),
+        task="task",
+        cwd_override=None,
+        provider_override=None,
+        model_override=None,
+        reasoning_effort_override=None,
+        timeout_seconds=2,
+        signal=None,
+    )
+
+    assert result.error_message == f"Tau child exited with code 9.\n\nTau stderr:\n{excerpt}"
+    assert result.stderr == raw_stderr
+
+
+@pytest.mark.asyncio
+async def test_runner_adds_provider_and_model_recovery_from_excerpt(tmp_path: Path) -> None:
+    raw_stderr = "uNkNoWn PrOvIdEr: typo-provider\nmOdEl Is NoT cOnFiGuReD fOr PrOvIdEr: bad-model"
+    fake_tau = write_fake_tau(
+        tmp_path,
+        f"""import sys
+sys.stderr.write({raw_stderr!r})
+raise SystemExit(9)
+""",
+    )
+
+    result = await TauChildRunner(str(fake_tau)).run(
+        default_cwd=tmp_path,
+        agent=make_agent(tmp_path),
+        task="task",
+        cwd_override=None,
+        provider_override=None,
+        model_override=None,
+        reasoning_effort_override=None,
+        timeout_seconds=2,
+        signal=None,
+    )
+
+    assert result.error_message is not None
+    assert raw_stderr in result.error_message
+    assert "omit provider, model, and reasoningEffort" in result.error_message
+    assert "exact provider name from that list" in result.error_message
+    assert "omit model" in result.error_message
+    assert "exact model ID supported by the provider" in result.error_message
+    assert result.stderr == raw_stderr
+
+
+@pytest.mark.asyncio
+async def test_runner_preserves_existing_error_message_and_complete_stderr(tmp_path: Path) -> None:
+    raw_stderr = (
+        "Unknown provider: typo-provider\nModel is not configured for provider: typo-model\n"
+    )
+    fake_tau = write_fake_tau(
+        tmp_path,
+        f"""import json, sys
+print(json.dumps({{"type": "message_end", "message": {{
+    "role": "assistant", "content": [{{"type": "text", "text": "failed"}}],
+    "errorMessage": "existing child error"
+}}}}))
+sys.stderr.write({raw_stderr!r})
+raise SystemExit(9)
+""",
+    )
+
+    result = await TauChildRunner(str(fake_tau)).run(
+        default_cwd=tmp_path,
+        agent=make_agent(tmp_path),
+        task="task",
+        cwd_override=None,
+        provider_override=None,
+        model_override=None,
+        reasoning_effort_override=None,
+        timeout_seconds=2,
+        signal=None,
+    )
+
+    assert result.error_message == "existing child error"
+    assert result.stderr == raw_stderr
 
 
 @pytest.mark.asyncio

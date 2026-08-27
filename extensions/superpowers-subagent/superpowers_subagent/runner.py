@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import tempfile
 from collections.abc import Callable
 from contextlib import suppress
@@ -27,6 +28,8 @@ from .utils import (
 )
 
 RECURSION_GUARD = "TAU_SUPERPOWERS_SUBAGENT"
+_CSI_SEQUENCE: re.Pattern[str] = re.compile(r"\x1b\[[\x30-\x3f]*[\x20-\x2f]*[\x40-\x7e]")
+_MAX_STDERR_EXCERPT_CODEPOINTS = 2_000
 
 _SHARED_INSTRUCTIONS = """## Delegated Task Rules
 
@@ -146,6 +149,34 @@ def setup(tau: object) -> None:
 
 _MESSAGE_ADAPTER: TypeAdapter[AgentMessage] = TypeAdapter(AgentMessage)
 ChildUpdate = Callable[[ChildResult], None]
+
+
+def _stderr_excerpt(stderr: str) -> str:
+    """Remove CSI sequences and retain the final bounded diagnostic text."""
+
+    cleaned = _CSI_SEQUENCE.sub("", stderr)
+    return cleaned[-_MAX_STDERR_EXCERPT_CODEPOINTS:]
+
+
+def _child_exit_error(result: ChildResult) -> str:
+    """Describe a nonzero child exit with bounded actionable stderr."""
+
+    error = f"Tau child exited with code {result.exit_code}."
+    excerpt = _stderr_excerpt(result.stderr)
+    if not excerpt:
+        return error
+    error += f"\n\nTau stderr:\n{excerpt}"
+    if re.search(r"unknown provider:", excerpt, re.IGNORECASE):
+        error += (
+            "\nTo recover, omit provider, model, and reasoningEffort to inherit configured values. "
+            "Run `tau providers`, then use an exact provider name from that list."
+        )
+    if re.search(r"model is not configured for provider", excerpt, re.IGNORECASE):
+        error += (
+            "\nTo recover, omit model to inherit it, or use an exact model ID supported by the "
+            "provider."
+        )
+    return error
 
 
 class TauChildRunner:
@@ -321,7 +352,7 @@ class TauChildRunner:
             result.stop_reason = "error"
             result.error_message = "Tau child exited without a valid assistant message."
         elif result.exit_code != 0 and result.error_message is None:
-            result.error_message = f"Tau child exited with code {result.exit_code}."
+            result.error_message = _child_exit_error(result)
         result.status = parse_status(final_output(result.messages), failed=not result.succeeded)
         return result
 
