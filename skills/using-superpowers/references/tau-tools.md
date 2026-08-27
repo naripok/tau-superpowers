@@ -120,6 +120,11 @@ The config file is `superpowers-subagent.toml` in `~/.tau/` or the nearest ances
 # provider = "openai"
 # model = "gpt-5.6-sol"
 # reasoningEffort = "medium"   # off | minimal | low | medium | high | xhigh
+
+[agents.code-review]
+# provider = "openrouter"
+# model = "z-ai/glm-5.3"
+# reasoningEffort = "medium"
 ```
 
 Loaded config files and dropped-config diagnostics appear in `details.configPaths` and `details.configDiagnostics`. Tau also reports in those fields every section whose agent name matches no bundled, user, or project definition. As a result, a typo cannot silently no-op. Edits to the file apply to the next `task` call. You do not need to reload Tau.

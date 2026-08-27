@@ -195,6 +195,11 @@ The subagent config file is a TOML file named `superpowers-subagent.toml` in eit
 # provider = "openai"
 # model = "gpt-5.6-sol"
 # reasoningEffort = "medium"   # off | minimal | low | medium | high | xhigh
+
+[agents.code-review]
+# provider = "openrouter"
+# model = "z-ai/glm-5.3"
+# reasoningEffort = "medium"
 ```
 
 Per-call overrides are separate and map directly to Tau's separate CLI settings:

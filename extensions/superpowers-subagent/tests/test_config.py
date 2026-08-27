@@ -248,4 +248,8 @@ def test_shipped_example_config_is_valid_and_contains_no_active_overrides(
 
     assert config.diagnostics == ()
     assert config.defaults == EMPTY_OVERRIDES
-    assert config.agents == ()
+    assert config.agents == (
+        ("code-review", EMPTY_OVERRIDES),
+        ("document-review", EMPTY_OVERRIDES),
+        ("implementation", EMPTY_OVERRIDES),
+    )
