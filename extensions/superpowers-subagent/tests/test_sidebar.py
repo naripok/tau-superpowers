@@ -59,14 +59,27 @@ class FakeSession:
     # model, thinking level, context usage, and auto-compaction threshold.
 
 
-def _child(*, input: int, output: int, cost: float = 0.0) -> ChildResult:
+def _child(
+    *,
+    input: int,
+    output: int,
+    cost: float = 0.0,
+    estimated_cost: float = 0.0,
+    catalog_priced: bool = False,
+) -> ChildResult:
     return ChildResult(
         agent="implementation",
         agent_source="bundled",
         task="work",
         cwd="/workspace",
         exit_code=0,
-        usage=UsageStats(input=input, output=output, cost=cost),
+        usage=UsageStats(
+            input=input,
+            output=output,
+            cost=cost,
+            estimated_cost=estimated_cost,
+            catalog_priced=catalog_priced,
+        ),
     )
 
 
@@ -154,6 +167,96 @@ def test_injection_omits_cost_when_unreported() -> None:
     body = _section_body(content, "subagents")
     assert "1 run" in body.plain
     assert "$" not in body.plain
+
+
+def test_estimate_shows_tilde_without_plus() -> None:
+    """Prove a run estimated from catalog rates renders the combined cost with
+    the ``~`` prefix and no ``+``, matching the usage section's estimate mark."""
+    tracker = SubagentUsageTracker()
+    tracker.update(
+        "call-1",
+        [_child(input=16000, output=4000, estimated_cost=0.03, catalog_priced=True)],
+        final=True,
+    )
+
+    content = _inject_section(_base_content(), tracker.totals, TAU_DARK_THEME, widgets)
+
+    assert _section_body(content, "subagents").plain == "1 run · 16k in, 4k out · ~$0.03"
+
+
+def test_estimate_with_unpriced_runs_shows_tilde_and_plus() -> None:
+    """Prove a priced run plus a token-bearing unpriced run renders ``~$X+``:
+    the ``~`` marks the estimate and the ``+`` marks the missing amount, so the
+    display never understates an incomplete total."""
+    tracker = SubagentUsageTracker()
+    tracker.update(
+        "call-1",
+        [
+            _child(input=16000, output=4000, estimated_cost=0.03, catalog_priced=True),
+            _child(input=1000, output=500),
+        ],
+        final=True,
+    )
+
+    content = _inject_section(_base_content(), tracker.totals, TAU_DARK_THEME, widgets)
+
+    assert _section_body(content, "subagents").plain == "2 runs · 17k in, 4.5k out · ~$0.03+"
+
+
+def test_reported_only_with_unpriced_runs_shows_plus_without_tilde() -> None:
+    """Prove provider-reported cost with an unpriced run renders ``$X+``: no
+    ``~`` because nothing is estimated, ``+`` because the total is incomplete."""
+    tracker = SubagentUsageTracker()
+    tracker.update(
+        "call-1",
+        [_child(input=16000, output=4000, cost=0.05), _child(input=1000, output=500)],
+        final=True,
+    )
+
+    content = _inject_section(_base_content(), tracker.totals, TAU_DARK_THEME, widgets)
+
+    assert _section_body(content, "subagents").plain == "2 runs · 17k in, 4.5k out · $0.05+"
+
+
+def test_reported_only_without_unpriced_runs_shows_no_marks() -> None:
+    """Prove a fully reported cost with every run priced renders the bare
+    amount: neither mark applies."""
+    tracker = SubagentUsageTracker()
+    tracker.update("call-1", [_child(input=16000, output=4000, cost=0.05)], final=True)
+
+    content = _inject_section(_base_content(), tracker.totals, TAU_DARK_THEME, widgets)
+
+    assert _section_body(content, "subagents").plain == "1 run · 16k in, 4k out · $0.05"
+
+
+def test_undeterminable_cost_shows_no_cost_segment() -> None:
+    """Prove token-bearing runs with no pricing render the line without a cost
+    segment: tokens and run count stay visible, the cost is omitted entirely."""
+    tracker = SubagentUsageTracker()
+    tracker.update(
+        "call-1",
+        [_child(input=16000, output=4000), _child(input=1000, output=500)],
+        final=True,
+    )
+
+    content = _inject_section(_base_content(), tracker.totals, TAU_DARK_THEME, widgets)
+
+    assert _section_body(content, "subagents").plain == "2 runs · 17k in, 4.5k out"
+
+
+def test_zero_estimate_priced_run_shows_tilde_with_zero_amount() -> None:
+    """Prove the ``~`` keys off catalog provenance, not the amount: a priced
+    run with a ``0.0`` estimate renders ``~$0.00``."""
+    tracker = SubagentUsageTracker()
+    tracker.update(
+        "call-1",
+        [_child(input=16000, output=4000, catalog_priced=True)],
+        final=True,
+    )
+
+    content = _inject_section(_base_content(), tracker.totals, TAU_DARK_THEME, widgets)
+
+    assert _section_body(content, "subagents").plain == "1 run · 16k in, 4k out · ~$0.00"
 
 
 def test_empty_totals_leave_content_unchanged() -> None:

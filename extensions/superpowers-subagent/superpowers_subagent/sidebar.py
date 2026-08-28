@@ -108,8 +108,12 @@ def _section_body(totals: SubagentUsageTotals, theme: Any, widgets: Any) -> Any:
     body.append(f"{label} · ")
     body.append(f"{widgets._compact_usage_count(totals.prompt_tokens)} in, ")
     body.append(f"{widgets._compact_usage_count(totals.output_tokens)} out")
-    if totals.cost > 0:
+    if totals.has_determinable_cost:
+        amount = widgets._format_cost(totals.total_cost)
+        if totals.has_catalog_estimate:
+            amount = f"~{amount}"
+        if totals.unpriced_runs > 0:
+            amount = f"{amount}+"
         body.append(" · ")
-        # Provider-reported value: no estimation tilde, matching the per-child widget.
-        body.append(widgets._format_cost(totals.cost))
+        body.append(amount)
     return body
