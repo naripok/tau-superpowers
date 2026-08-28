@@ -17,6 +17,7 @@ from tau_agent.messages import AgentMessage, AssistantMessage, ToolResultMessage
 from tau_agent.tools import ToolCancellationToken
 
 from .config import AgentOverrides
+from .costing import estimated_message_cost
 from .models import AgentConfig, ChildResult
 from .utils import (
     build_tau_argv,
@@ -419,6 +420,10 @@ def _process_json_line(
         result.usage.cache_read += message.usage.cache_read
         result.usage.cache_write += message.usage.cache_write
         result.usage.cost += message.usage.cost.total
+        estimate = estimated_message_cost(message)
+        if estimate is not None:
+            result.usage.estimated_cost += estimate
+            result.usage.catalog_priced = True
         result.usage.context_tokens = message.usage.total_tokens
         if result.provider is None:
             result.provider = message.provider

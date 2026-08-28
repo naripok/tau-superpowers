@@ -3,18 +3,22 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
+from tau_agent.messages import AssistantMessage
 from tau_coding.extensions import ExtensionRuntime, ToolCallHookEvent
 from tau_coding.resources import TauResourcePaths
 
+from superpowers_subagent import runner as runner_module
 from superpowers_subagent.config import AgentOverrides
 from superpowers_subagent.models import AgentConfig, ChildResult
 from superpowers_subagent.runner import (
     _MAX_STDERR_EXCERPT_CODEPOINTS,
     TauChildRunner,
     _child_exit_error,
+    _process_json_line,
     _stderr_excerpt,
     compose_child_prompt,
 )
@@ -47,6 +51,60 @@ def write_fake_tau(tmp_path: Path, source: str) -> Path:
     path.write_text("#!/usr/bin/python3\n" + source, encoding="utf-8")
     path.chmod(0o755)
     return path
+
+
+def _assistant_line(
+    *,
+    input_tokens: int = 0,
+    output_tokens: int = 0,
+    cache_read: int = 0,
+    cache_write: int = 0,
+    total_tokens: int = 0,
+    cost_total: float = 0.0,
+) -> bytes:
+    """Build one raw JSONL ``message_end`` line carrying an assistant message."""
+    return json.dumps(
+        {
+            "type": "message_end",
+            "message": {
+                "role": "assistant",
+                "content": [{"type": "text", "text": "work"}],
+                "provider": "prov-a",
+                "model": "model-a",
+                "usage": {
+                    "input": input_tokens,
+                    "output": output_tokens,
+                    "cacheRead": cache_read,
+                    "cacheWrite": cache_write,
+                    "totalTokens": total_tokens,
+                    "cost": {"total": cost_total},
+                },
+            },
+        }
+    ).encode("utf-8")
+
+
+def _collection_result() -> ChildResult:
+    """Return a fresh child result for direct ``_process_json_line`` collection."""
+    return ChildResult(agent="implementation", agent_source="bundled", task="work", cwd="/tmp")
+
+
+def _pricer(
+    prices: dict[int, float],
+) -> tuple[Callable[[AssistantMessage], float | None], list[AssistantMessage]]:
+    """Stub the runner's estimator seam, keyed on each message's input count.
+
+    Records every priced message so tests can prove the collection path calls
+    the estimator once per message with that message's own usage. A missing key
+    models a model without catalog rates and prices to ``None``.
+    """
+    calls: list[AssistantMessage] = []
+
+    def price(message: AssistantMessage) -> float | None:
+        calls.append(message)
+        return prices.get(message.usage.input)
+
+    return price, calls
 
 
 def test_stderr_excerpt_removes_complete_csi_sequences_only() -> None:
@@ -340,6 +398,95 @@ print("warning", file=sys.stderr)
     assert "Enforced Read-Only Profile" in record["prompt"]
     assert not Path(record["promptPath"]).exists()
     assert not Path(record["policyPath"]).exists()
+
+
+def test_priced_message_accumulates_estimated_cost(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Prove a priced message adds its estimate to ``estimated_cost``, flags
+    ``catalog_priced``, and leaves token accumulation untouched."""
+    price, _ = _pricer({3: 0.25})
+    monkeypatch.setattr(runner_module, "estimated_message_cost", price)
+    result = _collection_result()
+
+    _process_json_line(
+        _assistant_line(
+            input_tokens=3, output_tokens=4, cache_read=5, cache_write=6, total_tokens=12
+        ),
+        result,
+        None,
+    )
+
+    assert result.usage.estimated_cost == 0.25
+    assert result.usage.catalog_priced is True
+    assert result.usage.input == 3
+    assert result.usage.output == 4
+    assert result.usage.cache_read == 5
+    assert result.usage.cache_write == 6
+    assert result.usage.context_tokens == 12
+    assert result.usage.turns == 1
+
+
+def test_each_message_is_priced_with_its_own_usage(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Prove every accepted message is priced by its own call with its own token
+    breakdown, so per-message tier selection and one-hour cache splits stay
+    exact instead of collapsing into one aggregated call."""
+    price, calls = _pricer({3: 0.25, 7: 0.5})
+    monkeypatch.setattr(runner_module, "estimated_message_cost", price)
+    result = _collection_result()
+
+    _process_json_line(_assistant_line(input_tokens=3), result, None)
+    _process_json_line(_assistant_line(input_tokens=7), result, None)
+
+    assert result.usage.estimated_cost == 0.75
+    assert len(calls) == 2
+    assert calls[1].usage.input == 7
+
+
+def test_unpriced_message_with_reported_cost_accumulates_reported_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Prove a message the catalog cannot price keeps the reported-cost path:
+    the provider-reported total accumulates and no estimate or pricing flag
+    appears."""
+    price, _ = _pricer({})
+    monkeypatch.setattr(runner_module, "estimated_message_cost", price)
+    result = _collection_result()
+
+    _process_json_line(_assistant_line(input_tokens=3, cost_total=0.3), result, None)
+
+    assert result.usage.cost == 0.3
+    assert result.usage.estimated_cost == 0.0
+    assert result.usage.catalog_priced is False
+
+
+def test_unpriced_message_without_reported_cost_adds_no_cost(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Prove an unpriced message without a provider-reported cost adds nothing
+    to either cost field while its tokens still accumulate."""
+    price, _ = _pricer({})
+    monkeypatch.setattr(runner_module, "estimated_message_cost", price)
+    result = _collection_result()
+
+    _process_json_line(_assistant_line(input_tokens=3, output_tokens=4), result, None)
+
+    assert result.usage.cost == 0.0
+    assert result.usage.estimated_cost == 0.0
+    assert result.usage.catalog_priced is False
+    assert result.usage.input == 3
+    assert result.usage.output == 4
+
+
+def test_priced_message_also_accumulates_reported_cost(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Prove a priced message with a provider-reported cost accumulates both:
+    the estimate into ``estimated_cost`` and the report into ``cost``."""
+    price, _ = _pricer({3: 0.25})
+    monkeypatch.setattr(runner_module, "estimated_message_cost", price)
+    result = _collection_result()
+
+    _process_json_line(_assistant_line(input_tokens=3, cost_total=0.3), result, None)
+
+    assert result.usage.estimated_cost == 0.25
+    assert result.usage.cost == 0.3
 
 
 @pytest.mark.asyncio
@@ -699,6 +846,43 @@ async def test_runner_times_out_and_terminates_child(tmp_path: Path) -> None:
     assert not result.cancelled
     assert result.status == "BLOCKED"
     assert "timed out" in (result.error_message or "")
+
+
+@pytest.mark.asyncio
+async def test_timed_out_child_keeps_estimated_cost(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Prove a child that emits one priced message and then outlives its timeout
+    finalizes with that message's estimate, so a partial child still reports
+    catalog costs. Estimation runs in the parent, so the stub applies."""
+    price, _ = _pricer({3: 0.5})
+    monkeypatch.setattr(runner_module, "estimated_message_cost", price)
+    fake_tau = write_fake_tau(
+        tmp_path,
+        """import json, time
+print(json.dumps({"type": "message_end", "message": {
+    "role": "assistant", "content": [{"type": "text", "text": "partial"}],
+    "usage": {"input": 3, "output": 4, "totalTokens": 7}
+}}), flush=True)
+time.sleep(10)
+""",
+    )
+
+    result = await TauChildRunner(str(fake_tau)).run(
+        default_cwd=tmp_path,
+        agent=make_agent(tmp_path),
+        task="task",
+        cwd_override=None,
+        provider_override=None,
+        model_override=None,
+        reasoning_effort_override=None,
+        timeout_seconds=0.05,
+        signal=None,
+    )
+
+    assert result.timed_out
+    assert result.usage.estimated_cost == 0.5
+    assert result.usage.catalog_priced is True
 
 
 @pytest.mark.asyncio
