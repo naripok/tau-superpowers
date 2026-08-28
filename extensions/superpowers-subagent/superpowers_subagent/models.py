@@ -66,6 +66,15 @@ class UsageStats:
     cost: float = 0.0
     context_tokens: int = 0
     turns: int = 0
+    #: Sum of catalog estimates over the child's accepted messages; serialized
+    #: additively as ``estimatedCost`` so existing details consumers are
+    #: unaffected.
+    estimated_cost: float = 0.0
+    #: Internal provenance: True when at least one accepted message was priced
+    #: from the catalog. Deliberately excluded from ``to_dict`` because the
+    #: additive ``estimatedCost`` field is the only new usage content in
+    #: details.
+    catalog_priced: bool = False
 
     def to_dict(self) -> dict[str, JSONValue]:
         return {
@@ -74,6 +83,7 @@ class UsageStats:
             "cacheRead": self.cache_read,
             "cacheWrite": self.cache_write,
             "cost": self.cost,
+            "estimatedCost": self.estimated_cost,
             "contextTokens": self.context_tokens,
             "turns": self.turns,
         }

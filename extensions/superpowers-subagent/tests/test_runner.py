@@ -316,6 +316,7 @@ print("warning", file=sys.stderr)
         "cacheRead": 5,
         "cacheWrite": 6,
         "cost": 0.25,
+        "estimatedCost": 0.0,
         "contextTokens": 9,
         "turns": 1,
     }
