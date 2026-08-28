@@ -388,6 +388,106 @@ def test_parallel_aggregates_usage_into_total() -> None:
     assert "Total: 4 turns ↑2.0k ↓4.0k $0.0008" in expanded
 
 
+def test_usage_line_shows_estimated_cost_with_tilde() -> None:
+    # Details from collection carry estimatedCost without a provider-reported
+    # cost, so the line must show the estimate marked as such.
+    usage = {"turns": 1, "input": 10, "output": 20, "estimatedCost": 0.4231}
+    result = task_result([child_details(usage=usage, model="acme/fast-1")], content="done")
+
+    expanded = render_task_result(result, expanded=True)
+
+    assert expanded is not None
+    assert "1 turn ↑10 ↓20 ~$0.4231 acme/fast-1" in expanded
+
+
+def test_usage_line_shows_reported_cost_without_tilde() -> None:
+    # A provider-reported cost alone is exact, so the line must not carry the
+    # estimate mark.
+    usage = {"turns": 1, "input": 10, "output": 20, "cost": 0.2}
+    result = task_result([child_details(usage=usage, model="acme/fast-1")], content="done")
+
+    expanded = render_task_result(result, expanded=True)
+
+    assert expanded is not None
+    assert "1 turn ↑10 ↓20 $0.2000 acme/fast-1" in expanded
+
+
+def test_usage_line_combines_reported_and_estimated_cost() -> None:
+    # The rendered amount must be the sum of both cost kinds when both exist,
+    # marked with ~ because an estimated cost contributes.
+    usage = {"turns": 1, "input": 10, "output": 20, "cost": 0.2, "estimatedCost": 0.4231}
+    result = task_result([child_details(usage=usage, model="acme/fast-1")], content="done")
+
+    expanded = render_task_result(result, expanded=True)
+
+    assert expanded is not None
+    assert "1 turn ↑10 ↓20 ~$0.6231 acme/fast-1" in expanded
+
+
+def test_usage_line_omits_zero_cost() -> None:
+    # Zero or missing costs must render no cost segment, matching the old
+    # line shape for details produced before estimation existed.
+    for usage in (
+        {"turns": 1, "input": 10, "output": 20, "cost": 0.0, "estimatedCost": 0.0},
+        {"turns": 1, "input": 10, "output": 20},
+    ):
+        result = task_result([child_details(usage=usage, model="acme/fast-1")], content="done")
+
+        expanded = render_task_result(result, expanded=True)
+
+        assert expanded is not None
+        assert "1 turn ↑10 ↓20 acme/fast-1" in expanded
+        assert "$" not in expanded
+
+
+def test_total_line_sums_estimated_cost_with_tilde() -> None:
+    # The aggregate line must combine each child's estimated cost and keep the
+    # ~ mark, since only estimates contribute.
+    result = task_result(
+        [
+            child_details(
+                agent="alpha",
+                usage={"turns": 1, "input": 10, "output": 20, "estimatedCost": 0.1},
+            ),
+            child_details(
+                agent="beta",
+                usage={"turns": 1, "input": 10, "output": 20, "estimatedCost": 0.3231},
+            ),
+        ],
+        content="done",
+    )
+
+    collapsed = render_task_result(result, expanded=False)
+    expanded = render_task_result(result, expanded=True)
+
+    assert collapsed is not None
+    assert "Total: 2 turns ↑20 ↓40 ~$0.4231" in collapsed
+    assert expanded is not None
+    assert "Total: 2 turns ↑20 ↓40 ~$0.4231" in expanded
+
+
+def test_frame_child_sections_show_estimated_cost() -> None:
+    # Both collapsed and expanded frames must show the combined cost per child
+    # and on the Total line, so costs are visible while children run.
+    usage = {"turns": 1, "input": 10, "output": 20, "cost": 0.1, "estimatedCost": 0.3231}
+    result = task_result(
+        [child_details(agent="alpha", usage=usage), child_details(agent="beta", usage=usage)],
+        content="done",
+    )
+
+    collapsed = render_task_result(result, expanded=False)
+    expanded = render_task_result(result, expanded=True)
+
+    assert collapsed is not None
+    assert collapsed.count("~$") == 3
+    assert "1 turn ↑10 ↓20 ~$0.4231" in collapsed
+    assert "Total: 2 turns ↑20 ↓40 ~$0.8462" in collapsed
+    assert expanded is not None
+    assert expanded.count("~$") == 3
+    assert "1 turn ↑10 ↓20 ~$0.4231" in expanded
+    assert "Total: 2 turns ↑20 ↓40 ~$0.8462" in expanded
+
+
 # ---------------------------------------------------------------------------
 # Collapsed size limits and hints
 # ---------------------------------------------------------------------------

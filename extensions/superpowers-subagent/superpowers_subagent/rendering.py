@@ -415,6 +415,9 @@ def _preview(value: str, limit: int) -> str:
 
 
 def _usage_line(usage: object, model: object, reasoning_effort: object = None) -> str:
+    """Render one child's usage counters; the cost segment shows reported plus
+    estimated cost, marked with ``~`` when any estimated cost contributes."""
+
     if not isinstance(usage, dict):
         return ""
     parts: list[str] = []
@@ -425,9 +428,12 @@ def _usage_line(usage: object, model: object, reasoning_effort: object = None) -
         value = _positive_number(usage.get(key))
         if value > 0:
             parts.append(f"{prefix}{_format_tokens(value)}")
-    cost = _positive_number(usage.get("cost"))
-    if cost > 0:
-        parts.append(f"${cost:.4f}")
+    reported = _positive_number(usage.get("cost"))
+    estimated = _positive_number(usage.get("estimatedCost"))
+    total = reported + estimated
+    if total > 0:
+        mark = "~" if estimated > 0 else ""
+        parts.append(f"{mark}${total:.4f}")
     context = _positive_number(usage.get("contextTokens"))
     if context > 0:
         parts.append(f"ctx:{_format_tokens(context)}")
@@ -447,13 +453,14 @@ def _aggregate_usage(children: Sequence[Mapping[str, object]]) -> str:
         "cacheRead": 0.0,
         "cacheWrite": 0.0,
         "cost": 0.0,
+        "estimatedCost": 0.0,
     }
     for child in children:
         usage = child.get("usage")
         if not isinstance(usage, dict):
             continue
         totals["turns"] += int(_positive_number(usage.get("turns")))
-        for key in ("input", "output", "cacheRead", "cacheWrite", "cost"):
+        for key in ("input", "output", "cacheRead", "cacheWrite", "cost", "estimatedCost"):
             totals[key] += _positive_number(usage.get(key))
     return _usage_line(totals, None)
 
