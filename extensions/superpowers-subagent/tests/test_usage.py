@@ -2,8 +2,8 @@
 
 These tests pin the "Session-scoped subagent usage aggregation" delta
 requirement: snapshot replacement semantics, exactly-once commits, zero-usage
-children, partial usage after process failure, rebind resets, and cost
-handling.
+children, partial usage after process failure, rebind resets, cost handling,
+and the estimated-cost provenance of catalog-priced and unpriced runs.
 """
 
 from __future__ import annotations
@@ -19,6 +19,8 @@ def _child(
     cache_read: int = 0,
     cache_write: int = 0,
     cost: float = 0.0,
+    estimated_cost: float = 0.0,
+    catalog_priced: bool = False,
     timed_out: bool = False,
 ) -> ChildResult:
     return ChildResult(
@@ -34,6 +36,8 @@ def _child(
             cache_read=cache_read,
             cache_write=cache_write,
             cost=cost,
+            estimated_cost=estimated_cost,
+            catalog_priced=catalog_priced,
         ),
     )
 
@@ -151,6 +155,25 @@ def test_reset_clears_everything() -> None:
     assert tracker.totals == SubagentUsageTotals()
 
 
+def test_reset_clears_estimated_totals() -> None:
+    """Prove a session-rebind reset also returns the estimated-cost fields and
+    provenance flags to their defaults, committed and in-flight alike."""
+    tracker = SubagentUsageTracker()
+    tracker.update(
+        "call-1",
+        [_child(input=100, output=50, cost=0.5, estimated_cost=0.25, catalog_priced=True)],
+        final=True,
+    )
+    tracker.update("call-2", [_child(input=10, output=5)], final=False)
+
+    tracker.reset()
+
+    assert tracker.totals.estimated_cost == 0.0
+    assert tracker.totals.has_determinable_cost is False
+    assert tracker.totals.has_catalog_estimate is False
+    assert tracker.totals.unpriced_runs == 0
+
+
 def test_prompt_tokens_include_cached_and_written() -> None:
     """Prove the displayed input figure includes cached and cache-written
     tokens, mirroring the session usage section's input definition."""
@@ -173,6 +196,130 @@ def test_cost_reported_only_when_nonzero() -> None:
     )
 
     assert tracker.totals.cost == 0.5
+
+
+def test_estimated_cost_accumulates_across_calls() -> None:
+    """Prove catalog estimates fold once per committed call and sum across the
+    session, exactly like reported cost: the sidebar total needs both shares."""
+    tracker = SubagentUsageTracker()
+
+    tracker.update(
+        "call-1",
+        [_child(input=100, output=50, estimated_cost=0.5, catalog_priced=True)],
+        final=True,
+    )
+    tracker.update(
+        "call-2",
+        [_child(input=200, output=100, estimated_cost=0.25, catalog_priced=True)],
+        final=True,
+    )
+
+    totals = tracker.totals
+    assert totals.runs == 2
+    assert totals.estimated_cost == 0.75
+    assert totals.cost == 0.0
+    assert totals.total_cost == 0.75
+    assert totals.has_catalog_estimate is True
+    assert totals.has_determinable_cost is True
+    assert totals.unpriced_runs == 0
+
+
+def test_unpriced_runs_are_counted() -> None:
+    """Prove a run with tokens but neither catalog rates nor reported cost
+    counts as unpriced and adds no cost: its tokens still count, so the
+    combined cost stays at the priced child's cost alone."""
+    tracker = SubagentUsageTracker()
+
+    tracker.update(
+        "call-1",
+        [
+            _child(
+                input=100,
+                output=50,
+                cost=0.5,
+                estimated_cost=0.25,
+                catalog_priced=True,
+            ),
+            _child(input=200, output=100),
+        ],
+        final=True,
+    )
+
+    totals = tracker.totals
+    assert totals.runs == 2
+    assert totals.unpriced_runs == 1
+    assert totals.cost == 0.5
+    assert totals.estimated_cost == 0.25
+    assert totals.total_cost == 0.75
+    assert totals.input_tokens == 300
+    assert totals.has_determinable_cost is True
+
+
+def test_zero_estimate_priced_child_is_determinable() -> None:
+    """Prove catalog pricing alone makes a run determinable even with a zero
+    estimate (a free model): it counts as a run, never as unpriced, and keeps
+    the estimate mark that must ignore the amount."""
+    tracker = SubagentUsageTracker()
+
+    tracker.update(
+        "call-1",
+        [_child(input=100, output=50, estimated_cost=0.0, catalog_priced=True)],
+        final=True,
+    )
+
+    totals = tracker.totals
+    assert totals.runs == 1
+    assert totals.has_determinable_cost is True
+    assert totals.has_catalog_estimate is True
+    assert totals.unpriced_runs == 0
+    assert totals.estimated_cost == 0.0
+    assert totals.total_cost == 0.0
+
+
+def test_reported_only_child_is_determinable_but_not_estimated() -> None:
+    """Prove a non-zero reported cost makes a run determinable without the
+    catalog mark: the estimate mark needs catalog pricing, not just a cost."""
+    tracker = SubagentUsageTracker()
+
+    tracker.update(
+        "call-1",
+        [_child(input=100, output=50, cost=0.5)],
+        final=True,
+    )
+
+    totals = tracker.totals
+    assert totals.runs == 1
+    assert totals.has_determinable_cost is True
+    assert totals.has_catalog_estimate is False
+    assert totals.unpriced_runs == 0
+    assert totals.estimated_cost == 0.0
+    assert totals.total_cost == 0.5
+
+
+def test_in_flight_snapshot_carries_estimated_cost() -> None:
+    """Prove an in-flight call's estimate is visible before commit and that a
+    live update replaces the estimate instead of accumulating it."""
+    tracker = SubagentUsageTracker()
+
+    tracker.update(
+        "call-1",
+        [_child(input=100, output=50, estimated_cost=0.25, catalog_priced=True)],
+        final=False,
+    )
+
+    totals = tracker.totals
+    assert totals.runs == 1
+    assert totals.estimated_cost == 0.25
+    assert totals.has_catalog_estimate is True
+
+    tracker.update(
+        "call-1",
+        [_child(input=150, output=80, estimated_cost=0.5, catalog_priced=True)],
+        final=False,
+    )
+
+    assert tracker.totals.estimated_cost == 0.5
+    assert tracker.totals.input_tokens == 150
 
 
 def test_concurrent_calls_keep_separate_snapshots() -> None:

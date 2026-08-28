@@ -18,10 +18,20 @@ class SubagentUsageTotals:
     cache_write_tokens: int = 0
     output_tokens: int = 0
     cost: float = 0.0
+    #: Sum of catalog estimates over contributing runs, from ``UsageStats``.
+    estimated_cost: float = 0.0
+    #: True when at least one contributing run has a determinable cost: catalog
+    #: pricing or a non-zero reported cost.
+    has_determinable_cost: bool = False
+    #: True when at least one contributing run is estimated from catalog rates,
+    #: regardless of the estimated amount.
+    has_catalog_estimate: bool = False
+    #: Runs that report non-zero token usage and have no determinable cost.
+    unpriced_runs: int = 0
 
     @property
     def has_usage(self) -> bool:
-        """Whether any subagent run has reported token usage or cost."""
+        """Whether any subagent run has token usage or a determinable cost."""
         return self.runs > 0
 
     @property
@@ -33,13 +43,20 @@ class SubagentUsageTotals:
         """
         return self.input_tokens + self.cached_input_tokens + self.cache_write_tokens
 
+    @property
+    def total_cost(self) -> float:
+        """Reported cost plus the catalog estimate."""
+        return self.cost + self.estimated_cost
+
 
 def _add_child(totals: SubagentUsageTotals, child: ChildResult) -> SubagentUsageTotals:
-    """Return ``totals`` plus one child's usage; zero-usage children add nothing."""
+    """Return ``totals`` plus one child's usage; children without usage or a
+    determinable cost add nothing."""
     usage = child.usage
     consumed = usage.input + usage.output + usage.cache_read + usage.cache_write
-    if consumed <= 0 and usage.cost <= 0:
+    if consumed <= 0 and usage.cost <= 0 and not usage.catalog_priced:
         return totals
+    determinable = usage.catalog_priced or usage.cost > 0
     return SubagentUsageTotals(
         runs=totals.runs + 1,
         input_tokens=totals.input_tokens + usage.input,
@@ -47,6 +64,10 @@ def _add_child(totals: SubagentUsageTotals, child: ChildResult) -> SubagentUsage
         cache_write_tokens=totals.cache_write_tokens + usage.cache_write,
         output_tokens=totals.output_tokens + usage.output,
         cost=totals.cost + usage.cost,
+        estimated_cost=totals.estimated_cost + usage.estimated_cost,
+        has_determinable_cost=totals.has_determinable_cost or determinable,
+        has_catalog_estimate=totals.has_catalog_estimate or usage.catalog_priced,
+        unpriced_runs=totals.unpriced_runs + (0 if determinable else 1),
     )
 
 
