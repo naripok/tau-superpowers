@@ -100,7 +100,7 @@ This section applies to findings from the `code-review` and `document-review` re
 When a report from a reviewer agent arrives at a review gate:
 
 ```
-1. Split the report into findings.
+1. Parse the report into findings.
 2. Verify each finding against the artifact.
 3. Classify each finding with the endorsement conditions and the rejection grounds.
 4. Record an endorse or reject verdict with its reason for each finding.

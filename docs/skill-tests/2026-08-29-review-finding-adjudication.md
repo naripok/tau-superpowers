@@ -2,7 +2,7 @@
 
 ## Test method
 
-The trial pair used an isolated `read-only` child per trial. The baseline trial embedded the unmodified `skills/receiving-code-review/SKILL.md` text in the prompt. The candidate trial embeds the complete modified `SKILL.md` in the prompt. Both trials in the pair received the identical scenario prompt and inherited the same provider, model, and reasoning effort. The scenario is a roleplay: the child treats the task text as the governing contract and the finding citations as the artifact evidence. The child states its handling and performs no fixes.
+The trial pair used an isolated `read-only` child per trial. The baseline trial embedded the unmodified skill text in the prompt. The candidate trial required a complete read of the modified `SKILL.md` at its worktree path before the identical scenario prompt. Both trials in the pair received the identical scenario prompt and inherited the same provider, model, and reasoning effort. The scenario is a roleplay: the child treats the task text as the governing contract and the finding citations as the artifact evidence. The child states its handling and performs no fixes.
 
 **Scenario (identical in both trials):**
 
