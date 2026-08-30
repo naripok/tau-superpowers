@@ -37,9 +37,9 @@ ELSE (1-2 trivial tasks):
    b. Handle the reported status (below)
    c. Check the implementer report: tests ran and pass, work committed, self-review done
    d. Dispatch the implementation reviewer (`./implementation-reviewer-prompt.md`). Give it the full feature-spec text, the task text, and the implementer report. Also give it every relevant file path, the diff, and the verification output
-   e. The reviewer reports on two dimensions: **Spec Compliance** and **Code Quality**. Evaluate the findings before you act on them (see receiving-code-review). Drop findings that demand work beyond the task contract. If either dimension has findings, re-dispatch the implementer with the original task, current state, and the findings. Then re-dispatch the reviewer with updated evidence. Repeat until both pass
+   e. The reviewer reports on two dimensions: **Spec Compliance** and **Code Quality**. Before you act on any finding, adjudicate every finding per `receiving-code-review`. If adjudication endorses findings, re-dispatch the implementer. The re-dispatch carries the original task, the current state, and only the endorsed findings. Then re-dispatch the reviewer with the updated evidence, the rejected findings, and the rejection reasons. Repeat until both pass
    f. Mark the task complete
-3. After the last task: dispatch the implementation reviewer over the entire change. The final review checks the FULL feature spec. Per-task reviews check only their own task
+3. After the last task: dispatch the implementation reviewer over the entire change. The final review checks the FULL feature spec. Per-task reviews check only their own task. Before you act on any finding, adjudicate every finding per `receiving-code-review`. Endorsed findings go to dispatched fix subagents
 4. Invoke finishing-a-development-branch
 
 ## Handling Implementer Status
@@ -84,7 +84,9 @@ Reviewer:
   ### Code Quality — Important: magic number at reporter.py:42
   **Status: DONE_WITH_CONCERNS**
 
-[Re-dispatch implementer with the original task, current state, and findings]
+[Adjudicate the findings per receiving-code-review: both endorsed]
+
+[Re-dispatch implementer with the original task, current state, and endorsed findings]
 Implementer: DONE — added progress reporting, extracted PROGRESS_INTERVAL
 
 [Re-dispatch reviewer with updated diff]

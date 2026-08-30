@@ -42,7 +42,9 @@ For each task:
 
 ### Step 4: Checkpoint Reviews
 
-After every 3 tasks (or at the stated checkpoints of the plan), dispatch a `code-review` subagent over the accumulated diff. Use the template at `../subagent-driven-development/implementation-reviewer-prompt.md`. The template checks spec compliance and code quality in one pass. Before you continue, fix all Critical and Important findings.
+After every 3 tasks (or at the stated checkpoints of the plan), dispatch a `code-review` subagent over the accumulated diff. Use the template at `../subagent-driven-development/implementation-reviewer-prompt.md`. The template checks spec compliance and code quality in one pass.
+
+Before you act on any finding, adjudicate every finding per `receiving-code-review`. You are the implementer at this checkpoint. Apply endorsed Critical and Important fixes yourself. Apply endorsed Minor findings yourself, or defer them and record each deferral. If adjudication rejects findings, re-dispatch the reviewer with the fixes, the rejected findings, and the rejection reasons. The gate does not continue while endorsed Critical or Important fixes remain unapplied. A maintained Critical finding stops the gate per the escalation section of `receiving-code-review`.
 
 ### Step 5: Complete Development
 

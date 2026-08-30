@@ -45,11 +45,11 @@ Embed the complete diff, verification output, and every relevant file path. The 
 
 **4. Act on feedback:**
 
-- Fix Critical issues immediately
-- Before you proceed, fix Important issues
-- Note Minor issues for later
-- If the reviewer is wrong, state your disagreement with technical reasoning (see receiving-code-review)
-- Reject findings that demand work beyond the stated requirements (see receiving-code-review)
+Before you act on any finding, adjudicate every finding per `receiving-code-review`. Then:
+
+- Send endorsed Critical and Important findings to dispatched fix subagents
+- Apply endorsed Minor findings through the same fix path, or note them for later and record each deferral
+- Send rejected findings back to the reviewer for confirmation
 
 ## Red Flags
 

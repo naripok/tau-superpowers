@@ -159,7 +159,8 @@ Fix issues inline, then continue. Add missing tasks. Add missing test behaviors.
 
 Dispatch a `document-review` subagent using `plan-document-reviewer-prompt.md` to check plan completeness and spec alignment.
 
-- **Issues found:** fix the plan, then re-dispatch the reviewer. Loop until the reviewer approves.
+- **Adjudication:** Before you act on any finding, adjudicate every finding per `receiving-code-review`. Fix endorsed findings through dispatched subagents. The reviewer re-dispatch carries the fixes, the rejection list, and the rejection reasons for confirmation.
+- **Issues found:** fix the endorsed findings, then re-dispatch the reviewer. Loop until the reviewer approves.
 - Do NOT proceed to execution until the reviewer approves.
 
 ## Step 6: Commit and Execute

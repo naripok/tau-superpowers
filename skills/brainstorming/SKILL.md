@@ -133,7 +133,8 @@ No requirements added, modified, or removed.
 
 Dispatch a `document-review` subagent using `spec-document-reviewer-prompt.md`.
 
-- **Issues found:** Fix the spec. Re-dispatch the reviewer. Loop until the reviewer approves
+- **Adjudication:** Before you act on any finding, adjudicate every finding per `receiving-code-review`. Fix endorsed findings through dispatched subagents. The reviewer re-dispatch carries the fixes, the rejection list, and the rejection reasons for confirmation
+- **Issues found:** Fix the endorsed findings. Re-dispatch the reviewer. Loop until the reviewer approves
 - **Fundamental issues:** The spec is architecture instead of behavior, or the approach is wrong at the behavioral level. Present the findings to the user. Ask whether to revise the approach. Do not silently rewrite the spec
 - Until the reviewer approves, do NOT proceed to the user gate
 
