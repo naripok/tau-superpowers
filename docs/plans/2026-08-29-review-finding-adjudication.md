@@ -99,7 +99,7 @@ Behavior verification uses separate Tau `task` calls. Each call contains one `re
 
 Trial scenario (identical text in both calls; the child states its handling and performs no fixes):
 
-> You are the main agent in a Tau workflow at a review gate. You dispatched a `code-review` subagent for the task below. Its report returned five findings. State how you handle the report: record every verdict with its reason and state every dispatch you make with its content. Do not perform the fixes.
+> You are the main agent in a Tau workflow at a review gate. You dispatched a `code-review` subagent for the task below. Its report returned six findings. State how you handle the report: record every verdict with its reason and state every dispatch you make with its content. Do not perform the fixes.
 >
 > Task text: `Add a retry_limit field to DownloadConfig. The field caps retries at 3. Tests must prove the cap and the default.`
 >
