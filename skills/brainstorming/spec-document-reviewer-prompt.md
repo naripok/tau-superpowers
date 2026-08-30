@@ -19,13 +19,15 @@ This is a template for constructing the `task` string of the Tau `task` tool. Ca
 }
 ```
 
-The child has no controller conversation history. Name the spec and proposal paths explicitly and include any required command or search output. The result content is the reviewer's complete final message: the `## Document Review` report (verdict + findings) ending in the status line.
+The child has no controller conversation history. Name the spec and proposal paths explicitly and include any required command or search output. When a living spec exists for the affected domain, name its path. When no living spec exists, state that in the dispatch. The result content is the reviewer's complete final message: the `## Document Review` report (verdict + findings) ending in the status line.
 
 ```markdown
     You are reviewing whether a feature spec is complete, truly behavioral, and ready for implementation planning.
 
     **Spec to review:** [SPEC_FILE_PATH]
     **Proposal for context:** [PROPOSAL_FILE_PATH]
+    **Living spec for the affected domain:** [LIVING_SPEC_PATH, or the statement "No living spec exists for this domain" when none exists]
+    **Governing contract for this gate:** the stated requirements of the proposal.
 
     ## What to Check
 
@@ -36,6 +38,7 @@ The child has no controller conversation history. Name the spec and proposal pat
     | Testability | Each scenario is concrete enough to write an automated test for. If you cannot imagine a test, the scenario is too vague. |
     | No implementation details | No class names, function names, library choices, file paths, or architectural decisions in the spec. These belong in the proposal's Approach section. |
     | Completeness vs proposal | The spec covers everything the proposal says is in scope. No missing behavioral requirements. |
+    | Living-spec alignment | Check the spec delta against the living-spec material. An ADDED, MODIFIED, or REMOVED claim that contradicts current behavior is a finding. |
     | No placeholders | No "TBD", "TODO", incomplete sections, or vague requirements. |
     | Consistency | No internal contradictions between requirements. No conflicting scenarios. |
     | Scope | Focused enough for a single implementation plan — not covering multiple independent subsystems. |
@@ -68,7 +71,23 @@ The child has no controller conversation history. Name the spec and proposal pat
 
     **Reject specs that have zero scenarios or use no RFC 2119 keywords.**
 
+    ## Re-Check Before Reporting
+
+    Before you write the report, re-check every finding against the spec and the governing contract. Report only findings that survive the re-check.
+
+    ## Rejection Confirmation
+
+    The main agent fills this section only on a confirmation re-dispatch. It stays empty on the first dispatch.
+
+    **Rejected findings to confirm or withdraw:**
+    - Finding: [REJECTED_FINDING]
+      Rejection reason: [REJECTION_REASON]
+
+    Re-check the spec for each rejected finding. Confirm the finding with its concrete consequence or withdraw it. Withdraw on technical grounds only. Never withdraw a finding merely because the main agent rejects it.
+
     ## Output Format
+
+    For every finding, state the requirement or section it rests on and the concrete consequence. When the finding claims a contract problem, state the contract clause it rests on. Omit a finding that cannot state these.
 
     Return exactly one section with the exact heading `## Document Review`. Your
     complete final message is relayed verbatim to the controller, so every

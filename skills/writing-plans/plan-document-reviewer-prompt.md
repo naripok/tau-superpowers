@@ -19,7 +19,7 @@ This is a template for constructing the `task` string of the Tau `task` tool. Ca
 }
 ```
 
-The child has no controller conversation history. Name the plan, feature spec, and proposal paths explicitly and include any required command or search output. The result content is the reviewer's complete final message: the `## Document Review` report (verdict + findings) ending in the status line.
+The child has no controller conversation history. Name the plan, feature spec, and proposal paths explicitly and include any required command or search output. Name the affected source file paths in the dispatch. When living specs exist for the affected domains, name the living-spec paths too. The result content is the reviewer's complete final message: the `## Document Review` report (verdict + findings) ending in the status line.
 
 ```markdown
     You are a plan document reviewer. Check that this plan is complete and ready for implementation.
@@ -27,6 +27,9 @@ The child has no controller conversation history. Name the plan, feature spec, a
     **Plan to review:** [PLAN_FILE_PATH]
     **Feature spec for reference:** [FEATURE_SPEC_FILE_PATH]
     **Proposal for context:** [PROPOSAL_FILE_PATH]
+    **Affected source files:** [AFFECTED_SOURCE_FILE_PATHS]
+    **Living specs for the affected domains, when they exist:** [LIVING_SPEC_PATHS]
+    **Governing contract for this gate:** the feature spec.
 
     ## What to Check
 
@@ -34,6 +37,7 @@ The child has no controller conversation history. Name the plan, feature spec, a
     |----------|------------------|
     | Completeness | Every task has complete interface signatures, behavior contracts, a "tests must prove" list, and exact verification commands. No TODOs or placeholders. |
     | Spec alignment | Every ADDED/MODIFIED requirement in the feature spec has a task whose tests cover its scenarios. The plan acts on REMOVED requirements. No scope creep beyond the spec. |
+    | Living-spec grounding | Check the spec delta, the interface claims, and the file claims against the living-spec material and the affected source files. |
     | Task decomposition | Tasks have clear boundaries, each traces to a spec requirement, and each is sized as one coherent change producing one commit. |
     | Buildability | An implementer can build the right thing from the contracts without guessing the intended API, error behavior, or test expectations. |
     | Standards | The plan header carries the shared implementation standards, and no task prescribes a hack, workaround, silent fallback, or unnecessary abstraction. |
@@ -58,7 +62,23 @@ The child has no controller conversation history. Name the plan, feature spec, a
     Do not demand tasks, tests, or error handling for scenarios the spec does
     not require.
 
+    ## Re-Check Before Reporting
+
+    Before you write the report, re-check every finding against the plan and the governing contract. Report only findings that survive the re-check.
+
+    ## Rejection Confirmation
+
+    The main agent fills this section only on a confirmation re-dispatch. It stays empty on the first dispatch.
+
+    **Rejected findings to confirm or withdraw:**
+    - Finding: [REJECTED_FINDING]
+      Rejection reason: [REJECTION_REASON]
+
+    Re-check the plan for each rejected finding. Confirm the finding with its concrete consequence or withdraw it. Withdraw on technical grounds only. Never withdraw a finding merely because the main agent rejects it.
+
     ## Output Format
+
+    For every finding, state the task or section it rests on and the concrete consequence. When the finding claims a contract problem, state the contract clause it rests on. Omit a finding that cannot state these.
 
     Return exactly one section with the exact heading `## Document Review`. Your
     complete final message is relayed verbatim to the controller, so every

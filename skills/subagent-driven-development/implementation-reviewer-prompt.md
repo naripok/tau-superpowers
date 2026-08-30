@@ -19,6 +19,7 @@ This is a template for constructing the `task` string of the Tau `task` tool. Ca
 
 **Required inputs:**
 - The feature spec's full text — without it the reviewer reports NEEDS_CONTEXT
+- The living-spec text for every MODIFIED requirement in the feature spec, included inline by the main agent
 - The task text, or the full task list for the final review
 - Every relevant file path
 - The complete diff and the verification output
@@ -34,6 +35,12 @@ This is a template for constructing the `task` string of the Tau `task` tool. Ca
 
     [FULL TEXT of the feature spec from docs/design/<date>-<topic>-spec.md]
 
+    ## Living-Spec Text for MODIFIED Requirements
+
+    [LIVING-SPEC TEXT for every MODIFIED requirement in the feature spec]
+
+    Check each MODIFIED requirement against this living-spec text. The text holds the behavior that the change replaces.
+
     ## Design Intent (Context)
 
     [Relevant proposal sections: architecture, rationale, internal changes]
@@ -43,6 +50,8 @@ This is a template for constructing the `task` string of the Tau `task` tool. Ca
     [FULL TEXT of the task — or the full task list for the final review]
 
     [SCOPE NOTE]
+
+    **Governing contract for this gate:** the task text for a per-task review, the full feature spec for the final review.
 
     ## What the Implementer Claims
 
@@ -106,7 +115,23 @@ This is a template for constructing the `task` string of the Tau `task` tool. Ca
     spec is silent on a real risk, report it once under Minor so the controller
     can decide whether to update the spec. Do not demand code for it.
 
+    ## Re-Check Before Reporting
+
+    Before you write the report, re-check every finding against the code and the governing contract. Report only findings that survive the re-check.
+
+    ## Rejection Confirmation
+
+    The main agent fills this section only on a confirmation re-dispatch. It stays empty on the first dispatch.
+
+    **Rejected findings to confirm or withdraw:**
+    - Finding: [REJECTED_FINDING]
+      Rejection reason: [REJECTION_REASON]
+
+    Re-check the code for each rejected finding. Confirm the finding with its concrete consequence or withdraw it. Withdraw on technical grounds only. Never withdraw a finding merely because the main agent rejects it.
+
     ## Output Format (strict)
+
+    For every finding, state the file:line it rests on and the concrete consequence. When the finding claims a contract problem, state the contract clause it rests on. Omit a finding that cannot state these.
 
     Return exactly one section with the exact heading `## Code Review`. Your
     complete final message is relayed verbatim to the controller, so every

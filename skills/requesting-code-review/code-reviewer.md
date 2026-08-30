@@ -33,6 +33,8 @@ Fill every placeholder, then dispatch with:
 
     {PLAN_REFERENCE}
 
+    **Governing contract for this gate:** the stated requirements supplied in this dispatch.
+
     ## Modified Files
 
     {MODIFIED_FILES}
@@ -99,12 +101,28 @@ Fill every placeholder, then dispatch with:
     If a real risk exists that the requirements miss, report it once under Minor
     as a question for the controller. Do not mark it Critical or Important.
 
+    ## Re-Check Before Reporting
+
+    Before you write the report, re-check every finding against the code and the governing contract. Report only findings that survive the re-check.
+
+    ## Rejection Confirmation
+
+    The main agent fills this section only on a confirmation re-dispatch. It stays empty on the first dispatch.
+
+    **Rejected findings to confirm or withdraw:**
+    - Finding: {REJECTED_FINDING}
+      Rejection reason: {REJECTION_REASON}
+
+    Re-check the code for each rejected finding. Confirm the finding with its concrete consequence or withdraw it. Withdraw on technical grounds only. Never withdraw a finding merely because the main agent rejects it.
+
     ## Output Format (strict)
 
     Return exactly one section with the exact heading `## Code Review`. Your
     complete final message is relayed verbatim to the controller, so every
     actionable point must be self-contained: file:line, what is wrong, why it
-    matters, how to fix.
+    matters, how to fix. State the concrete consequence for every finding. When
+    the finding claims a contract problem, state the contract clause it rests
+    on. Omit a finding that cannot state these.
 
     ## Code Review
 
