@@ -69,7 +69,7 @@ If you intentionally create your own project extension link, Tau requires both p
 | `dispatching-parallel-agents` | Coordinate independent work concurrently |
 | `executing-plans` | Execute a written implementation plan inline with checkpoints |
 | `finishing-a-development-branch` | Verify, sync living specs, and merge or open a PR |
-| `receiving-code-review` | Evaluate review feedback with technical verification |
+| `receiving-code-review` | Review-finding adjudication: endorse and reject verdicts per finding and fix dispatches that carry only endorsed findings |
 | `requesting-code-review` | Request focused review before completion |
 | `subagent-driven-development` | Execute plan tasks with fresh implementer and reviewer contexts, one two-dimension review per task |
 | `systematic-debugging` | Diagnose root causes before changing code |

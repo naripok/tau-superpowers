@@ -47,7 +47,10 @@ BRAINSTORMING
      never on the default branch.
   5. Write the proposal and the behavioral feature spec
      (ADDED/MODIFIED/REMOVED relative to the living spec).
-  6. task(document-review): review the spec; fix and re-dispatch until approved.
+  6. task(document-review): review the spec. Before fixes, adjudicate the
+     report. Fix endorsed findings. Re-dispatch the reviewer with the fixes,
+     the rejected findings, and the rejection reasons for confirmation.
+     Loop until approved.
   7. Get user approval for both artifacts; commit them to the branch.
 
   HARD GATE: no implementation before reviewer and user approval.
@@ -60,7 +63,10 @@ WRITING PLANS
      verification commands — no implementation code in the plan.
   3. Self-review spec<->plan coverage, placeholders, signature
      consistency, and standards.
-  4. task(document-review): review the plan; fix and re-dispatch until approved.
+  4. task(document-review): review the plan. Before fixes, adjudicate the
+     report. Fix endorsed findings. Re-dispatch the reviewer with the fixes,
+     the rejected findings, and the rejection reasons for confirmation.
+     Loop until approved.
   5. Commit the plan to the branch. Execute with subagent-driven-development
      (executing-plans inline for trivial plans).
                                   |
@@ -73,12 +79,16 @@ IMPLEMENTATION
        b. Inspect the report, tests, commit, and semantic status.
        c. task(code-review): ONE review pass per task; the report carries
           separate Spec Compliance and Code Quality sections.
-       d. Fix and re-review until both dimensions pass.
+       d. Before fixes, adjudicate the report. Re-dispatch the implementer
+          with only the endorsed findings. Re-dispatch the reviewer with
+          the rejections for confirmation. Loop until both dimensions pass.
   3. If inline executing-plans:
        a. Execute each task's contract with TDD and run its named checks;
           commit per task.
        b. Checkpoint review each batch with the same implementation reviewer.
-  4. Final whole-change review against the full feature spec.
+          Before fixes, adjudicate the report. Apply endorsed fixes inline.
+  4. Final whole-change review against the full feature spec. Before fixes,
+     adjudicate the report. Endorsed findings go to fix dispatches.
                                   |
                                   v
 FINISHING
@@ -93,6 +103,8 @@ FINISHING
      branch, remove the worktree) or PR (push, gh pr create, keep the
      branch and worktree until it lands).
 ```
+
+Ad-hoc reviews through `requesting-code-review` run the same adjudication loop as the flow above. They adjudicate findings per `receiving-code-review` before fixes, route endorsed fixes to dispatched subagents, and send rejections back for confirmation.
 
 ## `task` Dispatch in the Flow
 
@@ -170,6 +182,7 @@ The feature spec expresses the change from current behavior. Plan tasks and test
 | Plan reviewer | `writing-plans` | No execution with coverage gaps or incomplete contracts |
 | Worktree baseline | `using-git-worktrees` | No feature work from a failing unexplained baseline |
 | Per-task implementation review | `subagent-driven-development` | No task completes with open spec-compliance or code-quality findings |
+| Review-finding adjudication | `receiving-code-review` | Spec, plan, implementation, checkpoint, and ad-hoc reviews do not advance on unadjudicated findings, and no fix dispatch carries rejected findings |
 | Fresh verification | `verification-before-completion` / `finishing-a-development-branch` | No completion or integration claim without current evidence |
 | Living-spec sync | `finishing-a-development-branch` | No merge/PR before the branch carries the synced specs (skipped for no-behavior-change work) |
 
@@ -183,6 +196,7 @@ The feature spec expresses the change from current behavior. Plan tasks and test
 | **Implementation diverges from the spec** | Decide whether code or spec is wrong, update the correct artifact, recheck task coverage, and re-review. |
 | **Reviewer lacks context** | Supply named paths plus missing diff/search/command output in a new complete `task` prompt. |
 | **Child reports a semantic blocker** | Do not infer process failure; inspect details and re-dispatch or escalate. |
+| **Reviewer maintains a rejected Critical finding** | Stop all workflow dispatches, escalate to the user with an architectural overview and a situation summary, and resume per the user decision. |
 | **Operator never chooses an integration** | The branch and worktree stay untouched; nothing is integrated. |
 
 ## Isolation Boundaries
