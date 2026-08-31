@@ -136,7 +136,8 @@ classify() {
 
 # map_produced_path CANDIDATE — set produced_path to the source-relative path
 # the install produces for CANDIDATE, or return 1 when CANDIDATE escapes the
-# tree or runs through an excluded directory, which the install never copies
+# tree, runs through an excluded directory, or does not land inside skills/
+# or extensions/superpowers-subagent/, the only trees the install produces
 map_produced_path() {
   local parts=() part result=""
   IFS=/ read -r -a parts <<<"$1"
@@ -158,6 +159,10 @@ map_produced_path() {
       *) result+="${result:+/}$part" ;;
     esac
   done
+  case $result in
+    skills/* | extensions/superpowers-subagent/*) ;;
+    *) return 1 ;;
+  esac
   produced_path=$result
 }
 
@@ -201,13 +206,7 @@ installed_side_resolves() {
     name=${skill_dir%/*}
     probe_install "skills/${name##*/}/$ref" && return 0
   done
-  if map_produced_path "$ref"; then
-    case $produced_path in
-      skills/* | extensions/superpowers-subagent/*)
-        [[ -f $root/$produced_path ]] && return 0 ;;
-    esac
-  fi
-  return 1
+  probe_install "$ref"
 }
 
 parse_arguments "$@"

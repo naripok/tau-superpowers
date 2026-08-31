@@ -79,6 +79,18 @@ expect_finding \
   "skills/bad/SKILL.md: docs/FLOW_DESCRIPTION.md" \
   "checkout-only detection"
 
+# Scenario "Reference that escapes the installed skill directory": a
+# backticked path that leaves the skill's installed directory has no produced
+# counterpart, even when a file exists at the normalized source path. The
+# scan reports it.
+fixture=$(new_fixture escape)
+printf 'readme\n' >"$fixture/README.md"
+write_skill "$fixture" esc 'Overview: `../../README.md`.'
+expect_finding \
+  "$fixture" \
+  "skills/esc/SKILL.md: ../../README.md" \
+  "escaping reference"
+
 # Scenario "Sibling skill reference resolves": a reference into a sibling
 # skill directory resolves inside the installed tree and passes.
 fixture=$(new_fixture cross-skill)
@@ -97,8 +109,8 @@ printf 'guide\n' >"$fixture/skills/c/guide.md"
 printf 'See `../guide.md`.\n' >"$fixture/skills/c/sub/notes.md"
 expect_clean_scan "$fixture" "subdirectory reference to the skill root"
 
-# A skill may reference a file the install places under the extension's
-# installed directory; the reference resolves through the installed tree root
+# A skill references a file the install places under the extension's
+# installed directory. The reference resolves through the installed tree root
 # and passes.
 fixture=$(new_fixture tree-root)
 write_skill "$fixture" d 'Config: `extensions/superpowers-subagent/pyproject.toml`.'
