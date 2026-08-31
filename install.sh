@@ -23,9 +23,11 @@ conflicts=()
 destination_class=
 sha=none
 dirty=none
-stamp_time=
 
-# The excludes keep development paths out of the installed copies.
+# The excludes keep development paths out of the installed copies, and
+# delete propagation removes a destination path matching one when the
+# source lacks it, so a taken-over directory converges to the produced
+# tree exactly.
 exclude_args=(
   --exclude=.git
   --exclude=.venv
@@ -143,7 +145,7 @@ install_entry() {
   if [[ ${classes[$index]} == symlink ]]; then
     rm -- "$dest"
   fi
-  itemize=$(rsync -a --delete --itemize-changes "${exclude_args[@]}" \
+  itemize=$(rsync -a --delete --delete-excluded --itemize-changes "${exclude_args[@]}" \
     "$repo_root/$entry/" "$dest" 2>&1) || status=$?
   if ((status != 0)); then
     printf 'Error: rsync failed for entry %s (exit %d)\n' "$entry" "$status" >&2

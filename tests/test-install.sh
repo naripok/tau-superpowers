@@ -2,9 +2,11 @@
 set -euo pipefail
 
 # Proves the installer: copy semantics with excludes, symlink migration,
-# copy take-over, collision preflight, all-or-nothing aborts, the install
-# stamp, idempotent re-install, a missing rsync dependency, a partway copy
-# failure, and the usage error for --check. The suite also runs
+# copy take-over that also removes excluded paths left in a destination,
+# collision preflight, all-or-nothing aborts, the install stamp including
+# a git repository with no commits, idempotent re-install, a missing rsync
+# dependency, a partway copy failure, and the usage error for --check. The
+# suite also runs
 # tests/check-references.sh in full-scan mode and fails when it exits
 # nonzero. Every test runs the installer against a sandboxed HOME (mktemp)
 # and, for the fixture scenarios, against a minimal source fixture in the
@@ -68,7 +70,7 @@ assert_real_directory() {
 
 # assert_absent PATH — the path neither exists nor dangles as a symlink
 assert_absent() {
-  [[ ! -e $1 && ! -L $1 ]] || fail "$1 exists but should not"
+  [[ ! -e $1 && ! -L $1 ]] || fail "$1 exists but must not exist"
 }
 
 # assert_symlink_to PATH TARGET — the path is a symlink with TARGET as its
@@ -375,21 +377,26 @@ test_symlink_migration() {
 }
 
 # Scenario "Copy take-over": a real directory at a managed name converges to
-# the source under delete propagation, and the output lists the removed and
-# updated paths.
+# the source under delete propagation, the delete reaches excluded paths
+# planted in the destination, and the output lists the removed and updated
+# paths.
 test_copy_take_over() {
   local root="$temporary_dir/fixture-takeover" home="$temporary_dir/home-takeover"
   local log="$temporary_dir/takeover.log" dest
   dest="$home/.tau/extensions/superpowers-subagent"
   make_fixture "$root"
-  mkdir -p "$dest"
+  mkdir -p "$dest" "$dest/.venv" "$dest/__pycache__"
   printf 'stale\n' >"$dest/extension.py"
   printf 'junk\n' >"$dest/junk.txt"
+  printf 'v\n' >"$dest/.venv/marker"
+  printf 'c\n' >"$dest/__pycache__/x.pyc"
   run_installer "$home" "$log" "$root"
   assert_install_succeeded "$log"
   assert_real_directory "$dest"
   assert_matches_source "$root/extensions/superpowers-subagent" "$dest"
   assert_absent "$dest/junk.txt"
+  assert_absent "$dest/.venv"
+  assert_absent "$dest/__pycache__"
   assert_output_line "$log" Updated "extensions/superpowers-subagent"
   grep -q 'junk.txt' "$log" ||
     fail "the output does not list the removed path"
@@ -449,6 +456,28 @@ test_stamp_without_git() {
   assert_stamp_time "$(stamp_field "$stamp" time)"
   assert_final_lines "$log" \
     "^Stamp: ${stamp//./\\.} \\(sha none, none\\)$"
+}
+
+# Scenario "Stamp records a repository with no commits": git init without a
+# commit records sha none and keeps the normal dirty rule, so the untracked
+# layout files record dirty yes.
+test_stamp_no_commits() {
+  local root="$temporary_dir/fixture-nocommits" home="$temporary_dir/home-nocommits"
+  local log="$temporary_dir/nocommits.log"
+  local stamp="$home/.tau/.tau-superpowers-install"
+  make_fixture "$root"
+  git -C "$root" -c init.defaultBranch=main init -q
+  run_installer "$home" "$log" "$root"
+  assert_install_succeeded "$log"
+  [[ $(stamp_field "$stamp" source) == "$root" ]] ||
+    fail "the stamp does not record the fixture source"
+  [[ $(stamp_field "$stamp" sha) == none ]] ||
+    fail "a repository without commits records a sha"
+  [[ $(stamp_field "$stamp" dirty) == yes ]] ||
+    fail "untracked layout files are not recorded as dirty"
+  assert_stamp_time "$(stamp_field "$stamp" time)"
+  assert_final_lines "$log" \
+    "^Stamp: ${stamp//./\\.} \\(sha none, dirty\\)$"
 }
 
 # Scenario "Idempotent re-install": a second run reports every entry as
@@ -593,6 +622,7 @@ test_symlink_migration
 test_copy_take_over
 test_stamp_git_state
 test_stamp_without_git
+test_stamp_no_commits
 test_idempotent_reinstall
 test_missing_rsync
 test_collision_with_stamp
