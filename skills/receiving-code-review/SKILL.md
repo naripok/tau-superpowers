@@ -140,7 +140,7 @@ A claim that the artifact does not exhibit at its stated location counts as fact
 - The governing contract
 - The verification commands that the review report provides
 
-If the report provides no verification commands for a finding, the dispatch states their absence. For dispatch conventions, read `docs/FLOW_DESCRIPTION.md`.
+If the report provides no verification commands for a finding, the dispatch states their absence.
 
 **Minor findings.** Apply an endorsed Minor finding through the same fix path. If you defer it, record the deferral. A deferral does not block gate closure.
 

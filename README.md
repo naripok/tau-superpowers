@@ -308,3 +308,13 @@ uv run ruff format --check .
 ```
 
 The integration suite loads the extension through Tau's real extension runtime while using deterministic child-process fixtures for dispatch behavior.
+
+### Contributor hooks
+
+Skills and the extension reference supporting files from their Markdown. A checkout-only reference — a target that exists in this checkout but has no counterpart under `~/.tau` — is dead outside the checkout. The repository ships a pre-commit hook that scans the staged skill and extension Markdown for checkout-only references and rejects the commit when it finds one. Enable the hook once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+The scan lives at `tests/check-references.sh`. Check the shipped tree with `bash tests/check-references.sh`, and check the scan behavior with `bash tests/test-references.sh`.

@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Pre-commit hook: reject commits whose staged skill or extension Markdown
+# carries a checkout-only reference. tests/check-references.sh owns the
+# classification rules; this wrapper only runs it in staged mode from the
+# repository top level and propagates its exit code.
+set -euo pipefail
+
+hook_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+cd -- "$(git rev-parse --show-toplevel)"
+exec "$hook_dir/../tests/check-references.sh" --staged
