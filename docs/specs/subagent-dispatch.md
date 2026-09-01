@@ -11,7 +11,7 @@ This is the canonical description of current behavior. See the [Tau `task` tool 
 
 ### Requirement: Tau-discoverable installation
 
-The package SHALL keep one canonical top-level `skills/` tree. The installer SHALL install individual skills under `~/.tau/skills` and the extension under `~/.tau/extensions/superpowers-subagent` as real directory copies under delete propagation with the install excludes. The install excludes are `.git`, `.venv`, `__pycache__`, `.mypy_cache`, `.pytest_cache`, `.ruff_cache`, and `.worktrees`. The installer SHALL preflight every destination and the rsync dependency before it changes any destination. The installer SHALL stop without changing any destination when a destination conflicts or when rsync is unavailable. When a copy fails partway, the installer SHALL report the failure and exit nonzero, and a later run SHALL make the affected entry match its source. A checkout SHALL support explicit extension loading with `tau -e extensions/superpowers-subagent` and SHALL NOT expose executable code through project `.tau/extensions` by default.
+The package SHALL keep one canonical top-level `skills/` tree. The installer SHALL install individual skills under `~/.tau/skills` and the extension under `~/.tau/extensions/superpowers-subagent` as real directory copies under delete propagation with the install excludes. The install excludes are `.git`, `.venv`, `__pycache__`, `.mypy_cache`, `.pytest_cache`, `.ruff_cache`, and `.worktrees`. The installer SHALL preflight every destination and the rsync dependency before it changes any destination. The installer SHALL stop without changing any destination when a destination conflicts or when rsync is unavailable. The installer SHALL stop without changing any destination when the `~/.tau/skills` or `~/.tau/extensions` base directory is a symlink, dangling or resolving anywhere. A real or absent base directory passes this check. A base directory under a symlinked `~/.tau` passes this check when the base itself is a real directory or absent. When a copy fails partway, the installer SHALL report the failure and exit nonzero, and a later run SHALL make the affected entry match its source. A checkout SHALL support explicit extension loading with `tau -e extensions/superpowers-subagent` and SHALL NOT expose executable code through project `.tau/extensions` by default.
 
 #### Scenario: Checkout discovery
 
@@ -67,6 +67,30 @@ The package SHALL keep one canonical top-level `skills/` tree. The installer SHA
 - THEN installation stops before changing any destination
 - AND that destination is not replaced
 - AND a recorded stamp does not exempt that destination from this stop
+
+#### Scenario: Symlinked base directory stops the install
+
+- GIVEN the `~/.tau/skills` or `~/.tau/extensions` base directory is a symlink, dangling or resolving anywhere
+- WHEN the installer runs
+- THEN the installer exits nonzero before changing any destination
+- AND the error names each symlinked base directory
+- AND the error states the remedy: remove the symlink or replace it with a real directory, then run the installer again
+
+#### Scenario: Base error precedes a destination conflict
+
+- GIVEN the `~/.tau/skills` base directory is a symlink
+- AND the extension destination is a regular file
+- WHEN the installer runs
+- THEN the error names the symlinked base directory
+- AND the error names no destination conflict
+- AND the installer exits nonzero before changing any destination
+
+#### Scenario: No migration for a repository base link
+
+- GIVEN the `~/.tau/skills` base directory is a symlink into the source repository
+- WHEN the installer runs
+- THEN installation stops before changing any destination
+- AND the source repository content is unchanged
 
 #### Scenario: Missing rsync dependency
 
@@ -146,7 +170,7 @@ The installer SHALL write a stamp file at `~/.tau/.tau-superpowers-install` afte
 
 ### Requirement: Staleness check
 
-The installer SHALL support `install.sh --check`. The check SHALL compare installed content against the source tree at the source path recorded in the stamp, with the same rules and excludes as installation. A managed destination that does not exist is a difference. A stamp-recorded entry whose source no longer exists is a difference. The check performs the content comparison only and performs no destination preflights and no reference scan. The check SHALL change nothing and SHALL exit 0 on a match. The check SHALL exit 1 and print every differing path when content differs. The check SHALL exit 1 when the stamp is missing. The check SHALL exit 1 and report the recorded source path when no source tree exists at that path.
+The installer SHALL support `install.sh --check`. The check SHALL compare installed content against the source tree at the source path recorded in the stamp, with the same rules and excludes as installation. A managed destination that does not exist is a difference. A stamp-recorded entry whose source no longer exists is a difference. The check performs the content comparison only and performs no destination preflights, no base-directory preflights, and no reference scan. The check SHALL change nothing and SHALL exit 0 on a match. The check SHALL exit 1 and print every differing path when content differs. The check SHALL exit 1 when the stamp is missing. The check SHALL exit 1 and report the recorded source path when no source tree exists at that path.
 
 #### Scenario: Fresh check passes
 
@@ -179,6 +203,15 @@ The installer SHALL support `install.sh --check`. The check SHALL compare instal
 - AND the running checkout is a different checkout
 - WHEN `install.sh --check` runs
 - THEN it exits 0
+
+#### Scenario: Check compares through a symlinked base
+
+- GIVEN a completed install
+- AND the `~/.tau/skills` base directory is a symlink to a real directory that holds the installed skills content
+- WHEN `install.sh --check` runs
+- THEN the check compares the installed content through the resolved path
+- AND the check exits 0 when the content matches the source
+- AND the check exits 1 when the content under the link target differs from the source
 
 ### Requirement: Installed self-containment
 
