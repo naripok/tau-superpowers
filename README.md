@@ -30,7 +30,11 @@ cd tau-superpowers
 ./install.sh
 ```
 
-The installer copies every skill to `~/.tau/skills/<skill-name>` and the extension to `~/.tau/extensions/superpowers-subagent` with rsync. It preflights every destination before it changes anything. It takes over an existing symlink into the checkout and a copy from an earlier install. Any other existing destination stops the install without changes. The stamp `~/.tau/.tau-superpowers-install` records the source and the installed entries.
+The installer copies every skill to `~/.tau/skills/<skill-name>` and the extension to `~/.tau/extensions/superpowers-subagent` with rsync. It preflights every destination before it changes anything. It takes over an existing symlink into the checkout and any existing directory at a managed name. Take-over replaces the directory content with the source copy under delete propagation.
+
+WARNING: Take-over deletes the content of a directory that it replaces. Move a same-named directory that you want to keep before you run the installer.
+
+A symlink that points outside the checkout, or any other file type at a managed name, stops the install without changes. The stamp `~/.tau/.tau-superpowers-install` records the source and the installed entries.
 
 Run `./install.sh` again after every change to the skills or the extension. If you change skill or extension Markdown in the checkout, enable the [contributor hooks](#contributor-hooks).
 
