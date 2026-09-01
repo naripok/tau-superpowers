@@ -144,7 +144,7 @@ map_produced_path() {
   for part in "${parts[@]}"; do
     case $part in
       '' | .) ;;
-      # Keep in sync with exclude_args in install.sh; a new exclude there needs the same entry here.
+      # Keep in sync with exclude_args in install.sh. A new exclude there needs the same entry here.
       .git | .venv | __pycache__ | .mypy_cache | .pytest_cache | .ruff_cache | .worktrees)
         return 1
         ;;
