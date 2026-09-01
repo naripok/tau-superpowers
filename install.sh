@@ -102,6 +102,7 @@ parse_entries() {
       printf 'extensions/superpowers-subagent\n'
     } | LC_ALL=C sort
   )
+  # The extension entry is always present, so a count of one means zero skills
   ((${#entries[@]} > 1)) ||
     die "no Agent Skills found under $repo_root/skills"
 }
@@ -151,14 +152,14 @@ preflight() {
 # entry_is_bounded ENTRY. Returns 0 when the entry names a destination
 # inside ~/.tau. The stamp is written by this installer, so the check
 # bounds a corrupted or edited stamp. A skill entry is skills/ plus a
-# non-empty name with no slash and not the name '..'. The extension entry
-# is exact.
+# non-empty name with no slash and not the name '.' or '..'. The
+# extension entry is exact.
 entry_is_bounded() {
   local name
   [[ $1 == extensions/superpowers-subagent ]] && return 0
   [[ $1 == skills/* ]] || return 1
   name=${1#skills/}
-  [[ -n $name && $name != .. && $name != */* ]]
+  [[ -n $name && $name != . && $name != .. && $name != */* ]]
 }
 
 # read_stamp_entries STAMP. Fills stamp_entries[] with the stamp's
