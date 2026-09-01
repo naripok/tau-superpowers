@@ -148,11 +148,31 @@ preflight() {
   fi
 }
 
-# read_stamp_entries STAMP — fill stamp_entries[] with the stamp's
-# recorded entries; a missing stamp records nothing
+# entry_is_bounded ENTRY. Returns 0 when the entry names a destination
+# inside ~/.tau. The stamp is written by this installer, so the check
+# bounds a corrupted or edited stamp. A skill entry is skills/ plus a
+# non-empty name with no slash and not the name '..'. The extension entry
+# is exact.
+entry_is_bounded() {
+  local name
+  [[ $1 == extensions/superpowers-subagent ]] && return 0
+  [[ $1 == skills/* ]] || return 1
+  name=${1#skills/}
+  [[ -n $name && $name != .. && $name != */* ]]
+}
+
+# read_stamp_entries STAMP. Fills stamp_entries[] with the stamp's
+# recorded entries that pass entry_is_bounded. A missing stamp records
+# nothing and an invalid entry line is skipped.
 read_stamp_entries() {
+  local line
+  stamp_entries=()
   if [[ -f $1 ]]; then
-    mapfile -t stamp_entries < <(sed -n 's/^entry: //p' "$1")
+    while IFS= read -r line; do
+      if entry_is_bounded "$line"; then
+        stamp_entries+=("$line")
+      fi
+    done < <(sed -n 's/^entry: //p' "$1")
   fi
 }
 

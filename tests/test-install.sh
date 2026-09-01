@@ -6,8 +6,9 @@ set -euo pipefail
 # collision preflight, all-or-nothing aborts, the install stamp including
 # a git repository with no commits, idempotent re-install, a missing rsync
 # dependency, a partway copy failure, deletion propagation for dropped
-# entries and dropped source files, repository-link cleanup, and the
-# --check staleness mode. The suite also runs
+# entries and dropped source files, repository-link cleanup, stamp entry
+# lines that stay inside ~/.tau, and the --check staleness mode. The suite
+# also runs
 # tests/check-references.sh in full-scan mode and fails when it exits
 # nonzero. Every test runs the installer against a sandboxed HOME (mktemp)
 # and, for the fixture scenarios, against a minimal source fixture in the
@@ -299,8 +300,7 @@ test_fresh_install_from_fixture() {
 }
 
 # Scenario "Foreign destination untouched": an unmanaged directory under
-# ~/.tau/skills survives an install, and survives a second install run with
-# a stamp present.
+# ~/.tau/skills survives an install.
 test_foreign_destination_untouched() {
   local root="$temporary_dir/fixture-foreign" home="$temporary_dir/home-foreign"
   local log="$temporary_dir/foreign.log"
@@ -311,8 +311,25 @@ test_foreign_destination_untouched() {
   assert_install_succeeded "$log"
   [[ -f "$home/.tau/skills/unrelated/marker" ]] ||
     fail "the foreign destination was removed"
-  run_installer "$home" "$log" "$root"
-  assert_install_succeeded "$log"
+  assert_real_directory "$home/.tau/skills/alpha"
+  assert_matches_source "$root/skills/alpha" "$home/.tau/skills/alpha"
+}
+
+# Scenario "Foreign destination untouched with a stamp": the second install
+# run is the one that reads the stamp and runs the stale-entry and
+# repository-link removal. An unmanaged directory under ~/.tau/skills
+# survives it. The scenario builds its own fresh fixture and home. It is
+# not a rerun of the scenario above against mutated state.
+test_foreign_destination_untouched_with_stamp() {
+  local root="$temporary_dir/fixture-foreign-stamp" home="$temporary_dir/home-foreign-stamp"
+  local first_log="$temporary_dir/foreign-stamp-first.log" second_log="$temporary_dir/foreign-stamp-second.log"
+  make_fixture "$root"
+  mkdir -p "$home/.tau/skills/unrelated"
+  printf 'keep\n' >"$home/.tau/skills/unrelated/marker"
+  run_installer "$home" "$first_log" "$root"
+  assert_install_succeeded "$first_log"
+  run_installer "$home" "$second_log" "$root"
+  assert_install_succeeded "$second_log"
   [[ -f "$home/.tau/skills/unrelated/marker" ]] ||
     fail "the foreign destination was removed on the second run"
   assert_real_directory "$home/.tau/skills/alpha"
@@ -624,6 +641,40 @@ test_removed_entry() {
   assert_stamp_entries "$stamp" "$(printf 'extensions/superpowers-subagent\nskills/alpha\n')"
 }
 
+# Scenario "Invalid stamp entries are skipped": a stamp entry line that does
+# not name a destination inside ~/.tau is invalid. The removal logic and
+# --check ignore invalid lines, so a corrupted stamp cannot point a removal
+# outside the managed tree. The next install rewrites the stamp with valid
+# entries only.
+test_invalid_stamp_entries_skipped() {
+  local root="$temporary_dir/fixture-bound" home="$temporary_dir/home-bound"
+  local check_log="$temporary_dir/bound-check.log" log="$temporary_dir/bound.log"
+  local stamp="$home/.tau/.tau-superpowers-install"
+  make_fixture "$root"
+  run_installer "$home" "$log" "$root"
+  assert_install_succeeded "$log"
+  mkdir -p "$home/victim" "$temporary_dir/outside"
+  printf 'keep\n' >"$home/victim/keep"
+  printf 'keep\n' >"$temporary_dir/outside/keep"
+  printf 'entry: ../victim\nentry: skills/..\nentry: skills/../../outside\nentry: \n' >>"$stamp"
+  run_installer "$home" "$check_log" "$root" --check
+  assert_install_succeeded "$check_log"
+  [[ ! -s $check_log ]] || fail "the check reported stale entries for a valid tree"
+  run_installer "$home" "$log" "$root"
+  assert_install_succeeded "$log"
+  [[ -f "$home/victim/keep" ]] ||
+    fail "a stamp entry escaped ~/.tau and named a removal outside it"
+  [[ -f "$temporary_dir/outside/keep" ]] ||
+    fail "a stamp entry escaped ~/.tau and named a removal outside it"
+  if grep -q '^Removed:' "$log"; then
+    fail "the install removed an entry the source provides"
+  fi
+  assert_output_line "$log" Unchanged "skills/alpha"
+  assert_output_line "$log" Unchanged "skills/beta"
+  assert_output_line "$log" Unchanged "extensions/superpowers-subagent"
+  assert_stamp_entries "$stamp" "$(fixture_entries)"
+}
+
 # Scenario "Repository link without source entry removed": repository-
 # resolving symlinks at names the source does not provide are removed with
 # and without a stamp, and a foreign symlink at an unprovided name stays.
@@ -704,6 +755,43 @@ test_stale_check_fails() {
     fail "the check modified the edited file"
   [[ -f "$home/.tau/skills/alpha/extra.md" ]] ||
     fail "the check removed the added file"
+}
+
+# Scenario "Missing destination fails the check": a managed destination that
+# does not exist is a difference. --check exits 1 and prints the entry in
+# the qualified itemize form, and it creates nothing.
+test_check_missing_destination_fails() {
+  local root="$temporary_dir/fixture-check-nodest" home="$temporary_dir/home-check-nodest"
+  local log="$temporary_dir/check-nodest.log"
+  make_fixture "$root"
+  run_installer "$home" "$log" "$root"
+  assert_install_succeeded "$log"
+  rm -rf "$home/.tau/skills/alpha"
+  run_installer "$home" "$log" "$root" --check
+  assert_install_failed "$log"
+  grep -Eq 'skills/alpha/$' "$log" ||
+    fail "the check does not print the missing entry as a qualified directory line"
+  grep -Fq 'skills/alpha/SKILL.md' "$log" ||
+    fail "the check does not print the missing entry's files with the entry as prefix"
+  assert_absent "$home/.tau/skills/alpha"
+}
+
+# Scenario "Deleted source entry fails the check": a stamp-recorded entry
+# whose source directory is gone is a difference. --check exits 1 and
+# prints the bare entry name without an itemize, and it removes nothing.
+test_check_missing_source_entry_fails() {
+  local root="$temporary_dir/fixture-check-goneentry" home="$temporary_dir/home-check-goneentry"
+  local log="$temporary_dir/check-goneentry.log"
+  make_fixture "$root"
+  run_installer "$home" "$log" "$root"
+  assert_install_succeeded "$log"
+  rm -rf "$root/skills/beta"
+  run_installer "$home" "$log" "$root" --check
+  assert_install_failed "$log"
+  grep -Fqx 'skills/beta' "$log" ||
+    fail "the check does not print the bare entry name for the deleted source"
+  [[ -f "$home/.tau/skills/beta/SKILL.md" ]] ||
+    fail "the check removed the installed entry"
 }
 
 # Scenario "Missing stamp fails": --check without a stamp exits 1 with the
@@ -794,11 +882,14 @@ test_collision_with_stamp
 test_partway_copy_failure
 test_repository_resolving_rule
 test_removed_entry
+test_invalid_stamp_entries_skipped
 test_repo_link_without_entry_removed
 test_source_file_deletion_propagates
-test_foreign_destination_untouched
+test_foreign_destination_untouched_with_stamp
 test_fresh_check_passes
 test_stale_check_fails
+test_check_missing_destination_fails
+test_check_missing_source_entry_fails
 test_missing_stamp_check_fails
 test_unavailable_source_check_fails
 test_check_uses_recorded_source
