@@ -42,6 +42,6 @@ Alternatives considered:
 ## Impact
 
 - `install.sh`: new base check at the start of `preflight`
-- `tests/test-install.sh`: five new scenario invocations
-- `README.md`, the `install.sh` header comment, and the `tests/test-install.sh` header comment: one rule sentence each where install behavior is documented
+- `tests/test-install.sh`: eight new scenario invocations
+- `README.md`, the `install.sh` header comment, and the `tests/test-install.sh` header comment: the rule in each header comment, and the rule plus its remedy in the README
 - Living spec `docs/specs/subagent-dispatch.md`: sync during the finishing flow

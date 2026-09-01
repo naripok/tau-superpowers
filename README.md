@@ -34,7 +34,7 @@ The installer copies every skill to `~/.tau/skills/<skill-name>` and the extensi
 
 WARNING: Before you run the installer, move a same-named directory that you want to keep. Take-over deletes the content of the directory that it replaces.
 
-A symlink that points outside the checkout, or any other file type at a managed name, stops the install without changes. The stamp `~/.tau/.tau-superpowers-install` records the source and the installed entries.
+A symlink that points outside the checkout, or any other file type at a managed name, stops the install without changes. A symlinked `~/.tau/skills` or `~/.tau/extensions` base directory also stops the install, dangling or not. Remove each symlink or replace it with a real directory, then run the installer again. The stamp `~/.tau/.tau-superpowers-install` records the source and the installed entries.
 
 Run `./install.sh` again after every change to the skills or the extension. If you change skill or extension Markdown in the checkout, enable the [contributor hooks](#contributor-hooks).
 

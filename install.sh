@@ -7,8 +7,10 @@
 # $HOME/.tau/<entry> is replaced with a copy of its source under delete
 # propagation, entries the source no longer provides are removed, and a
 # stamp at $HOME/.tau/.tau-superpowers-install records the source and the
-# installed entries. --check compares the installed content against the
-# source tree recorded in the stamp and changes nothing.
+# installed entries. A symlinked ~/.tau/skills or ~/.tau/extensions base
+# directory stops the install before any change. --check compares the
+# installed content against the source tree recorded in the stamp and
+# changes nothing.
 #
 # Usage: install.sh [--check]
 #
