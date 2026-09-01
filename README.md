@@ -32,13 +32,13 @@ cd tau-superpowers
 
 The installer copies every skill to `~/.tau/skills/<skill-name>` and the extension to `~/.tau/extensions/superpowers-subagent` with rsync. It preflights every destination before it changes anything. It takes over an existing symlink into the checkout and any existing directory at a managed name. Take-over replaces the directory content with the source copy under delete propagation.
 
-WARNING: Take-over deletes the content of a directory that it replaces. Move a same-named directory that you want to keep before you run the installer.
+WARNING: Before you run the installer, move a same-named directory that you want to keep. Take-over deletes the content of the directory that it replaces.
 
 A symlink that points outside the checkout, or any other file type at a managed name, stops the install without changes. The stamp `~/.tau/.tau-superpowers-install` records the source and the installed entries.
 
 Run `./install.sh` again after every change to the skills or the extension. If you change skill or extension Markdown in the checkout, enable the [contributor hooks](#contributor-hooks).
 
-To check the installed copies against the source recorded in the stamp without changing anything, run `./install.sh --check`. The check exits 0 when the copies are fresh and 1 when they are stale, and it prints the differing paths.
+To check the installed copies against the source recorded in the stamp without changing anything, run `./install.sh --check`. The check exits 0 when the copies are fresh. When the copies are stale, the check exits 1 and prints the differing paths.
 
 Restart Tau to load a changed extension. Run `/reload` in an active host session to refresh changed skills without a restart. A sandbox picks up installed state at its next launch.
 
@@ -52,7 +52,7 @@ Tau discovers the installed user extension by default, so the `task` tool is ava
 
 ## Use Directly from a Checkout
 
-The checkout has a relative `.agents/skills -> ../skills` link, so Tau can discover the canonical skill tree as protected project input after project approval. Executable extension code is deliberately **not** linked under project `.tau/extensions`.
+Tau does not discover skills from this checkout. Install the skills for your user with `./install.sh` (see Install for Your User). Executable extension code is deliberately **not** linked under project `.tau/extensions`.
 
 From the repository root, explicitly load the extension for development:
 
@@ -258,8 +258,6 @@ The main flow is:
 ## Repository Layout
 
 ```text
-.agents/
-  skills -> ../skills                  # relative project discovery link
 skills/                                 # canonical Agent Skill sources
 extensions/superpowers-subagent/
   extension.py                          # Tau loader entry point
