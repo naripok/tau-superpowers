@@ -128,9 +128,33 @@ classify_destination() {
   fi
 }
 
-# preflight — classify every destination before changing any of them; a
-# conflict stops the install with zero destination changes
+# check_bases — stop the install when a base directory is a symlink. The
+# -L test examines the final path component only, so a base under a
+# symlinked ~/.tau passes when the base itself is a real directory or
+# absent. A link counts whatever it resolves to, including a dangling
+# target or a target inside the source repository.
+check_bases() {
+  local base bases=()
+  for base in "$HOME/.tau/extensions" "$HOME/.tau/skills"; do
+    if [[ -L $base ]]; then
+      bases+=("$base")
+    fi
+  done
+  if ((${#bases[@]} > 0)); then
+    {
+      printf 'Error: these base directories are symlinks and block installation:\n'
+      printf '  %s\n' "${bases[@]}"
+      printf 'No destination was changed. Remove each symlink or replace it with a real directory, then run this installer again.\n'
+    } >&2
+    exit 1
+  fi
+}
+
+# preflight — check the base directories, then classify every destination
+# before changing any of them. A base symlink or a conflict stops the
+# install with zero destination changes.
 preflight() {
+  check_bases
   local index
   for index in "${!entries[@]}"; do
     classify_destination "$HOME/.tau/${entries[$index]}"

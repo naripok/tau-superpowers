@@ -6,9 +6,10 @@ set -euo pipefail
 # collision preflight, all-or-nothing aborts, the install stamp including
 # a git repository with no commits, idempotent re-install, a missing rsync
 # dependency, a partway copy failure, deletion propagation for dropped
-# entries and dropped source files, repository-link cleanup, stamp entry
-# lines that stay inside ~/.tau, and the --check staleness mode. The suite
-# also runs
+# entries and dropped source files, repository-link cleanup, the stop for
+# a symlinked base directory, stamp entry lines that stay inside ~/.tau,
+# and the --check staleness mode, which compares through a linked base.
+# The suite also runs
 # tests/check-references.sh in full-scan mode and fails when it exits
 # nonzero. Every test runs the installer against a sandboxed HOME (mktemp)
 # and, for the fixture scenarios, against a minimal source fixture in the
@@ -624,6 +625,166 @@ test_repository_resolving_rule() {
   assert_output_line "$log" Installed "skills/alpha"
 }
 
+# Scenario "Symlinked base directory stops the install": a skills base that
+# is a symlink to a foreign directory stops the install with the base error
+# before any change. The foreign target keeps its marker and gains no
+# entries, and no stamp or second base appears.
+test_symlinked_skills_base_stops_install() {
+  local root="$temporary_dir/fixture-base-skills" home="$temporary_dir/home-base-skills"
+  local log="$temporary_dir/base-skills.log"
+  local foreign="$temporary_dir/foreign-skills-base"
+  local stamp="$home/.tau/.tau-superpowers-install"
+  make_fixture "$root"
+  mkdir -p "$home/.tau" "$foreign"
+  printf 'user content\n' >"$foreign/marker"
+  ln -s "$foreign" "$home/.tau/skills"
+  run_installer "$home" "$log" "$root"
+  assert_install_failed "$log"
+  grep -Fqx "  $home/.tau/skills" "$log.err" ||
+    fail "the error does not name the symlinked base"
+  grep -q "No destination was changed." "$log.err" ||
+    fail "the base error does not state that no destination changed"
+  grep -q "Remove each symlink or replace it with a real directory" "$log.err" ||
+    fail "the base error does not state the remedy"
+  assert_no_entry_lines "$log"
+  if grep -q '^Stamp:' "$log"; then
+    fail "the base stop printed a stamp line"
+  fi
+  [[ $(ls -A "$foreign") == 'marker' ]] ||
+    fail "the foreign base target changed: $(ls -A "$foreign")"
+  assert_absent "$stamp"
+  assert_absent "$home/.tau/extensions"
+}
+
+# Scenario "Symlinked base directory stops the install": an extensions base
+# that is a symlink to a foreign directory stops the install globally. The
+# skills base stays absent even though the source provides skills entries.
+test_symlinked_extensions_base_stops_install() {
+  local root="$temporary_dir/fixture-base-ext" home="$temporary_dir/home-base-ext"
+  local log="$temporary_dir/base-ext.log"
+  local foreign="$temporary_dir/foreign-extensions-base"
+  make_fixture "$root"
+  mkdir -p "$home/.tau" "$foreign"
+  printf 'user content\n' >"$foreign/marker"
+  ln -s "$foreign" "$home/.tau/extensions"
+  run_installer "$home" "$log" "$root"
+  assert_install_failed "$log"
+  grep -Fqx "  $home/.tau/extensions" "$log.err" ||
+    fail "the error does not name the symlinked base"
+  [[ -f "$foreign/marker" ]] || fail "the foreign base target lost its marker"
+  assert_absent "$home/.tau/skills"
+}
+
+# Scenario "Symlinked base directory stops the install": a dangling base
+# symlink stops the install with the same message, and nothing appears
+# under ~/.tau except the link itself.
+test_dangling_base_symlink_stops_install() {
+  local root="$temporary_dir/fixture-base-dangling" home="$temporary_dir/home-base-dangling"
+  local log="$temporary_dir/base-dangling.log"
+  make_fixture "$root"
+  mkdir -p "$home/.tau"
+  ln -s "$temporary_dir/base-dangling-gone" "$home/.tau/skills"
+  [[ ! -e "$temporary_dir/base-dangling-gone" ]] ||
+    fail "the dangling link target unexpectedly exists"
+  run_installer "$home" "$log" "$root"
+  assert_install_failed "$log"
+  grep -Fqx "  $home/.tau/skills" "$log.err" ||
+    fail "the error does not name the dangling base"
+  grep -q "Remove each symlink or replace it with a real directory" "$log.err" ||
+    fail "the dangling-base error does not state the remedy"
+  [[ $(ls -A "$home/.tau") == 'skills' ]] ||
+    fail "the stop created content under ~/.tau: $(ls -A "$home/.tau")"
+}
+
+# Scenario "No migration for a repository base link": a skills base that is
+# a symlink into the source repository stops the install, and the source
+# repository content is unchanged.
+test_repository_base_link_not_migrated() {
+  local root="$temporary_dir/fixture-base-repo" home="$temporary_dir/home-base-repo"
+  local log="$temporary_dir/base-repo.log"
+  local before after
+  make_fixture "$root"
+  mkdir -p "$home/.tau"
+  ln -s "$root/skills" "$home/.tau/skills"
+  before=$(hash_tree "$root/skills")
+  run_installer "$home" "$log" "$root"
+  assert_install_failed "$log"
+  after=$(hash_tree "$root/skills")
+  [[ $before == "$after" ]] || fail "the installer changed the source repository"
+}
+
+# Scenario "Base error precedes a destination conflict": with a symlinked
+# skills base and a regular file at the extension name, the base error
+# appears and no conflict message appears.
+test_base_error_precedes_destination_conflict() {
+  local root="$temporary_dir/fixture-base-conflict" home="$temporary_dir/home-base-conflict"
+  local log="$temporary_dir/base-conflict.log"
+  local foreign="$temporary_dir/foreign-base-conflict"
+  make_fixture "$root"
+  mkdir -p "$home/.tau/extensions" "$foreign"
+  printf 'user content\n' >"$foreign/marker"
+  printf 'user file\n' >"$home/.tau/extensions/superpowers-subagent"
+  ln -s "$foreign" "$home/.tau/skills"
+  run_installer "$home" "$log" "$root"
+  assert_install_failed "$log"
+  grep -Fqx "  $home/.tau/skills" "$log.err" ||
+    fail "the error does not name the symlinked base"
+  if grep -q "already exist" "$log.err"; then
+    fail "the conflict message appeared beside the base error"
+  fi
+  [[ $(cat "$home/.tau/extensions/superpowers-subagent") == 'user file' ]] ||
+    fail "the conflicting file was replaced"
+}
+
+# Scenario "Symlinked base directory stops the install": with both bases
+# linked, one error block names both paths, extensions before skills, and
+# states the remedy.
+test_both_bases_linked_lists_both() {
+  local root="$temporary_dir/fixture-base-both" home="$temporary_dir/home-base-both"
+  local log="$temporary_dir/base-both.log"
+  local foreign_skills="$temporary_dir/foreign-both-skills"
+  local foreign_ext="$temporary_dir/foreign-both-extensions"
+  local expected actual
+  make_fixture "$root"
+  mkdir -p "$home/.tau" "$foreign_skills" "$foreign_ext"
+  ln -s "$foreign_ext" "$home/.tau/extensions"
+  ln -s "$foreign_skills" "$home/.tau/skills"
+  run_installer "$home" "$log" "$root"
+  assert_install_failed "$log"
+  expected=$(printf 'Error: these base directories are symlinks and block installation:\n  %s\n  %s\nNo destination was changed. Remove each symlink or replace it with a real directory, then run this installer again.\n' \
+    "$home/.tau/extensions" "$home/.tau/skills")
+  actual=$(cat "$log.err")
+  [[ $actual == "$expected" ]] ||
+    fail "the base error does not name both linked bases in lexical order:
+$actual"
+}
+
+# Scenario: a symlinked ~/.tau does not stop the install. The base check
+# tests the final path component only, so absent bases under a linked
+# ~/.tau install, and the created real bases install again on the next run.
+test_tau_home_symlink_installs() {
+  local root="$temporary_dir/fixture-tau-link" home="$temporary_dir/home-tau-link"
+  local first_log="$temporary_dir/tau-link-first.log" second_log="$temporary_dir/tau-link-second.log"
+  local tau_target="$temporary_dir/tau-link-target"
+  make_fixture "$root"
+  mkdir -p "$home" "$tau_target"
+  ln -s "$tau_target" "$home/.tau"
+  run_installer "$home" "$first_log" "$root"
+  assert_install_succeeded "$first_log"
+  [[ -f "$home/.tau/.tau-superpowers-install" ]] ||
+    fail "the stamp is missing under the linked ~/.tau"
+  assert_real_directory "$home/.tau/skills"
+  assert_real_directory "$home/.tau/skills/alpha"
+  assert_real_directory "$home/.tau/extensions/superpowers-subagent"
+  assert_matches_source "$root/skills/alpha" "$home/.tau/skills/alpha"
+  assert_matches_source "$root/extensions/superpowers-subagent" \
+    "$home/.tau/extensions/superpowers-subagent"
+  run_installer "$home" "$second_log" "$root"
+  assert_install_succeeded "$second_log"
+  assert_output_line "$second_log" Unchanged "skills/alpha"
+  assert_output_line "$second_log" Unchanged "extensions/superpowers-subagent"
+}
+
 # Scenario "Removed entry": an entry the previous stamp records and the
 # source no longer provides is removed from the destination and reported.
 test_removed_entry() {
@@ -838,6 +999,27 @@ test_check_uses_recorded_source() {
   assert_install_succeeded "$log"
 }
 
+# Scenario "Check compares through a symlinked base": --check runs no base
+# preflight. It compares through a relative base link, exits 0 on a match,
+# exits 1 on a difference, and leaves the link in place.
+test_check_compares_through_symlinked_base() {
+  local root="$temporary_dir/fixture-check-baselink" home="$temporary_dir/home-check-baselink"
+  local log="$temporary_dir/check-baselink.log"
+  make_fixture "$root"
+  run_installer "$home" "$log" "$root"
+  assert_install_succeeded "$log"
+  mv "$home/.tau/skills" "$home/.tau/skills-dir"
+  ln -s skills-dir "$home/.tau/skills"
+  run_installer "$home" "$log" "$root" --check
+  assert_install_succeeded "$log"
+  printf 'appended\n' >>"$home/.tau/skills/alpha/data.md"
+  run_installer "$home" "$log" "$root" --check
+  assert_install_failed "$log"
+  grep -Fq 'skills/alpha/data.md' "$log" ||
+    fail "the check does not print the differing path"
+  assert_symlink_to "$home/.tau/skills" 'skills-dir'
+}
+
 # Scenario "Partway failure repair": an install run restores a destination
 # file that a previous run left missing.
 test_partway_failure_repair() {
@@ -881,6 +1063,13 @@ test_missing_rsync
 test_collision_with_stamp
 test_partway_copy_failure
 test_repository_resolving_rule
+test_symlinked_skills_base_stops_install
+test_symlinked_extensions_base_stops_install
+test_dangling_base_symlink_stops_install
+test_repository_base_link_not_migrated
+test_base_error_precedes_destination_conflict
+test_both_bases_linked_lists_both
+test_tau_home_symlink_installs
 test_removed_entry
 test_invalid_stamp_entries_skipped
 test_repo_link_without_entry_removed
@@ -893,6 +1082,7 @@ test_check_missing_source_entry_fails
 test_missing_stamp_check_fails
 test_unavailable_source_check_fails
 test_check_uses_recorded_source
+test_check_compares_through_symlinked_base
 test_partway_failure_repair
 test_usage_error
 
