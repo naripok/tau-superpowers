@@ -157,7 +157,7 @@ The feature spec defines a complete domain because no living spec exists. Change
 | Approved proposal change control | Tasks 1 through 3 | None. |
 | Single High-risk two-pass review | Tasks 1 and 2 | `test_targeted_adjudication_confirmation_preserved` checks the unchanged rejection-confirmation contract. |
 | Implementation reviews and final acceptance | Tasks 2 and 3 | `test_implementation_review_baseline_preserved` checks existing per-task review, final full-spec review, and fresh repository verification where each applies. |
-| Living-spec synchronization and integration | Task 3 | `test_sync_and_integration_baseline_preserved` checks update-or-create behavior, idempotence, unchanged behavior, no sync approval, the two integration choices, and silence. |
+| Living-spec synchronization and integration | Task 3 | `test_sync_and_integration_baseline_preserved` checks update-or-create behavior, idempotence, unchanged behavior, no sync approval, the two integration choices, and silence. `test_cross_domain_enumeration_update` checks the stale `review-adjudication.md` gate-list update with unchanged procedure content. |
 
 Every feature-spec scenario maps to these named proofs:
 
@@ -597,6 +597,7 @@ Every corpus embeds the complete text of each named path and excludes chat histo
   - It applies ADDED, MODIFIED, and REMOVED behavior idempotently while preserving unchanged behavior.
   - For an existing undocumented or new domain, it creates the living spec from complete reviewed post-change requirements.
   - It never invents baseline behavior during synchronization.
+  - When accepted gate-wiring changes make another living spec's factual enumeration stale, it updates that enumeration in the same synchronization pass. It changes only the stale factual content. The `docs/specs/review-adjudication.md` procedure text stays unchanged; only its gate-wiring enumeration follows accepted gates.
   - It dispatches one fresh `document-review` synchronization check for each candidate living-spec version.
   - It adjudicates findings through `docs/specs/review-adjudication.md` before fixes.
   - A changed synchronization candidate receives one new complete initial review. Unchanged rejection confirmation remains targeted.
@@ -611,6 +612,7 @@ Every corpus embeds the complete text of each named path and excludes chat histo
   - The reviewer checks semantic closure, feature-spec fidelity, complete current behavior, idempotence, and preservation of unchanged content.
   - Semantic closure requires every term, decision, constraint, assumption, exception, and reference needed for current behavior.
   - For an undocumented domain, it checks that the complete reviewed feature spec supplies the initial living spec.
+  - It checks any cross-domain enumeration update against the accepted workflow gates and confirms the unchanged procedure content.
   - It rejects invented behavior and dependence on proposal, plan, or chat for current meaning.
   - It performs one initial review per candidate version, review contract, complete input set, and review task.
   - Added missing context after `BLOCKED` or `NEEDS_CONTEXT` permits one new complete review with changed inputs or task.
@@ -625,6 +627,7 @@ Every corpus embeds the complete text of each named path and excludes chat histo
   - It checks no synchronization approval request, exactly two integration actions, and silence behavior.
   - It checks the unchanged adjudication reference and existing merge-result verification.
   - It checks that the finishing guidance creates an undocumented domain spec only after final acceptance.
+  - It checks the cross-domain enumeration-update rule: stale factual gate lists are updated, procedure content is untouched, and the update passes the synchronization review.
   - It exits nonzero with `FAIL:` for a broken contract.
   - It prints `Finishing workflow guidance tests passed.` and exits zero on success.
 
@@ -655,6 +658,7 @@ Every corpus embeds the complete text of each named path and excludes chat histo
 - `test_operator_silence` — no selection leaves branch and worktree untouched.
 - `test_sync_and_integration_baseline_preserved` — update-or-create, idempotence, unchanged preservation, merge-result checks, and operator choices remain.
 - `test_living_spec_creation_gate` — the finishing guidance creates an undocumented domain living spec only after final acceptance.
+- `test_cross_domain_enumeration_update` — stale factual gate lists are updated in the same synchronization pass, procedure content stays untouched, and the update passes the synchronization review.
 - `test_review_adjudication_contract_preserved` — synchronization review retains the unchanged adjudication contract.
 
 **Isolated behavior trial:**
@@ -666,10 +670,12 @@ The Task 3 trial uses the complete current or candidate text from `skills/finish
    - In state two, tests pass but one proposal acceptance example fails.
    - In state three, final acceptance passes for an undocumented domain and the candidate living spec adds one unsupported retry behavior.
    - In state four, every gate passes and the operator gives no integration response.
+   - In state five, accepted gates removed `executing-plans` checkpoint reviews and added a `brainstorming` proposal gate, while `docs/specs/review-adjudication.md` still lists the old gates.
    - GREEN blocks states one and two before synchronization.
    - GREEN derives state three's initial living spec from the complete accepted feature spec and rejects the invented retry behavior.
    - GREEN requests no operator sync approval.
    - GREEN offers only local merge or pull request in state four and changes nothing on silence.
+   - GREEN updates state five's stale gate enumeration only, leaves the adjudication procedure untouched, and passes the update through the synchronization review.
 
 **Check:** Before either listed skill or prompt edit, run the new guidance script and the RED trial. The RED trial must fail at least one named GREEN criterion. After the edits, run the GREEN trial and the full Task 3 command set. Every GREEN criterion and command must pass.
 

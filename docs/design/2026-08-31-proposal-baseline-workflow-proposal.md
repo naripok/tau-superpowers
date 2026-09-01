@@ -49,6 +49,8 @@ The change affects development operations, not product runtime behavior. Incorre
 - Workflow depth follows deterministic selection rules, reassessment points, and level-specific gates.
 - Each automated gate uses one fresh reviewer per artifact version. Each High-risk spec or final review makes explicit contract and risk passes.
 - Final acceptance checks the approved proposal and feature spec before living-spec synchronization and integration.
+- When accepted gate-wiring changes make another living spec's factual enumeration stale, finishing updates that enumeration during synchronization.
+- `docs/specs/review-adjudication.md` keeps its unchanged adjudication procedure. Finishing updates its gate-wiring enumeration to match accepted workflow gates.
 - Review gates use temporary dispositions instead of a permanent coverage ledger.
 
 ## Scope
@@ -62,7 +64,7 @@ The change affects development operations, not product runtime behavior. Incorre
 - Implementation workflows and prompts: prohibit dispatch-only design repair and preserve approved constraints.
 - Finishing: check final acceptance, synchronize the living spec, and block premature integration.
 - `document-review`: include proposals in its supported document scope.
-- Workflow documentation, a new `workflow-governance` living spec, and skill behavior tests.
+- Workflow documentation, a new `workflow-governance` living spec, skill behavior tests, and the `docs/specs/review-adjudication.md` gate-wiring enumeration update at synchronization.
 
 **Out of scope:**
 
