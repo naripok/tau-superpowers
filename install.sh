@@ -1,26 +1,32 @@
 #!/usr/bin/env bash
-# Install Tau Superpowers into ~/.tau as real directory copies.
+# Install Tau Superpowers into ~/.tau as real directory copies, or check
+# the installed copies against their source with --check.
 #
 # The managed entries are every directory under <repo>/skills/ that contains
 # SKILL.md plus <repo>/extensions/superpowers-subagent. Each destination at
 # $HOME/.tau/<entry> is replaced with a copy of its source under delete
-# propagation, and a stamp at $HOME/.tau/.tau-superpowers-install records
-# the source and the installed entries.
+# propagation, entries the source no longer provides are removed, and a
+# stamp at $HOME/.tau/.tau-superpowers-install records the source and the
+# installed entries. --check compares the installed content against the
+# source tree recorded in the stamp and changes nothing.
 #
-# Usage: install.sh
+# Usage: install.sh [--check]
 #
-# Exit status: 0 on success, 1 on a preflight or copy failure, 2 on a usage
-# error. Errors go to stderr.
+# Exit status: 0 on success or a matching --check, 1 on a preflight, copy,
+# or check failure, 2 on a usage error. Errors go to stderr.
 set -euo pipefail
 
 : "${HOME:?HOME must be set to install Tau Superpowers}"
 
 repo_root=
 stamp_path="$HOME/.tau/.tau-superpowers-install"
+mode=install
 entries=()
+stamp_entries=()
 classes=()
 conflicts=()
 destination_class=
+check_source=
 sha=none
 dirty=none
 
@@ -40,7 +46,7 @@ exclude_args=(
 
 die_usage() {
   printf 'Error: unexpected argument: %s\n' "$1" >&2
-  printf 'Usage: install.sh\n' >&2
+  printf 'Usage: install.sh [--check]\n' >&2
   exit 2
 }
 
@@ -49,10 +55,17 @@ die() {
   exit 1
 }
 
-# parse_arguments ARGS... — install mode is single-shot and takes no
-# arguments; any argument is a usage error
+# parse_arguments ARGS... — no arguments installs, --check runs the
+# staleness check, anything else is a usage error
 parse_arguments() {
-  (($# == 0)) || die_usage "$1"
+  if (($# == 0)); then
+    return
+  fi
+  if (($# == 1)) && [[ $1 == --check ]]; then
+    mode=check
+    return
+  fi
+  die_usage "$1"
 }
 
 # check_dependencies — rsync is the copy engine. Check it before anything
@@ -133,6 +146,58 @@ preflight() {
     } >&2
     exit 1
   fi
+}
+
+# read_stamp_entries STAMP — fill stamp_entries[] with the stamp's
+# recorded entries; a missing stamp records nothing
+read_stamp_entries() {
+  if [[ -f $1 ]]; then
+    mapfile -t stamp_entries < <(sed -n 's/^entry: //p' "$1")
+  fi
+}
+
+# entry_is_managed ENTRY — the source provides this entry
+entry_is_managed() {
+  local candidate
+  for candidate in "${entries[@]}"; do
+    [[ $candidate == "$1" ]] && return 0
+  done
+  return 1
+}
+
+# remove_entry ENTRY — delete the destination of an entry the source no
+# longer provides and report the removal
+remove_entry() {
+  rm -rf -- "$HOME/.tau/$1"
+  printf 'Removed: %s\n' "$1"
+}
+
+# remove_stale_stamp_entries — remove destinations the previous stamp
+# recorded but the source no longer provides
+remove_stale_stamp_entries() {
+  local entry dest
+  for entry in "${stamp_entries[@]}"; do
+    entry_is_managed "$entry" && continue
+    dest="$HOME/.tau/$entry"
+    if [[ -e $dest || -L $dest ]]; then
+      remove_entry "$entry"
+    fi
+  done
+}
+
+# remove_stale_repo_links — remove repository-resolving symlinks at names
+# the source does not provide, with or without a stamp
+remove_stale_repo_links() {
+  local path entry resolved
+  for path in "$HOME/.tau/skills"/* "$HOME/.tau/extensions"/*; do
+    [[ -L $path ]] || continue
+    entry="${path#"$HOME/.tau/"}"
+    entry_is_managed "$entry" && continue
+    resolved=$(realpath -m -- "$path")
+    if [[ $resolved == "$repo_root" || $resolved == "$repo_root"/* ]]; then
+      remove_entry "$entry"
+    fi
+  done
 }
 
 # install_entry INDEX — copy one source into its destination and print the
@@ -229,17 +294,74 @@ print_stamp_line() {
   printf 'Stamp: %s (sha %s, %s)\n' "$stamp_path" "$sha_display" "$dirty_display"
 }
 
-main() {
-  parse_arguments "$@"
-  check_dependencies
+# run_check — compare the installed content against the source tree
+# recorded in the stamp and exit 1 when anything differs. The check reads
+# the stamp's source path, runs no destination preflight, and changes
+# nothing.
+run_check() {
+  local entry entry_source itemize line status stale=0
+  [[ -f $stamp_path ]] || die "no install stamp at $stamp_path"
+  check_source=$(sed -n 's/^source: //p' "$stamp_path")
+  read_stamp_entries "$stamp_path"
+  [[ -d $check_source ]] || die "source tree not found: $check_source"
+  for entry in "${stamp_entries[@]}"; do
+    entry_source="$check_source/$entry"
+    if [[ ! -d $entry_source ]]; then
+      printf '%s\n' "$entry"
+      stale=1
+      continue
+    fi
+    status=0
+    itemize=$(rsync -a --delete --delete-excluded --itemize-changes --dry-run \
+      "${exclude_args[@]}" "$entry_source/" "$HOME/.tau/$entry" 2>&1) || status=$?
+    if ((status != 0)); then
+      printf 'Error: rsync failed for entry %s (exit %d)\n' "$entry" "$status" >&2
+      exit 1
+    fi
+    if [[ -n $itemize ]]; then
+      stale=1
+      while IFS= read -r line; do
+        # Itemize lines carry an 11-character change code or a *deleting
+        # marker before the path; rsync notes without one name no differing
+        # path and are skipped
+        [[ ${line:11:1} == ' ' ]] || continue
+        if [[ ${line:12} == ./ ]]; then
+          printf '%s%s/\n' "${line:0:12}" "$entry"
+        else
+          printf '%s%s/%s\n' "${line:0:12}" "$entry" "${line:12}"
+        fi
+      done <<<"$itemize"
+    fi
+  done
+  if ((stale != 0)); then
+    exit 1
+  fi
+}
+
+# run_install — preflight, remove stale entries, install every entry, and
+# record the stamp
+run_install() {
   resolve_repo_root
   check_sources
   parse_entries
   preflight
+  read_stamp_entries "$stamp_path"
+  remove_stale_stamp_entries
+  remove_stale_repo_links
   install_entries
   write_stamp
   print_stamp_line
   printf '%s\n' 'Restart Tau, or run /reload for skill changes in an active session.'
+}
+
+main() {
+  parse_arguments "$@"
+  check_dependencies
+  if [[ $mode == check ]]; then
+    run_check
+  else
+    run_install
+  fi
 }
 
 main "$@"

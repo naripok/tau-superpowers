@@ -5,8 +5,9 @@ set -euo pipefail
 # copy take-over that also removes excluded paths left in a destination,
 # collision preflight, all-or-nothing aborts, the install stamp including
 # a git repository with no commits, idempotent re-install, a missing rsync
-# dependency, a partway copy failure, and the usage error for --check. The
-# suite also runs
+# dependency, a partway copy failure, deletion propagation for dropped
+# entries and dropped source files, repository-link cleanup, and the
+# --check staleness mode. The suite also runs
 # tests/check-references.sh in full-scan mode and fails when it exits
 # nonzero. Every test runs the installer against a sandboxed HOME (mktemp)
 # and, for the fixture scenarios, against a minimal source fixture in the
@@ -82,10 +83,11 @@ assert_symlink_to() {
 }
 
 # assert_matches_source SOURCE DEST — content matches under the install
-# excludes; an empty dry-run itemize means identical
+# excludes with delete propagation of excluded names; an empty dry-run
+# itemize means identical
 assert_matches_source() {
   local source=$1 dest=$2 changes
-  if ! changes=$(rsync -a -n -i --delete "${install_excludes[@]}" \
+  if ! changes=$(rsync -a -n -i --delete --delete-excluded "${install_excludes[@]}" \
     "$source/" "$dest" 2>&1); then
     fail "content comparison failed for $dest:
 $changes"
@@ -297,7 +299,8 @@ test_fresh_install_from_fixture() {
 }
 
 # Scenario "Foreign destination untouched": an unmanaged directory under
-# ~/.tau/skills survives an install.
+# ~/.tau/skills survives an install, and survives a second install run with
+# a stamp present.
 test_foreign_destination_untouched() {
   local root="$temporary_dir/fixture-foreign" home="$temporary_dir/home-foreign"
   local log="$temporary_dir/foreign.log"
@@ -308,6 +311,10 @@ test_foreign_destination_untouched() {
   assert_install_succeeded "$log"
   [[ -f "$home/.tau/skills/unrelated/marker" ]] ||
     fail "the foreign destination was removed"
+  run_installer "$home" "$log" "$root"
+  assert_install_succeeded "$log"
+  [[ -f "$home/.tau/skills/unrelated/marker" ]] ||
+    fail "the foreign destination was removed on the second run"
   assert_real_directory "$home/.tau/skills/alpha"
   assert_matches_source "$root/skills/alpha" "$home/.tau/skills/alpha"
 }
@@ -600,15 +607,173 @@ test_repository_resolving_rule() {
   assert_output_line "$log" Installed "skills/alpha"
 }
 
-# Single-shot install mode: any argument, --check included, is a usage
-# error, and no destination is touched.
+# Scenario "Removed entry": an entry the previous stamp records and the
+# source no longer provides is removed from the destination and reported.
+test_removed_entry() {
+  local root="$temporary_dir/fixture-removed" home="$temporary_dir/home-removed"
+  local log="$temporary_dir/removed.log" stamp="$home/.tau/.tau-superpowers-install"
+  make_fixture "$root"
+  run_installer "$home" "$log" "$root"
+  assert_install_succeeded "$log"
+  rm -rf "$root/skills/beta"
+  run_installer "$home" "$log" "$root"
+  assert_install_succeeded "$log"
+  assert_absent "$home/.tau/skills/beta"
+  assert_output_line "$log" Removed "skills/beta"
+  assert_matches_source "$root/skills/alpha" "$home/.tau/skills/alpha"
+  assert_stamp_entries "$stamp" "$(printf 'extensions/superpowers-subagent\nskills/alpha\n')"
+}
+
+# Scenario "Repository link without source entry removed": repository-
+# resolving symlinks at names the source does not provide are removed with
+# and without a stamp, and a foreign symlink at an unprovided name stays.
+test_repo_link_without_entry_removed() {
+  local root="$temporary_dir/fixture-repolink" home="$temporary_dir/home-repolink"
+  local log="$temporary_dir/repolink.log"
+  local foreign="$temporary_dir/foreign-link-target"
+  make_fixture "$root"
+  mkdir -p "$home/.tau/skills" "$foreign"
+  printf 'foreign\n' >"$foreign/marker"
+  ln -s "$root/skills/alpha" "$home/.tau/skills/renamed-away"
+  ln -s "$root/skills/deleted-skill" "$home/.tau/skills/dangling"
+  ln -s "$foreign" "$home/.tau/skills/unrelated"
+  run_installer "$home" "$log" "$root"
+  assert_install_succeeded "$log"
+  assert_absent "$home/.tau/skills/renamed-away"
+  assert_absent "$home/.tau/skills/dangling"
+  assert_output_line "$log" Removed "skills/renamed-away"
+  assert_output_line "$log" Removed "skills/dangling"
+  assert_symlink_to "$home/.tau/skills/unrelated" "$foreign"
+  [[ -f "$foreign/marker" ]] || fail "the foreign link target was modified"
+  ln -s "$root/skills/alpha" "$home/.tau/skills/late-link"
+  run_installer "$home" "$log" "$root"
+  assert_install_succeeded "$log"
+  assert_absent "$home/.tau/skills/late-link"
+  assert_output_line "$log" Removed "skills/late-link"
+  assert_symlink_to "$home/.tau/skills/unrelated" "$foreign"
+}
+
+# Scenario "Source file deletion propagates": a file the source dropped is
+# gone from the destination after the next install.
+test_source_file_deletion_propagates() {
+  local root="$temporary_dir/fixture-filedel" home="$temporary_dir/home-filedel"
+  local log="$temporary_dir/filedel.log"
+  make_fixture "$root"
+  run_installer "$home" "$log" "$root"
+  assert_install_succeeded "$log"
+  rm "$root/skills/alpha/data.md"
+  run_installer "$home" "$log" "$root"
+  assert_install_succeeded "$log"
+  assert_absent "$home/.tau/skills/alpha/data.md"
+  assert_matches_source "$root/skills/alpha" "$home/.tau/skills/alpha"
+  assert_output_line "$log" Updated "skills/alpha"
+}
+
+# Scenario "Fresh check passes": --check exits 0 on matching content and
+# changes nothing.
+test_fresh_check_passes() {
+  local root="$temporary_dir/fixture-check-fresh" home="$temporary_dir/home-check-fresh"
+  local log="$temporary_dir/check-fresh.log" before after
+  make_fixture "$root"
+  run_installer "$home" "$log" "$root"
+  assert_install_succeeded "$log"
+  before=$(hash_tree "$home/.tau/skills")$(hash_tree "$home/.tau/extensions")
+  run_installer "$home" "$log" "$root" --check
+  assert_install_succeeded "$log"
+  after=$(hash_tree "$home/.tau/skills")$(hash_tree "$home/.tau/extensions")
+  [[ $before == "$after" ]] || fail "the check changed content"
+}
+
+# Scenario "Stale content fails": --check exits 1, prints every differing
+# path qualified by its entry, and changes nothing.
+test_stale_check_fails() {
+  local root="$temporary_dir/fixture-check-stale" home="$temporary_dir/home-check-stale"
+  local log="$temporary_dir/check-stale.log"
+  make_fixture "$root"
+  run_installer "$home" "$log" "$root"
+  assert_install_succeeded "$log"
+  printf 'edited\n' >"$home/.tau/skills/alpha/data.md"
+  printf 'extra\n' >"$home/.tau/skills/alpha/extra.md"
+  run_installer "$home" "$log" "$root" --check
+  assert_install_failed "$log"
+  grep -Fq 'skills/alpha/data.md' "$log" ||
+    fail "the check does not print the edited path"
+  grep -Fq 'skills/alpha/extra.md' "$log" ||
+    fail "the check does not print the added path"
+  grep -q '^edited$' "$home/.tau/skills/alpha/data.md" ||
+    fail "the check modified the edited file"
+  [[ -f "$home/.tau/skills/alpha/extra.md" ]] ||
+    fail "the check removed the added file"
+}
+
+# Scenario "Missing stamp fails": --check without a stamp exits 1 with the
+# exact error line and changes nothing.
+test_missing_stamp_check_fails() {
+  local root="$temporary_dir/fixture-check-nostamp" home="$temporary_dir/home-check-nostamp"
+  local log="$temporary_dir/check-nostamp.log"
+  local stamp="$home/.tau/.tau-superpowers-install"
+  make_fixture "$root"
+  run_installer "$home" "$log" "$root" --check
+  assert_install_failed "$log"
+  grep -Fqx "Error: no install stamp at $stamp" "$log.err" ||
+    fail "the missing-stamp error line is missing"
+  assert_absent "$home/.tau"
+}
+
+# Scenario "Unavailable source fails": --check when the recorded source
+# tree is gone exits 1 and names the recorded source path.
+test_unavailable_source_check_fails() {
+  local root="$temporary_dir/fixture-check-gonesrc" home="$temporary_dir/home-check-gonesrc"
+  local log="$temporary_dir/check-gonesrc.log"
+  make_fixture "$root"
+  run_installer "$home" "$log" "$root"
+  assert_install_succeeded "$log"
+  rm -rf "$root"
+  run_installer "$home" "$log" "$repo_root" --check
+  assert_install_failed "$log"
+  grep -Fqx "Error: source tree not found: $root" "$log.err" ||
+    fail "the unavailable-source error line is missing"
+}
+
+# Scenario "Comparison uses the recorded source": --check from a different
+# checkout compares against the stamp's recorded source, so differing
+# content in the running checkout does not matter.
+test_check_uses_recorded_source() {
+  local root_a="$temporary_dir/fixture-check-a" root_b="$temporary_dir/fixture-check-b"
+  local home="$temporary_dir/home-check-source" log="$temporary_dir/check-source.log"
+  make_fixture "$root_a"
+  make_fixture "$root_b"
+  printf 'different\n' >"$root_b/skills/alpha/data.md"
+  run_installer "$home" "$log" "$root_a"
+  assert_install_succeeded "$log"
+  run_installer "$home" "$log" "$root_b" --check
+  assert_install_succeeded "$log"
+}
+
+# Scenario "Partway failure repair": an install run restores a destination
+# file that a previous run left missing.
+test_partway_failure_repair() {
+  local root="$temporary_dir/fixture-repair" home="$temporary_dir/home-repair"
+  local log="$temporary_dir/repair.log"
+  make_fixture "$root"
+  run_installer "$home" "$log" "$root"
+  assert_install_succeeded "$log"
+  rm "$home/.tau/skills/alpha/data.md"
+  run_installer "$home" "$log" "$root"
+  assert_install_succeeded "$log"
+  assert_matches_source "$root/skills/alpha" "$home/.tau/skills/alpha"
+  assert_output_line "$log" Updated "skills/alpha"
+}
+
+# Unexpected arguments are usage errors; --check is the one valid mode
+# argument. No destination is touched.
 test_usage_error() {
   local root="$temporary_dir/fixture-usage" home="$temporary_dir/home-usage"
   local log="$temporary_dir/usage.log"
   make_fixture "$root"
-  run_installer "$home" "$log" "$root" --check
+  run_installer "$home" "$log" "$root" --bogus
   assert_install_failed "$log" 2
-  grep -q '^Usage: install.sh$' "$log.err" ||
+  grep -q '^Usage: install.sh \[--check\]$' "$log.err" ||
     fail "the usage error does not print the usage"
   assert_absent "$home/.tau"
 }
@@ -628,6 +793,16 @@ test_missing_rsync
 test_collision_with_stamp
 test_partway_copy_failure
 test_repository_resolving_rule
+test_removed_entry
+test_repo_link_without_entry_removed
+test_source_file_deletion_propagates
+test_foreign_destination_untouched
+test_fresh_check_passes
+test_stale_check_fails
+test_missing_stamp_check_fails
+test_unavailable_source_check_fails
+test_check_uses_recorded_source
+test_partway_failure_repair
 test_usage_error
 
 printf 'Installer tests passed.\n'
