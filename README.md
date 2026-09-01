@@ -272,20 +272,20 @@ No project `.tau/extensions` link is shipped.
 
 ## Verification and Development
 
-Inspect project skill discovery and explicit extension loading without making a provider request:
+Inspect explicit extension loading without making a provider request:
 
 ```bash
 tau --mode text --approve --no-extensions \
   -e extensions/superpowers-subagent /system
 ```
 
-The printed system prompt should list the skills and `task`. For a user installation, run this from another directory:
+The printed system prompt lists the `task` tool. For a user installation, run this from another directory:
 
 ```bash
 tau --mode text --no-approve /system
 ```
 
-It should still list the installed user skills and `task`. Tau must have a configured provider even though `/system` itself does not call the model.
+The printed system prompt lists the installed user skills and the `task` tool. Tau must have a configured provider even though `/system` itself does not call the model.
 
 Run the installer regression test:
 

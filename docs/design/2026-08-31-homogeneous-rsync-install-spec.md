@@ -6,13 +6,14 @@
 
 #### Requirement: Tau-discoverable installation
 
-The package SHALL keep one canonical top-level `skills/` tree and expose it to project Tau sessions through the relative `.agents/skills` link. The installer SHALL install individual skills under `~/.tau/skills` and the extension under `~/.tau/extensions/superpowers-subagent` as real directory copies under delete propagation with the install excludes. The install excludes are `.git`, `.venv`, `__pycache__`, `.mypy_cache`, `.pytest_cache`, `.ruff_cache`, and `.worktrees`. The installer SHALL preflight every destination and the rsync dependency before it changes any destination. The installer SHALL stop without changing any destination when a destination conflicts or when rsync is unavailable. When a copy fails partway, the installer SHALL report the failure and exit nonzero, and a later run SHALL make the affected entry match its source. A checkout SHALL support explicit extension loading with `tau -e extensions/superpowers-subagent` and SHALL NOT expose executable code through project `.tau/extensions` by default.
+The package SHALL keep one canonical top-level `skills/` tree. The installer SHALL install individual skills under `~/.tau/skills` and the extension under `~/.tau/extensions/superpowers-subagent` as real directory copies under delete propagation with the install excludes. The install excludes are `.git`, `.venv`, `__pycache__`, `.mypy_cache`, `.pytest_cache`, `.ruff_cache`, and `.worktrees`. The installer SHALL preflight every destination and the rsync dependency before it changes any destination. The installer SHALL stop without changing any destination when a destination conflicts or when rsync is unavailable. When a copy fails partway, the installer SHALL report the failure and exit nonzero, and a later run SHALL make the affected entry match its source. A checkout SHALL support explicit extension loading with `tau -e extensions/superpowers-subagent` and SHALL NOT expose executable code through project `.tau/extensions` by default.
 
 ##### Scenario: Checkout discovery
 
 - GIVEN Tau runs in an approved repository checkout
-- WHEN Tau discovers project skills and the extension is explicitly loaded
-- THEN Tau discovers the canonical skills and registers one tool named `task`
+- WHEN the extension is explicitly loaded with `tau -e extensions/superpowers-subagent`
+- THEN Tau registers one tool named `task`
+- AND Tau discovers no project skills from this checkout
 
 ##### Scenario: Prompt threshold
 
