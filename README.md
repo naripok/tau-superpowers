@@ -17,7 +17,7 @@ The project combines ideas and material from [obra/superpowers](https://github.c
 ## Requirements
 
 - Tau 0.3.9 or newer, installed and configured with a provider and model.
-- Git and Bash for the symlink installer.
+- Git, Bash 4.4 or newer, and rsync for the installer.
 - Python 3.14 is supplied by current Tau installations; the extension executes inside Tau and has no separate runtime installation step.
 
 ## Install for Your User
@@ -30,14 +30,13 @@ cd tau-superpowers
 ./install.sh
 ```
 
-The installer creates individual links without replacing unrelated resources:
+The installer copies every skill to `~/.tau/skills/<skill-name>` and the extension to `~/.tau/extensions/superpowers-subagent` with rsync. It preflights every destination before it changes anything. It takes over an existing symlink into the checkout and a copy from an earlier install. Any other existing destination stops the install without changes. The stamp `~/.tau/.tau-superpowers-install` records the source and the installed entries.
 
-```text
-~/.tau/skills/<skill-name>                     -> <checkout>/skills/<skill-name>
-~/.tau/extensions/superpowers-subagent         -> <checkout>/extensions/superpowers-subagent
-```
+Run `./install.sh` again after every change to the skills or the extension. If you change skill or extension Markdown in the checkout, enable the [contributor hooks](#contributor-hooks).
 
-It preflights every destination and stops without creating links if a path already exists and points elsewhere. Keep the checkout in place because the installation refers to it. After pulling updates, restart Tau; run `./install.sh` again if a release adds a skill. `/reload` is enough to refresh changed skills in an active TUI session.
+To check the installed copies against the source recorded in the stamp without changing anything, run `./install.sh --check`. The check exits 0 when the copies are fresh and 1 when they are stale, and it prints the differing paths.
+
+Restart Tau to load a changed extension. Run `/reload` in an active host session to refresh changed skills without a restart. A sandbox picks up installed state at its next launch.
 
 Start Tau normally and explicitly invoke the bootstrap skill if desired:
 
@@ -59,7 +58,7 @@ tau --approve -e extensions/superpowers-subagent
 
 `--approve` is a run-only project-input decision. The explicit `-e` path loads Python code independently of project-extension discovery, so inspect it first. Cloning this repository alone never exposes executable code through project `.tau/extensions`.
 
-If you intentionally create your own project extension link, Tau requires both project trust and `--project-extensions`. A user-installed link under `~/.tau/extensions`, as created by `install.sh`, is user code and is discovered by default.
+If you intentionally create your own project extension link, Tau requires both project trust and `--project-extensions`. A user-installed copy under `~/.tau/extensions`, as created by `install.sh`, is user code and is discovered by default.
 
 ## Included Skills
 
@@ -264,7 +263,7 @@ extensions/superpowers-subagent/
   superpowers_subagent/                 # Python implementation
   agents/                               # bundled agent definitions
   tests/                                # unit and runtime integration tests
-install.sh                              # safe per-resource user linker
+install.sh                              # per-resource installer (rsync copies)
 ```
 
 No project `.tau/extensions` link is shipped.
@@ -290,6 +289,12 @@ Run the installer regression test:
 
 ```bash
 tests/test-install.sh
+```
+
+Run the reference-scan regression test:
+
+```bash
+bash tests/test-references.sh
 ```
 
 Run extension checks with the site-packages directory belonging to the installed `tau` executable available to the development environment:
