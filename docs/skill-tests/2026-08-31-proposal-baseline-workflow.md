@@ -2544,3 +2544,69 @@ Status: DONE
 **GREEN verdict: ESTABLISHED.** All five named criteria pass under the candidate corpus with a process-clean run (one turn, no tool calls, no modifications). The Task 3 candidate guidance — `skills/finishing-a-development-branch/SKILL.md` plus the new `skills/finishing-a-development-branch/living-spec-document-reviewer-prompt.md` — reproduces every GREEN behavior in the reused scenario.
 
 **Task 3 GREEN conclusion.** All five criteria pass on quoted candidate text.
+
+## Full regression
+
+Final clean run after Task 4 (documentation and regression wiring), from the worktree root:
+
+```
+$ bash tests/test-proposal-baseline-guidance.sh
+Proposal baseline guidance tests passed.
+
+$ bash tests/test-plan-execution-guidance.sh
+Plan and execution guidance tests passed.
+
+$ bash tests/test-finishing-workflow-guidance.sh
+Finishing workflow guidance tests passed.
+
+$ bash -n tests/test-proposal-baseline-guidance.sh tests/test-plan-execution-guidance.sh tests/test-finishing-workflow-guidance.sh tests/test-install.sh
+(no output; exit 0)
+
+$ tests/test-install.sh
+Reference scan tests passed.
+Proposal baseline guidance tests passed.
+Plan and execution guidance tests passed.
+Finishing workflow guidance tests passed.
+Installer tests passed.
+
+$ bash tests/test-references.sh
+Reference scan tests passed.
+
+$ git diff --check
+(no output; exit 0)
+
+$ test ! -e docs/specs/workflow-governance.md
+(exit 0; the workflow living spec is created by finishing after final acceptance, never during implementation)
+```
+
+All commands exited 0. The installer baseline now runs the reference scan and all
+three guidance suites before its fixture mutations, so a cross-file guidance
+regression fails the baseline test.
+
+## Coverage assessment
+
+| Required behavior-trial scenario | Proof | Result |
+| --- | --- | --- |
+| Depth classification: mechanical multi-file stays Direct; cross-boundary is Standard; schema, security, and behavior-affecting runtime ordering are High-risk; gate-order exclusion; unresolved High-risk selects High-risk | `trial_depth_and_brownfield` cases 1-7 plus `test_depth_classification_matrix` static checks | GREEN passed after the REFACTOR re-run (see `### Depth-trial REFACTOR re-run`) |
+| Bounded pre-plan classification without future task count | `trial_depth_and_brownfield` case 7 boundary and `test_bounded_classification` | GREEN passed |
+| Unresolved non-High-risk facts cause one aggregate escalation | `test_depth_unknown_aggregation` static checks | Static suite passes |
+| Artifact paths do not establish approval state; worktree precedes persisted artifacts | `test_workflow_order_and_state_identity` and the state-flow checks in all three suites | Static suites pass |
+| Undefined `Option C` and prior-chat references rejected before operator review | `trial_cold_proposal_limits` Proposal 1 | GREEN passed |
+| Cold reader does not claim detection of wholly omitted brainstorm decisions | `trial_cold_proposal_limits` Proposal 2 | GREEN passed; RED was baseline-compliant (recorded) |
+| Undocumented domain: evidence-based reconstruction and complete post-change formalization | `trial_depth_and_brownfield` case 8 | GREEN passed |
+| Spec author preserves actor, trigger, timing, ordering, scope, conditions, exceptions, strength, threshold, result | `trial_faithful_spec_derivation` | GREEN passed (RED baseline-compliant, recorded) |
+| Spec author invents neither retry policy nor threshold; returns both upstream | `trial_faithful_spec_derivation` | GREEN passed (`NEEDS_CONTEXT` with proposal-repair path) |
+| Missing controlled implementation context: stop, upstream repair, no dispatch-only fix under pressure | `trial_missing_implementation_context` | RED failed, GREEN passed |
+| One initial reviewer per gate/version/contract; High-risk contract+risk passes; targeted unchanged confirmation; corrected version gets complete review | `trial_review_dispatch_accounting` | RED failed, GREEN passed |
+| Approved-proposal edits require cold review and operator reapproval; safe derived format repair stays automated; ambiguous repair returns upstream | `trial_approved_artifact_change_control` | RED baseline-compliant (recorded); GREEN passed with execution-stage contracts |
+| Constraint violations and failed acceptance examples block before synchronization; acceptance examples checked against named evidence | `trial_final_acceptance_and_sync` states 1-2 | RED failed, GREEN passed |
+| Initial living spec derives from the complete accepted feature spec; invented behavior rejected | `trial_final_acceptance_and_sync` state 3 | RED failed, GREEN passed |
+| No operator sync approval; exactly local merge or PR; silence leaves branch untouched | `trial_final_acceptance_and_sync` states 3-4 | GREEN passed (RED also passed: preserved baseline) |
+| Stale cross-domain gate enumeration updated only, procedure untouched, passing the sync review | `trial_final_acceptance_and_sync` state 5 | RED failed (no sync review existed), GREEN passed |
+| Depth routing replaces task-count routing in all three execution routers | `test_depth_routing_replaces_task_count` and the routing checks in `test-plan-execution-guidance.sh` | Static suite passes |
+| Cross-file guidance contracts regress visibly | `tests/test-install.sh` runs all three suites before fixture mutations | Installer baseline passes |
+
+No trial relied on brainstorm history or an ambient skill: every trial embedded its
+complete corpus inline, and the read-only children ran without skills.
+
+No unfinished result section remains in this record.

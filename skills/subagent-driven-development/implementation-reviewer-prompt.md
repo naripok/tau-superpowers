@@ -1,6 +1,6 @@
 # Implementation Reviewer Prompt Template
 
-Use this template when dispatching the implementation reviewer subagent — for a single task, a checkpoint batch, or the final whole-change review.
+Use this template when dispatching the implementation reviewer subagent — for a single task or the final whole-change review.
 
 **Purpose:** Check, in one pass, that the implementation matches its specification (spec compliance) and is well-built (code quality). The report has one section per dimension.
 

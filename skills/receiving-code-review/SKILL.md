@@ -144,7 +144,7 @@ If the report provides no verification commands for a finding, the dispatch stat
 
 **Minor findings.** Apply an endorsed Minor finding through the same fix path. If you defer it, record the deferral. A deferral does not block gate closure.
 
-**Inline case.** At the `executing-plans` checkpoint, the main agent is the implementer. The main agent applies endorsed Critical and Important fixes itself instead of dispatching them.
+**Inline case.** At the `executing-plans` final whole-change review, the main agent is the implementer. The main agent applies endorsed Critical and Important fixes itself instead of dispatching them.
 
 **Confirmation loop.** When at least one finding is rejected, send every rejected finding back to the same reviewer agent. The re-dispatch carries:
 

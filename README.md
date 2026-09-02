@@ -68,20 +68,20 @@ If you intentionally create your own project extension link, Tau requires both p
 
 | Skill | Purpose |
 | --- | --- |
-| `brainstorming` | Explore requirements and produce an approved proposal and behavioral feature spec |
+| `brainstorming` | Establish the current-behavior baseline, cold-review the proposal, obtain proposal-only operator approval, and derive the feature spec in a fresh context |
 | `dispatching-parallel-agents` | Coordinate independent work concurrently |
-| `executing-plans` | Execute a written implementation plan inline with checkpoints |
-| `finishing-a-development-branch` | Verify, sync living specs, and merge or open a PR |
+| `executing-plans` | Execute an approved Bounded workflow inline with one final whole-change review |
+| `finishing-a-development-branch` | Run final acceptance, review living-spec synchronization, and integrate on operator choice |
 | `receiving-code-review` | Review-finding adjudication: endorse and reject verdicts per finding and fix dispatches that carry only endorsed findings |
 | `requesting-code-review` | Request focused review before completion |
-| `subagent-driven-development` | Execute plan tasks with fresh implementer and reviewer contexts, one two-dimension review per task |
+| `subagent-driven-development` | Execute Standard and High-risk work with artifact-derived dispatches, per-task reviews, and a final whole-change review |
 | `systematic-debugging` | Diagnose root causes before changing code |
 | `test-driven-development` | Apply red-green-refactor discipline |
 | `using-git-worktrees` | Isolate feature work in Git worktrees |
-| `using-superpowers` | Discover and apply the workflow skills |
+| `using-superpowers` | Select the workflow depth (Direct, Bounded, Standard, High-risk) and apply the workflow skills |
 | `verification-before-completion` | Require fresh evidence before completion claims |
 | `writing-developer-facing-text` | Write developer-facing text with ASD-STE100 Simplified Technical English rules |
-| `writing-plans` | Turn a feature spec into contract-based implementation plans |
+| `writing-plans` | Turn the feature spec and approved proposal into complementary contract-based implementation plans |
 | `writing-skills` | Author and test Tau Agent Skills |
 
 Tau initially loads only skill names, descriptions, and paths. It reads the full `SKILL.md` when a skill matches the task. Use `/skill:<name>` to invoke one explicitly.
@@ -230,30 +230,32 @@ Installing or explicitly loading this extension executes Python with the same ac
 
 ## Living-Spec Workflow
 
-A living spec at `docs/specs/<domain>.md` describes current behavior. Feature work follows this artifact chain:
+A living spec at `docs/specs/<domain>.md` describes current behavior. Feature work follows a proposal-baseline flow: the reviewed proposal is the only formal operator-approval artifact, and every later artifact derives from it without the brainstorm conversation.
 
 ```text
-living spec
-  -> proposal + behavioral feature spec (the delta against the living spec)
-  -> contract-based implementation plan
-  -> TDD implementation + combined spec/quality review
-  -> verified integration
-  -> feature spec merged back into the living spec
+baseline evidence
+  -> cold-reviewed, operator-approved proposal (the intent baseline)
+  -> feature spec derived in a fresh context (complete post-change behavior)
+  -> contract-based implementation plan (spec behavior + proposal constraints)
+  -> TDD implementation + per-task and final reviews
+  -> final acceptance + reviewed living-spec synchronization
+  -> operator-chosen integration
 ```
 
 The main flow is:
 
-1. **Brainstorm:** read living specs, clarify requirements, compare approaches, and write an approved proposal and feature spec. All artifacts and code live on a branch or worktree, never on the default branch.
-2. **Plan:** map every feature-spec requirement to tasks defining architecture, interface signatures, expected behavior, and the tests to prove it — the exact implementation is the implementer's decision.
-3. **Execute:** use a fresh implementer context per task, then a single review pass per task covering spec compliance and code quality, plus a final whole-change review.
-4. **Finish:** run fresh verification, sync the accepted feature-spec changes into living specs, and merge the branch or open a PR.
+1. **Classify:** select the workflow depth from repository evidence: Direct, Bounded, Standard, or High-risk. Direct work is a targeted edit with no design artifacts. The depth matrix in `using-superpowers` defines each level's gates.
+2. **Brainstorm:** establish the current-behavior baseline (living-spec, undocumented, or new domain), write the proposal with required outcomes, acceptance examples, constraints, and risks, pass the cold-reader review, and obtain operator approval of that exact proposal version. A fresh context then derives the feature spec, and a reviewer checks proposal-to-spec semantic fidelity. All artifacts and code live on a branch or worktree, never on the default branch.
+3. **Plan:** map feature-spec behavior to tasks and tests, carry every proposal-owned constraint, and map unchanged baseline behavior to preservation checks. Plan review gates execution; the operator never approves the plan.
+4. **Execute:** Bounded work runs inline with one final whole-change review; Standard and High-risk work uses per-task implementation reviews and a final review against both contracts. Implementation dispatches carry artifact-derived design context only.
+5. **Finish:** run final acceptance (approval identities, depth reassessment, acceptance examples, fresh verification), review and commit the living-spec synchronization, then offer exactly a local merge or a pull request. Operator silence leaves the branch untouched.
 
 | Artifact | Role |
 | --- | --- |
 | `docs/specs/<domain>.md` | Canonical current behavior |
-| `docs/design/YYYY-MM-DD-<topic>-proposal.md` | Intent, scope, and approach |
-| `docs/design/YYYY-MM-DD-<topic>-spec.md` | Behavioral contract and delta against the living spec |
-| `docs/plans/YYYY-MM-DD-<topic>.md` | Interface and behavior contracts, tests to prove |
+| `docs/design/YYYY-MM-DD-<topic>-proposal.md` | Operator-approved intent: outcomes, acceptance, scope, constraints, approach, risks |
+| `docs/design/YYYY-MM-DD-<topic>-spec.md` | Complete observable post-change behavior, derived from the approved proposal |
+| `docs/plans/YYYY-MM-DD-<topic>.md` | Task contracts implementing spec behavior within proposal constraints |
 
 ## Repository Layout
 
