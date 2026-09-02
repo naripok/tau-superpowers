@@ -47,7 +47,7 @@ The child has no controller conversation history. Name every input path explicit
 
     ## Review Accounting
 
-    This is one initial review of one candidate living-spec version against one complete input set and one review task. Do not dispatch duplicate initial reviews with identical inputs. A changed candidate receives one new complete initial review. Added context after a `BLOCKED` or `NEEDS_CONTEXT` result permits one new complete initial review with the changed inputs. Findings use the unchanged adjudication contract in `docs/specs/review-adjudication.md`; a rejection-confirmation re-dispatch is targeted and exempt from the duplicate-initial-review prohibition.
+    This is one initial review of one candidate living-spec version against one complete input set and one review task. Do not dispatch duplicate initial reviews with identical inputs. A changed candidate receives one new complete initial review. Added context after a `BLOCKED` or `NEEDS_CONTEXT` result permits one new complete initial review with the changed inputs. Findings use the unchanged adjudication contract in the `receiving-code-review` skill; a rejection-confirmation re-dispatch is targeted and exempt from the duplicate-initial-review prohibition.
 
     ## Adversarial Stance
 

@@ -53,7 +53,7 @@ The child has no controller conversation history. Name the plan, feature spec, a
 
     ## Review Accounting
 
-    Make one initial review dispatch for this plan version, governing contracts, complete input set, and review task. Do not dispatch duplicate initial reviews with identical inputs. When the plan changes, it is a new version and receives one new complete initial review. When the controller adds previously missing context after a `BLOCKED` or `NEEDS_CONTEXT` result, the changed inputs permit one new complete initial review. Findings use the unchanged adjudication contract in `docs/specs/review-adjudication.md`; a rejection-confirmation re-dispatch is targeted and exempt from the duplicate-initial-review prohibition.
+    Make one initial review dispatch for this plan version, governing contracts, complete input set, and review task. Do not dispatch duplicate initial reviews with identical inputs. When the plan changes, it is a new version and receives one new complete initial review. When the controller adds previously missing context after a `BLOCKED` or `NEEDS_CONTEXT` result, the changed inputs permit one new complete initial review. Findings use the unchanged adjudication contract in the `receiving-code-review` skill; a rejection-confirmation re-dispatch is targeted and exempt from the duplicate-initial-review prohibition.
 
     The plan defines contracts — architecture, signatures, expected behavior,
     tests to prove — not implementation code. Do NOT flag the absence of

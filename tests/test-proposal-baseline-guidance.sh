@@ -211,8 +211,10 @@ check "brainstorming: a proposal edit invalidates cold review and operator appro
   has "$brain" 'invalidat'
 check "brainstorming: reassessment happens only when classification evidence changes" \
   has "$brain" 'classification evidence'
-check "brainstorming: review findings use the adjudication contract" \
-  has "$brain" 'docs/specs/review-adjudication\.md'
+check "brainstorming: review findings use the receiving-code-review adjudication procedure" \
+  has "$brain" 'per `receiving-code-review`'
+check "brainstorming: no reference to the checkout-only adjudication living spec" \
+  lacks "$brain" 'docs/specs/review-adjudication\.md'
 check "brainstorming: stale dual-approval wording is removed" \
   lacks "$brain" 'approve both artifacts|user must approve both'
 check "brainstorming: the stale dual-artifact checklist item is removed" \

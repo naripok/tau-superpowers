@@ -133,6 +133,26 @@ Reference by skill name with an explicit requirement marker:
 
 `/skill:<name>` is user-facing syntax. Prose inside a skill states dependencies by name.
 
+## Self-Contained References
+
+The installer copies every directory under `skills/` that contains `SKILL.md` into `~/.tau`. It also copies `extensions/superpowers-subagent`. A skill must work from that installed tree alone.
+
+**Carried reference.** Every file that an agent must read while using the skill resolves inside the installed tree:
+
+- A file in the skill's own directory: `supporting-file.md` or `sub/file.md`
+- A file in a sibling installed skill directory: `../other-skill/file.md`
+- A file in the installed extension directory: `../../extensions/superpowers-subagent/<file>`
+
+**Checkout-only dependency.** A reference to a file that the install does not carry. Common forms:
+
+- A fixed document of the development repository: READMEs, living specs, plans, design docs, tests, or scripts
+- A path whose parent steps leave the installed skill and extension directories
+- A named pre-existing file under `docs/design/`, `docs/specs/`, or `docs/plans/`
+
+Those three prefixes are reserved for the workflow artifacts of the project under work. The artifacts are the proposal, the feature spec, the plan, and the living specs that the workflow writes and reads. A reference to a fixed file under them, such as a governance or adjudication document of the development repository, still names a checkout-only file.
+
+**Check:** resolve every path-like reference from the skill's installed location. If the target does not exist inside the installed tree, repair the reference. Inline the content, point to a carried file, or reference the owning skill by name.
+
 ## Decision Blocks
 
 Write decisions as pseudocode IF/ELSE blocks. Keep one representation per procedure. Do not pair a decision block with a list or a graph that repeats the same procedure.
@@ -203,6 +223,7 @@ Before you move to the next skill, complete this checklist for EACH skill. Deplo
 - [ ] Check that the body states procedure as rules and steps: no rationale, no persuasion, no narratives.
 - [ ] Check that the text follows the writing-developer-facing-text skill (pragmatic mode). Run its self-check.
 - [ ] Include one excellent example. Keep supporting files only for heavy reference or tools.
+- [ ] Check that every reference in the skill and its supporting files resolves inside the installed tree (see Self-Contained References).
 - [ ] Re-run the scenarios with the skill. Check that the agent complies.
 
 **REFACTOR:**
