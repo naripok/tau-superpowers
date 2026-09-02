@@ -5,21 +5,27 @@ description: Use when implementation is complete, all tests pass, and you need t
 
 # Finishing a Development Branch
 
-Check the tests. Sync the living specs onto the branch. Then merge locally or open a PR.
+Run final acceptance. Review and commit the living-spec synchronization. Then offer the operator a local merge or a pull request.
 
 **Announce at start:** "Using finishing-a-development-branch to complete this work."
 
 ## The Process
 
-### Step 1: Check Tests
+### Step 1: Final Acceptance
 
-Run the full test suite of the project, fresh:
+Final acceptance precedes every synchronization action. Check, in order:
+
+1. **Approval identities are current.** Check that cold-review approval and operator approval still attach to the exact current proposal version (commit hash or content digest). Check that the feature-spec, plan, implementation, and final-review approvals attach to their current exact inputs. A stale approval blocks finishing and returns the work to the owning gate.
+2. **High-risk final evidence.** For High-risk work, check that the one final reviewer completed the contract pass and the risk pass and that every mapped High-risk obligation has evidence. Missing evidence blocks finishing.
+3. **Depth reassessment.** Reassess the workflow depth once from all accumulated evidence when that evidence changed. A higher result stops finishing and invokes proposal change control. A lower result never silently lowers the approved depth; the work may retain the approved higher depth.
+4. **Proposal acceptance examples.** Check every proposal acceptance example against named evidence. A failed example blocks synchronization.
+5. **Fresh verification.** Run the repository's complete verification commands fresh (full test suite, lint, type check):
 
 ```bash
 npm test / cargo test / pytest / go test ./...
 ```
 
-**If tests fail:** report the failures and stop. Until tests pass, do not proceed.
+**If any required review, acceptance example, or verification command fails:** report the failures and stop. Until final acceptance passes, do not proceed to synchronization.
 
 ### Step 2: Determine the Base Branch
 
@@ -29,28 +35,28 @@ git merge-base HEAD main 2>/dev/null || git merge-base HEAD master 2>/dev/null
 
 If ambiguous, ask: "This branch split from <base> — is that correct?"
 
-### Step 3: Sync Living Specs
+### Step 3: Review and Commit Living-Spec Synchronization
 
-Read the feature spec at `docs/design/<date>-<topic>-spec.md`.
+Read the accepted feature spec at `docs/design/<date>-<topic>-spec.md`.
 
 **If it declares "No Behavioral Changes":** skip this step.
 
-**Otherwise**, for each `## Domain: <name>` section, update `docs/specs/<name>.md`:
+**Otherwise**, produce a candidate synchronization for each `## Domain: <name>` section into `docs/specs/<name>.md`:
 
-- **ADDED requirements:**
-  - Requirement not present → append the full requirement block under `## Requirements`
-  - Requirement already present → treat as MODIFIED
-  - Living spec file missing → create it with `# <Domain>`, a brief `## Purpose` section, and a `## Requirements` section holding the ADDED requirements
-- **MODIFIED requirements:**
-  - Find the requirement by name
-  - Add new scenarios. Replace same-named scenarios. Apply description changes.
-  - Preserve existing content that the feature-spec section does not mention
-- **REMOVED requirements:**
-  - Delete the entire requirement block (description + all scenarios). Already gone → no-op
+- **ADDED requirements:** append the full requirement block under `## Requirements`; treat an already-present requirement as MODIFIED; create the living-spec file when missing with `# <Domain>`, a brief `## Purpose`, and the requirements
+- **MODIFIED requirements:** find the requirement by name; add new scenarios; replace same-named scenarios; apply description changes; preserve existing content the feature-spec section does not mention
+- **REMOVED requirements:** delete the entire requirement block; already gone → no-op
 
-The sync is idempotent: running it twice produces the same result.
+Rules:
 
-Commit the sync to the branch:
+- The sync is idempotent: running it twice produces the same result, and unchanged living-spec behavior stays intact.
+- For an existing undocumented or genuinely new domain, the complete reviewed post-change feature spec supplies the initial living spec. Never invent baseline behavior.
+- The synchronized living spec must be semantically closed: it expresses complete current behavior without depending on the proposal, plan, or chat history.
+- **Cross-domain enumeration update:** when accepted gate-wiring changes make another living spec's factual enumeration stale (for example, the gate list in `docs/specs/review-adjudication.md`), update only that stale factual content in the same synchronization pass. The procedure and behavior content of that living spec stays unchanged. The update passes through the same synchronization review.
+
+Then dispatch one fresh `document-review` synchronization check for the candidate living-spec version. Use the template at `living-spec-document-reviewer-prompt.md`. The accepted feature spec and the established pre-sync behavior govern the gate. Before you act on any finding, adjudicate every finding per `receiving-code-review`. A changed synchronization candidate receives one new complete initial review. An unchanged rejection confirmation is a targeted adjudication redispatch. The workflow requests no operator approval for synchronization.
+
+Commit the sync to the branch only after the synchronization review approves the exact result:
 
 ```bash
 git add docs/specs/
@@ -70,7 +76,7 @@ Implementation complete. How do I integrate it?
 Or do nothing — the branch stays as-is.
 ```
 
-No other options. If the operator never answers, the work remains on the branch untouched.
+No other options. Perform no integration action without an explicit operator selection. If the operator never answers, the branch and worktree stay untouched.
 
 ### Step 5: Execute the Choice
 
@@ -119,14 +125,21 @@ Until the PR is merged, keep the branch and the worktree.
 ## Red Flags
 
 **Never:**
+- Synchronize living specs before final acceptance passes
 - Merge or open a PR with failing tests
 - When the merged result fails tests, delete the feature branch
 - Force-push without an explicit request
 - Skip the living-spec sync for behavioral changes
+- Invent baseline behavior during synchronization
+- Request operator approval for the synchronization
 - Present options other than merge or PR
+- Integrate without an explicit operator selection
 
 **Always:**
-- Before anything else, run the full test suite fresh
+- Check approval identities before anything else
+- Check every proposal acceptance example against named evidence before synchronizing
+- Run the full test suite fresh before synchronization
+- Review the candidate synchronization before committing it
 - BEFORE merging or opening the PR, sync and commit living specs to the branch
 - Before deleting the branch, run the test suite on the merged result
 
@@ -134,7 +147,7 @@ Until the PR is merged, keep the branch and the worktree.
 
 **Called by:**
 - **subagent-driven-development**: after the final review passes
-- **executing-plans**: after all tasks complete
+- **executing-plans**: after the final whole-change review passes
 
 **Pairs with:**
 - **using-git-worktrees**: removes the worktree that skill created
