@@ -8,10 +8,11 @@ set -euo pipefail
 # dependency, a partway copy failure, deletion propagation for dropped
 # entries and dropped source files, repository-link cleanup, the stop for
 # a symlinked base directory, stamp entry lines that stay inside ~/.tau,
-# and the --check staleness mode, which compares through a linked base.
-# The suite also runs
-# tests/check-references.sh in full-scan mode and fails when it exits
-# nonzero. Every test runs the installer against a sandboxed HOME (mktemp)
+# and the --check staleness mode, which compares through a linked base. The
+# suite also runs tests/check-references.sh in full-scan mode and the three
+# guidance suites (proposal-baseline, plan-execution, finishing-workflow),
+# and it fails when any of them exits nonzero. Every test runs the installer
+# against a sandboxed HOME (mktemp)
 # and, for the fixture scenarios, against a minimal source fixture in the
 # same temporary tree.
 
@@ -215,6 +216,21 @@ add_excluded_paths() {
 # lexically
 fixture_entries() {
   printf 'extensions/superpowers-subagent\nskills/alpha\nskills/beta\n'
+}
+
+# The guidance suites pin the cross-file workflow contracts in the skills.
+# They run before the installer fixture mutations so a guidance regression
+# fails fast.
+test_guidance_suites_run() {
+  local suite
+  for suite in \
+    tests/test-proposal-baseline-guidance.sh \
+    tests/test-plan-execution-guidance.sh \
+    tests/test-finishing-workflow-guidance.sh; do
+    if ! bash "$repo_root/$suite"; then
+      fail "$suite failed"
+    fi
+  done
 }
 
 # The suite runs the same scan the pre-commit hook runs. Runs first so the
@@ -1049,6 +1065,7 @@ test_usage_error() {
 }
 
 test_reference_scan_runs
+test_guidance_suites_run
 test_fresh_install_from_worktree
 test_fresh_install_from_fixture
 test_foreign_destination_untouched

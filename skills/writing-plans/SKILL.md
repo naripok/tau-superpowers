@@ -30,9 +30,19 @@ If the spec covers multiple independent subsystems, check that brainstorming bro
 
 Read these artifacts before you write anything:
 
-1. **The proposal** (`docs/design/YYYY-MM-DD-<topic>-proposal.md`): intent, scope, approach, impact
-2. **The feature spec** (`docs/design/YYYY-MM-DD-<topic>-spec.md`): the behavioral contract: ADDED/MODIFIED/REMOVED requirements with SHALL/MUST/SHOULD and GIVEN/WHEN/THEN scenarios
-3. **The living specs** (`docs/specs/<domain>.md`): current system behavior for affected domains, if these specs exist
+1. **The approved proposal** (`docs/design/YYYY-MM-DD-<topic>-proposal.md`): the exact operator-approved version, identified by commit hash or content digest. It owns intent, scope, binding architecture, constraints, non-goals, acceptance, and risk treatment.
+2. **The reviewed feature spec** (`docs/design/YYYY-MM-DD-<topic>-spec.md`): the observable-behavior contract: complete post-change behavior with SHALL/MUST/SHOULD and GIVEN/WHEN/THEN scenarios.
+3. **The living specs** (`docs/specs/<domain>.md`): current system behavior for affected domains, if these specs exist.
+
+The proposal and the feature spec are **complementary contracts**. The plan implements both. Neither replaces the other:
+
+- The feature spec governs observable behavior: every ADDED, MODIFIED, and REMOVED requirement maps to tasks and tests.
+- The approved proposal governs everything behavioral specs do not carry: scope, binding architecture, constraints, non-goals, acceptance examples, and risk treatments. Every proposal-owned constraint needed by a task appears in that task.
+- Plan-owned choices (file decomposition, private structures, internal signatures, task boundaries) stay within the approved boundaries.
+
+**Conflict rule:** if the proposal and the feature spec prescribe incompatible outcomes, stop. Do not choose a local interpretation. The workflow repairs and re-reviews the affected upstream artifact through proposal change control before planning resumes.
+
+**Baseline mapping:** map changed behavior to implementation tasks with named proof. Map established unchanged baseline behavior only to preservation or regression checks, never to change tasks. Proposal-owned work that spec review retained (internal constraints, non-behavioral in-scope work) maps to a task or a named check.
 
 Every task in the plan must map to a requirement in the feature spec.
 
@@ -70,6 +80,8 @@ Write tasks that implement the feature spec. **Task sizing:** one task = one imp
 
 **Feature spec:** `docs/design/YYYY-MM-DD-<topic>-spec.md` (the behavioral contract)
 
+**Approved proposal:** `docs/design/YYYY-MM-DD-<topic>-proposal.md` (intent, scope, binding architecture, constraints, non-goals, acceptance, and risk treatment; the exact operator-approved version)
+
 ---
 ```
 
@@ -86,6 +98,8 @@ Follow the header with a **commands section**. Give the exact project commands t
 - Test: `tests/exact/path/to/test.py`
 
 **Spec requirement:** [Which ADDED/MODIFIED/REMOVED requirement this task implements]
+
+**Proposal constraints:** [Every proposal-owned constraint, non-goal, or risk treatment this task must respect; write `None` only when the proposal marks the category inapplicable for this task]
 
 **Interface:**
 - `new_function(arg: Type, opt: Type = default) -> ReturnType` — [contract: what it does, what it returns, errors raised, edge cases]
@@ -118,6 +132,8 @@ Every task must contain complete contracts. Never write these **plan failures**:
 - "Similar to Task N": repeat the contract, because readers can read tasks out of order
 - References to types, functions, or methods not defined in any task
 - Tasks without verification commands
+- Dependence on chat history or a bare cross-reference: restate every constraint, term, and decision the task needs. A cross-reference provides traceability, never required meaning
+- High-risk plans that leave an applicable compatibility, migration, rollout, rollback, observability, recovery, or approved risk-treatment obligation without a mapped task, check, or approved `None` disposition. `None` is valid only when the approved proposal marks the category inapplicable or approves no action
 
 The plan does NOT contain:
 
@@ -147,11 +163,17 @@ After you write the complete plan, check it yourself before you dispatch the rev
 
 **2. Reverse coverage (plan → spec):** Does every task map to a feature-spec requirement? Tasks that do not are scope creep.
 
-**3. Placeholder scan:** Search for the patterns from "Contract Completeness" above. Fix them.
+**3. Proposal coverage:** Does every proposal-owned constraint, non-goal, and risk treatment carry a task, a check, or an approved `None` disposition? A binding constraint absent from the tasks is a plan failure.
 
-**4. Signature consistency:** Do the types, signatures, and names used in later tasks match what earlier tasks define? A function named `clearLayers()` in Task 3 but `clearFullLayers()` in Task 7 is a bug.
+**4. Preservation mapping:** Is every established unchanged baseline behavior mapped to a preservation or regression check, not to change work? Is every retained proposal-owned item covered?
 
-**5. Standards coverage:** Does every contract respect the Implementation Standards? A task that prescribes a workaround, a silent fallback, or an unnecessary abstraction is a plan failure.
+**5. Depth and task count:** Does the plan match its workflow depth? A provisional Bounded plan contains one or two cohesive tasks. A required third task, or planning evidence of a higher trigger, stops planning and invokes proposal change control.
+
+**6. Placeholder scan:** Search for the patterns from "Contract Completeness" above. Fix them.
+
+**7. Signature consistency:** Do the types, signatures, and names used in later tasks match what earlier tasks define? A function named `clearLayers()` in Task 3 but `clearFullLayers()` in Task 7 is a bug.
+
+**8. Standards coverage:** Does every contract respect the Implementation Standards? A task that prescribes a workaround, a silent fallback, or an unnecessary abstraction is a plan failure.
 
 Fix issues inline, then continue. Add missing tasks. Add missing test behaviors.
 
@@ -161,6 +183,7 @@ Dispatch a `document-review` subagent using `plan-document-reviewer-prompt.md` t
 
 - **Adjudication:** Before you act on any finding, adjudicate every finding per `receiving-code-review`. Fix endorsed findings through dispatched subagents. The reviewer re-dispatch carries the fixes, the rejection list, and the rejection reasons for confirmation.
 - **Issues found:** fix the endorsed findings, then re-dispatch the reviewer. Loop until the reviewer approves.
+- Plan approval stays automated. The workflow never requests operator approval of the plan.
 - Do NOT proceed to execution until the reviewer approves.
 
 ## Step 6: Commit and Execute
@@ -174,7 +197,9 @@ git commit -m "docs: implementation plan for <topic>"
 
 Then execute:
 
-- **Default:** invoke subagent-driven-development: fresh implementer subagent per task, one review pass per task
-- **Trivial plans** (1-2 small tasks): executing-plans inline is acceptable
+Route execution by **workflow depth**, not plan task count:
+
+- **Bounded:** invoke executing-plans. The controller executes the one or two tasks inline.
+- **Standard or High-risk:** invoke subagent-driven-development, regardless of task count.
 
 State which you are using. Do not ask the operator to choose.

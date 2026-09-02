@@ -15,7 +15,7 @@ See the [Tau `task` tool reference](../using-superpowers/references/tau-tools.md
 
 **Mandatory:**
 - After each task in subagent-driven development (via the implementation reviewer)
-- At executing-plans checkpoints
+- At the executing-plans final whole-change review
 - After completing a major feature
 - Before merging to the default branch
 
@@ -29,7 +29,7 @@ See the [Tau `task` tool reference](../using-superpowers/references/tau-tools.md
 **1. Collect the diff and verification output:**
 
 ```bash
-BASE_SHA=$(git rev-parse HEAD~1)  # or origin/main, or the checkpoint's start
+BASE_SHA=$(git rev-parse HEAD~1)  # or origin/main, or the review's start
 HEAD_SHA=$(git rev-parse HEAD)
 git diff "$BASE_SHA".."$HEAD_SHA"
 ```
@@ -61,5 +61,5 @@ Before you act on any finding, adjudicate every finding per `receiving-code-revi
 ## Integration
 
 - **subagent-driven-development**: per-task and final reviews use the implementation reviewer template
-- **executing-plans**: checkpoint review after each batch of tasks
+- **executing-plans**: the final whole-change review after the inline tasks
 - **Ad-hoc**: before a merge, when stuck

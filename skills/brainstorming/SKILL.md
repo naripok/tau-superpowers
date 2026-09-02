@@ -9,24 +9,49 @@ Turn ideas into an approved proposal and behavioral feature spec through collabo
 
 **Announce at start:** "Using brainstorming to refine this idea into a design."
 
-**HARD GATE:** The proposal and the feature spec must exist, the spec reviewer must approve the feature spec, and the user must approve both artifacts. Until all three are true, do NOT invoke any implementation skill, write any code, or scaffold any project. This applies to every project regardless of perceived simplicity. For truly simple projects the artifacts can be short, but they MUST exist.
+**HARD GATE:** For non-Direct work, the proposal must pass one cold review, the operator must approve that exact reviewed version, and the feature spec must pass spec review. Until all three hold, do NOT invoke any implementation skill, write any code, or scaffold any project. This applies to every non-Direct change regardless of perceived simplicity. Bounded artifacts stay short, but they MUST exist and stay complete for their roles. Direct work creates no proposal, feature spec, or plan.
+
+## Depth Gates
+
+`using-superpowers` selects the workflow depth and owns the gate matrix. This skill runs the authoring gates for non-Direct depths:
+
+- **Bounded:** concise but complete artifacts. Concise reduces length, not contract integrity.
+- **Standard:** complete relevant impact.
+- **High-risk:** complete relevant impact plus every applicable risk category: compatibility, migration, rollout, rollback, observability, recovery, and risk treatment.
+
+Direct work needs no proposal, feature spec, or plan. Stop this skill for Direct work and make the targeted edit with its relevant checks.
 
 ## Checklist
 
 Copy this checklist into your working notes. Mark each item as you complete it. Complete the items in order:
 
-- [ ] **Read living specs**: Check `docs/specs/` for relevant domain specs. They describe current system behavior. If no spec exists for the domain, the feature spec will define its initial requirements.
-- [ ] **Explore project context**: files, docs, recent commits
+- [ ] **Confirm the depth**: Check the depth that `using-superpowers` selected. Reassess it when classification evidence changes, not on a schedule
+- [ ] **Read living specs**: Check `docs/specs/` for relevant domain specs. A living spec is the current-behavior contract for its domain. A missing living spec never proves that the domain is new
+- [ ] **Explore project context**: files, docs, recent commits, tests, interfaces, consumers, contracts, and operational evidence
+- [ ] **Select the baseline branch**: Select one branch from repository evidence: the living-spec domain, the undocumented existing domain, or the genuinely new domain.
+  - **Living-spec domain**: the domain has a living spec. Use it as the current-behavior contract. Check relevant sources for impact and discrepancies
+  - **Undocumented existing domain**: behavior exists but no living spec defines it. Reconstruct complete relevant current behavior from implementation, tests, interfaces, consumers, contracts, documentation, and operational evidence. Record the evidence and every material discrepancy
+  - **Genuinely new domain**: repository evidence shows the domain is absent. Record that evidence plus adjacent consumers, interfaces, contracts, and operational impact
+  A source discrepancy is material when different resolutions can change a proposal-owned decision. Resolve every material discrepancy in the proposal before approval
 - [ ] **Ask clarifying questions**: purpose, constraints, success criteria. Assess scope first. If the request spans multiple independent subsystems, help the user decompose it into sub-projects. Each sub-project gets its own brainstorm, spec, plan, and implementation cycle. Batch independent questions in one message. Prefer multiple-choice
 - [ ] **Propose 2-3 approaches**: with trade-offs and your recommendation. Lead with your recommendation
-- [ ] **Present the complete design**: Get user approval. One message, scaled to complexity. Cover: architecture, components, data flow, error handling, testing. Get a single approval for the whole design. If anything does not make sense, clarify it again with the user
-- [ ] **Set up the worktree**: Invoke using-git-worktrees. Commit all artifacts and code to this branch, never to the default branch
-- [ ] **Write the proposal**: `docs/design/YYYY-MM-DD-<topic>-proposal.md`
-- [ ] **Write the feature spec**: `docs/design/YYYY-MM-DD-<topic>-spec.md`
+- [ ] **Present the complete design**: One message, scaled to complexity. Cover: architecture, components, data flow, error handling, testing. Record every accepted decision. This conversation is elicitation for the proposal author. It grants no approval
+- [ ] **Set up the worktree**: Invoke using-git-worktrees before you persist any artifact. Commit all artifacts and code to this branch, never to the default branch
+- [ ] **Write the proposal**: `docs/design/YYYY-MM-DD-<topic>-proposal.md` at the selected depth. Transfer every accepted decision from this conversation into the proposal
+- [ ] **Dispatch the cold proposal review**: Use `proposal-document-reviewer-prompt.md`. One initial review per proposal version. Loop until the reviewer approves. Resolve blocking findings before operator review
+- [ ] **Operator approval**: Present the cold-reviewed proposal. The operator checks that it captures the intended change. Record the approval as an immutable identity: the commit hash or a content digest of that exact version. An unresolved controlled decision blocks approval
+- [ ] **Derive the feature spec**: Dispatch a fresh author with `feature-spec-author-prompt.md` after operator approval. The author receives no brainstorm history
 - [ ] **Dispatch the spec reviewer**: Use `spec-document-reviewer-prompt.md`. Loop until the reviewer approves
-- [ ] **User reviews proposal + spec**: If the user requests changes, fix them. Re-run the spec reviewer. Re-present both artifacts
 - [ ] **Commit the artifacts to the branch**
 - [ ] **Invoke writing-plans**: the only skill that comes next
+
+## Review Accounting
+
+Each proposal and spec gate makes one initial review dispatch per artifact version, review contract, complete input set, and review task. Do not dispatch a duplicate initial review for the same version, contract, inputs, and task.
+
+- An artifact edit creates a new version. The new version receives one new complete initial review.
+- A `BLOCKED` or `NEEDS_CONTEXT` result permits one new complete initial review when the inputs or the review task changed. Use the complete new inputs and task.
+- An unchanged rejection confirmation stays a targeted redispatch per the adjudication contract. It does not repeat the complete review.
 
 ## Design Rules
 
@@ -40,13 +65,13 @@ Copy this checklist into your working notes. Mark each item as you complete it. 
 - Include targeted improvements to code this work touches
 - Do not propose unrelated refactoring
 
-## The Artifacts
+## The Proposal
 
-Write both artifacts per the writing-developer-facing-text skill, pragmatic mode.
+The proposal is the sole operator approval artifact. Write it per the writing-developer-facing-text skill, pragmatic mode. Save to `docs/design/YYYY-MM-DD-<topic>-proposal.md`.
 
-### Proposal
+The author uses this conversation as elicitation input and transfers every accepted decision into the proposal: behavior, scope, binding architecture, thresholds, exceptions, constraints, assumptions, risk treatment, and acceptance. Downstream agents never read this conversation.
 
-The proposal captures **why** and **what scope**. Save to `docs/design/YYYY-MM-DD-<topic>-proposal.md`.
+Every non-Direct proposal contains this minimum content:
 
 ```markdown
 # Proposal: <Topic>
@@ -54,23 +79,56 @@ The proposal captures **why** and **what scope**. Save to `docs/design/YYYY-MM-D
 ## Intent
 <!-- Why are we doing this? What problem does it solve? Why now? -->
 
+## Baseline Evidence
+<!-- The selected baseline branch, the relevant current behavior, the named evidence, and every material discrepancy. Record consumers, interfaces, contracts, data, security, operations, rollout, and rollback. Use None for a category with no relevant content. -->
+
+## Required Outcomes
+<!-- What must be true after the change? -->
+
+## Acceptance Examples
+<!-- Representative acceptance examples that final acceptance checks. -->
+
 ## Scope
 **In scope:**
 <!-- What this change covers -->
 
 **Out of scope:**
-<!-- What is explicitly excluded -->
+<!-- What this change excludes. Non-goals receive no requirement and no implementation work. -->
+
+## Constraints
+<!-- Binding constraints the change must respect. Use None when there are none. -->
 
 ## Approach
-<!-- The recommended approach and why. Briefly note alternatives considered. -->
+<!-- The selected approach and why. Briefly note the alternatives considered. -->
 
 ## Impact
-<!-- Affected code, APIs, dependencies, systems -->
+<!-- Affected code, APIs, dependencies, systems, consumers, operations. -->
+
+## Risks
+<!-- Risks and their treatment. A High-risk proposal adds compatibility, migration, rollout, rollback, observability, recovery, and risk treatment. Use None for a category the change does not need. -->
+
+## Assumptions
+<!-- Assumptions the plan can rely on. Use None when there are none. -->
+
+## Unresolved Decisions
+<!-- Every decision that can govern downstream work. This section MUST read None before cold review and operator review. -->
 ```
 
-### Feature Spec
+Each required section uses `None` when it has no relevant content. The `Unresolved Decisions` section MUST read `None` before cold review and operator review. An unresolved controlled decision blocks cold-review approval and operator approval.
 
-The feature spec is the behavioral contract. You write it as the delta against the living spec (ADDED/MODIFIED/REMOVED per domain). It drives the implementation plan in writing-plans, the implementation review during execution, and the living-spec sync in finishing.
+### Proposal Change Control
+
+Any proposal edit after operator approval creates a new version. The edit invalidates the cold review and the operator approval. The new version repeats cold review and operator approval. A format-only edit follows the same path.
+
+A changed upstream input invalidates every affected downstream review.
+
+### Depth Reassessment
+
+Reassess the depth only when classification evidence changes. Evidence can arrive during proposal review, spec derivation, planning, implementation, or final acceptance. Before operator approval, a resolved fact updates the proposal and its depth before cold review. After operator approval, evidence that selects a higher depth stops work and uses proposal change control: revise the proposal, repeat cold review, and obtain operator reapproval before work resumes. Postapproval evidence never lowers the approved depth silently. Retaining the approved higher depth is valid. A lower depth takes effect only through proposal revision, cold review, and operator reapproval.
+
+## The Feature Spec
+
+The feature spec is the behavioral contract. A fresh author derives it after operator approval with `feature-spec-author-prompt.md`. You write it as the delta against the living spec (ADDED/MODIFIED/REMOVED per domain). It drives the implementation plan in writing-plans, the implementation review during execution, and the living-spec sync in finishing.
 
 Save to `docs/design/YYYY-MM-DD-<topic>-spec.md`.
 
@@ -105,9 +163,11 @@ The system SHALL <behavioral description>.
 (Brief explanation of why.)
 ```
 
-**If modifying an existing domain** (living spec exists): Write ADDED/MODIFIED/REMOVED sections relative to the current living spec.
+**If the domain has a living spec:** Write ADDED/MODIFIED/REMOVED sections relative to the current living spec.
 
-**If creating a new domain** (no living spec exists): Everything is ADDED.
+**If the domain is undocumented (behavior exists, no living spec):** Use the existing feature-spec format. Formalize complete relevant post-change behavior: established unchanged baseline behavior and requested changes. Do not defer unchanged behavior to planning or finishing. `ADDED` means addition to the absent living spec, not that every behavior needs implementation work.
+
+**If the domain is genuinely new:** Everything is ADDED. Select this branch only when repository evidence shows the domain is absent. A missing living spec never proves the domain is new.
 
 **If the change has no behavioral impact** (refactoring, internal restructure):
 
@@ -131,16 +191,12 @@ No requirements added, modified, or removed.
 
 ### Spec Review
 
-Dispatch a `document-review` subagent using `spec-document-reviewer-prompt.md`.
+Dispatch a `document-review` subagent using `spec-document-reviewer-prompt.md`. One initial review covers one spec version, one complete input set, and one review task.
 
-- **Adjudication:** Before you act on any finding, adjudicate every finding per `receiving-code-review`. Fix endorsed findings through dispatched subagents. The reviewer re-dispatch carries the fixes, the rejection list, and the rejection reasons for confirmation
-- **Issues found:** Fix the endorsed findings. Re-dispatch the reviewer. Loop until the reviewer approves
+- **Adjudication:** Before you act on any finding, adjudicate every finding per `receiving-code-review` and `docs/specs/review-adjudication.md`. Fix endorsed findings through dispatched subagents. The reviewer re-dispatch carries the fixes, the rejection list, and the rejection reasons for confirmation. An unchanged rejection confirmation stays a targeted redispatch
+- **Issues found:** Fix the endorsed findings. Dispatch one new complete initial review for the changed version. Loop until the reviewer approves
 - **Fundamental issues:** The spec is architecture instead of behavior, or the approach is wrong at the behavioral level. Present the findings to the user. Ask whether to revise the approach. Do not silently rewrite the spec
-- Until the reviewer approves, do NOT proceed to the user gate
-
-### User Gate
-
-Present both artifacts to the user for review. If the user requests changes, make the changes. Then re-run the spec reviewer. Re-present both artifacts. Until the user approves, do not proceed.
+- Planning starts only after semantic spec-review approval. The workflow requests no operator approval for the feature spec, the plan, or living-spec synchronization.
 
 ### Commit
 

@@ -109,13 +109,13 @@ The procedure MUST state that the main agent acts only on endorsed findings and 
 
 Each workflow gate that receives a review-agent report MUST direct the main agent to the adjudication procedure before it acts on findings. The gates are:
 
-- The spec review in `brainstorming`.
+- The proposal review and the spec review in `brainstorming`.
 - The plan review in `writing-plans`.
 - The per-task review and the final review in `subagent-driven-development`.
-- The checkpoint reviews in `executing-plans`.
+- The final whole-change review in `executing-plans`.
 - The feedback handling in `requesting-code-review`.
 
-The `brainstorming`, `writing-plans`, `subagent-driven-development`, and `requesting-code-review` gates MUST state that endorsed fixes go to dispatched subagents. The `executing-plans` checkpoint MUST state that the main agent applies endorsed fixes itself.
+The `brainstorming`, `writing-plans`, `subagent-driven-development`, and `requesting-code-review` gates MUST state that endorsed fixes go to dispatched subagents. The `executing-plans` final whole-change review MUST state that the main agent applies endorsed fixes itself.
 
 ##### Scenario: Reader finds the direction at each gate
 
@@ -126,7 +126,7 @@ The `brainstorming`, `writing-plans`, `subagent-driven-development`, and `reques
 
 #### Requirement: Selective fix dispatch
 
-The main agent MUST apply endorsed Critical and Important findings through fix dispatches that carry only endorsed findings. A fix dispatch MUST NOT carry a rejected finding. The executing-plans checkpoint is the inline case. In the inline case the main agent is the implementer and MUST apply endorsed Critical and Important findings itself instead of dispatching fixes. For an endorsed Minor finding the main agent MUST apply it through the same fix path or defer it. The main agent MUST record a deferred Minor finding, and the deferred finding MUST NOT block gate closure.
+The main agent MUST apply endorsed Critical and Important findings through fix dispatches that carry only endorsed findings. A fix dispatch MUST NOT carry a rejected finding. The executing-plans final whole-change review is the inline case. In the inline case the main agent is the implementer and MUST apply endorsed Critical and Important findings itself instead of dispatching fixes. For an endorsed Minor finding the main agent MUST apply it through the same fix path or defer it. The main agent MUST record a deferred Minor finding, and the deferred finding MUST NOT block gate closure.
 
 ##### Scenario: Mixed report at a gate that dispatches fixes
 
@@ -135,9 +135,9 @@ The main agent MUST apply endorsed Critical and Important findings through fix d
 - THEN the fix dispatch contains the endorsed findings
 - AND the fix dispatch does not contain the rejected finding
 
-##### Scenario: Inline checkpoint fix
+##### Scenario: Inline final-review fix
 
-- GIVEN the executing-plans checkpoint review returns endorsed Critical and Important findings
+- GIVEN the executing-plans final whole-change review returns endorsed Critical and Important findings
 - WHEN the main agent continues
 - THEN the main agent applies the endorsed fixes itself without a fix dispatch
 
@@ -310,7 +310,7 @@ The reviewer prompt templates `spec-document-reviewer-prompt.md`, `plan-document
 
 #### Requirement: Workflow documentation of adjudication
 
-`docs/FLOW_DESCRIPTION.md` MUST describe adjudication before fixes at the spec review, the plan review, the implementation reviews, the checkpoint reviews, and ad-hoc reviews through the `requesting-code-review` gate. Its gate table MUST contain a review-finding adjudication row that covers those gates. Its edge cases MUST contain the maintained Critical rejection escalation. `README.md` MUST describe `receiving-code-review` as the adjudication skill.
+`docs/FLOW_DESCRIPTION.md` MUST describe adjudication before fixes at the proposal review, the spec review, the plan review, the implementation reviews, the final whole-change reviews, and ad-hoc reviews through the `requesting-code-review` gate. Its gate table MUST contain a review-finding adjudication row that covers those gates. Its edge cases MUST contain the maintained Critical rejection escalation. `README.md` MUST describe `receiving-code-review` as the adjudication skill.
 
 ##### Scenario: Flow description covers the gates
 

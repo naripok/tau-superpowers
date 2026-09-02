@@ -1,10 +1,10 @@
-# Living Spec Flow in Tau
+# Proposal-Baseline Workflow in Tau
 
 This document describes the spec-driven development flow enforced by the Tau Superpowers skills and shows where isolated `task` subagents participate.
 
 ## Tau Activation
 
-A user installation copies skills to `~/.tau/skills` and the extension to `~/.tau/extensions/superpowers-subagent`. The model initially receives skill metadata only and requests the full `SKILL.md` when its description matches the task. A user can invoke a skill explicitly with `/skill:<name>`.
+A user installation links skills individually under `~/.tau/skills`. In this checkout, Tau exposes the canonical tree through project discovery after project input is approved. The model initially receives skill metadata only and requests the full `SKILL.md` when its description matches the task. A user can invoke a skill explicitly with `/skill:<name>`.
 
 The Python extension registers the `task` tool when installed under `~/.tau/extensions/superpowers-subagent` or explicitly loaded with:
 
@@ -16,95 +16,106 @@ Each `task` child has a fresh conversation context. The controller must provide 
 
 ## The Big Picture
 
-A **living spec** (`docs/specs/<domain>.md`) is the canonical description of current behavior for a domain. A **feature spec** describes one proposed change as the delta against the living spec (ADDED/MODIFIED/REMOVED per domain); after implementation is verified and accepted, the feature spec's changes are merged into the living spec.
+The **approved proposal** is the sole source of operator intent. The operator reviews and approves one artifact: the cold-reviewed proposal. A fresh agent derives the **feature spec** from the approved proposal without brainstorm history, and a reviewer proves the spec encodes every behavioral intention. The **implementation plan** treats the feature spec and the proposal as complementary contracts. **Living specs** (`docs/specs/<domain>.md`) stay the canonical description of current behavior and are synchronized only after final acceptance.
 
 ```text
-The model selects a skill from metadata (or the user invokes `/skill:<name>`)
-    -> brainstorming reads the living spec
-    -> proposal + behavioral feature spec on a new branch/worktree
-    -> writing-plans maps the spec to contract-based implementation tasks
-    -> implementation follows the plan with per-task review
-    -> finishing verifies, syncs the living spec, and merges or opens a PR
+baseline evidence and depth classification
+    -> cold-reviewed, operator-approved proposal
+    -> feature spec derived in a fresh context, reviewed for semantic fidelity
+    -> plan implementing spec behavior within proposal constraints
+    -> TDD implementation with per-task review (depth-dependent)
+    -> final acceptance, reviewed living-spec synchronization
+    -> operator-chosen integration
 ```
+
+## Workflow Depth
+
+`using-superpowers` classifies every change before design work starts, from a minimal evidence pass:
+
+| Level | Selection |
+| --- | --- |
+| Direct | Representation-only change: no behavioral, contract, data, security, privacy, operational, or controlled-document effect, and no design decision. |
+| High-risk | Any trigger applies: external contracts, schema or stored-data migration and recovery, security and privacy, concurrency and distributed consistency, behavior-affecting runtime or data ordering, destructive or irreversible action, availability or compliance, rollback needing coordinated recovery. |
+| Bounded | One behavioral domain, no material baseline discrepancy, no cross-boundary coordination (including the workflow's own stage order), one safe revert, one cohesive responsibility. |
+| Standard | Every other non-Direct change. File and line counts never raise a level. |
+
+An unresolved High-risk fact selects provisional High-risk until resolved. Other unknowns take least-escalating values and then cause one aggregate one-level escalation, capped at High-risk. The highest applicable level wins. Reassessment happens when classification evidence changes; after operator approval, evidence can raise the level through proposal change control but never silently lowers it.
+
+### Gate Matrix
+
+| Gate | Direct | Bounded | Standard | High-risk |
+| --- | --- | --- | --- | --- |
+| Baseline and classification | Minimal evidence and Direct test | Concise relevant baseline in proposal | Complete relevant baseline and impact | Standard content plus applicable compatibility, migration, rollout, rollback, observability, recovery, and risk treatment |
+| Proposal | None | Concise complete proposal, one cold review, operator approval | Complete proposal and impact, one cold review, operator approval | Standard proposal plus every High-risk category, one cold review, operator approval |
+| Feature spec | None | Concise complete spec and one review | Full spec and one review | Full spec and one two-pass review |
+| Plan | None | Concise one-to-two-task plan and one review | Full plan and one review | Obligation-mapped plan and one review |
+| Execution | Targeted edit and relevant checks | Inline execution of one or two tasks | Per-task implementation and review | Mapped evidence plus per-task implementation and review |
+| Final acceptance | Relevant repository checks | One final whole-change review and fresh verification | One final whole-change review and fresh verification | One two-pass final review, acceptance checks, and fresh verification |
+| Living-spec sync and integration | None | Synchronize, check, then integrate | Synchronize, check, then integrate | Synchronize, check, then integrate after final-review approval |
+
+Every non-Direct level keeps semantic fidelity, proposal change control, brownfield grounding, artifact reviews, and the ban on dispatch-only design repair.
 
 ## Artifact Chain
 
 | Path | Role | Lifespan |
 | --- | --- | --- |
 | `docs/specs/<domain>.md` | Canonical current behavior | Persistent; updated at finishing |
-| `docs/design/<date>-<topic>-proposal.md` | Intent, scope, approach, and impact | One feature |
-| `docs/design/<date>-<topic>-spec.md` | Behavioral contract and delta against the living spec | One feature; drives plan, review, and sync |
-| `docs/plans/<date>-<topic>.md` | Architecture, interface and behavior contracts, tests to prove | One feature |
+| `docs/design/<date>-<topic>-proposal.md` | Operator-approved intent: outcomes, acceptance examples, scope, constraints, approach, risks | One feature |
+| `docs/design/<date>-<topic>-spec.md` | Complete observable post-change behavior, derived from the approved proposal | One feature; drives plan, review, and sync |
+| `docs/plans/<date>-<topic>.md` | Task contracts: spec behavior plus proposal constraints, tests to prove | One feature |
+
+Artifact existence never establishes state completion. Each review or approval attaches to the exact input version that received it; an edit invalidates that artifact's approvals, and a changed upstream input invalidates every affected downstream review.
 
 ## End-to-End Flow
 
-```text
-BRAINSTORMING
-  1. Read relevant docs/specs/ files (or identify a new domain).
-  2. Explore context; clarify (batch independent questions).
-  3. Compare 2-3 approaches; present the complete design once for approval.
-  4. Set up the branch/worktree — every artifact and all code land here,
-     never on the default branch.
-  5. Write the proposal and the behavioral feature spec
-     (ADDED/MODIFIED/REMOVED relative to the living spec).
-  6. task(document-review): review the spec. Before fixes, adjudicate the
-     report. Fix endorsed findings. Re-dispatch the reviewer with the fixes,
-     the rejected findings, and the rejection reasons for confirmation.
-     Loop until approved.
-  7. Get user approval for both artifacts; commit them to the branch.
+Every non-Direct change passes these states in order:
 
-  HARD GATE: no implementation before reviewer and user approval.
-                                  |
-                                  v
-WRITING PLANS
-  1. Read the proposal, feature spec, and living specs.
-  2. Map the file structure, then write contract-based tasks: files,
-     interface signatures, expected behavior, tests to prove, exact
-     verification commands — no implementation code in the plan.
-  3. Self-review spec<->plan coverage, placeholders, signature
-     consistency, and standards.
-  4. task(document-review): review the plan. Before fixes, adjudicate the
-     report. Fix endorsed findings. Re-dispatch the reviewer with the fixes,
-     the rejected findings, and the rejection reasons for confirmation.
-     Loop until approved.
-  5. Commit the plan to the branch. Execute with subagent-driven-development
-     (executing-plans inline for trivial plans).
-                                  |
-                                  v
-IMPLEMENTATION
-  1. Work in the branch/worktree — never on the default branch.
-  2. If subagent-driven development:
-       a. task(implementation): implement one task per dispatch, TDD from
-          the task's contracts, commit per task.
-       b. Inspect the report, tests, commit, and semantic status.
-       c. task(code-review): ONE review pass per task; the report carries
-          separate Spec Compliance and Code Quality sections.
-       d. Before fixes, adjudicate the report. Re-dispatch the implementer
-          with only the endorsed findings. Re-dispatch the reviewer with
-          the rejections for confirmation. Loop until both dimensions pass.
-  3. If inline executing-plans:
-       a. Execute each task's contract with TDD and run its named checks;
-          commit per task.
-       b. Checkpoint review each batch with the same implementation reviewer.
-          Before fixes, adjudicate the report. Apply endorsed fixes inline.
-  4. Final whole-change review against the full feature spec. Before fixes,
-     adjudicate the report. Endorsed findings go to fix dispatches.
-                                  |
-                                  v
-FINISHING
-  1. Run fresh repository verification.
-  2. Determine the base branch.
-  3. Sync the feature spec's ADDED/MODIFIED/REMOVED sections into
-     docs/specs/ (skip when the spec declares "No Behavioral Changes")
-     and commit to the branch — automatically, no confirmation.
-  4. Offer exactly two outcomes: local merge or pull request.
-     Operator silence leaves the branch untouched.
-  5. Execute the choice: merge (verify the merged result, delete the
-     branch, remove the worktree) or PR (push, gh pr create, keep the
-     branch and worktree until it lands).
+```text
+ 1. Minimal baseline evidence established (domain status and trigger status)
+ 2. Provisionally classified
+ 3. Worktree established through using-git-worktrees before any persisted artifact
+ 4. Baseline and proposal completed at the selected depth
+ 5. Proposal cold-reviewed and approved by the reviewer
+ 6. Proposal approved by the operator (exact version; immutable identity)
+ 7. Feature spec derived in a fresh context without brainstorm history
+ 8. Feature spec reviewed and approved (temporary governing-claim dispositions)
+ 9. Plan written (changed behavior -> tasks; unchanged baseline -> preservation checks)
+10. Plan reviewed and approved
+11. Implementation completed with level-required reviews
+12. Final acceptance passed (identities, depth reassessment, acceptance examples, fresh verification)
+13. Living spec synchronized, reviewed, and committed
+14. Integration performed on explicit operator choice
 ```
 
-Ad-hoc reviews through `requesting-code-review` run the same adjudication loop as the flow above. They adjudicate findings per `receiving-code-review` before fixes, route endorsed fixes to dispatched subagents, and send rejections back for confirmation.
+### Brownfield Baseline Branches
+
+The proposal author selects one branch from repository evidence:
+
+1. **Domain with a living spec:** the living spec is the current-behavior contract; inspect code, tests, interfaces, consumers, contracts, and documentation for impact and discrepancies.
+2. **Existing undocumented domain:** reconstruct complete relevant current behavior from implementation, tests, interfaces, consumers, contracts, documentation, and operational evidence; record evidence and material discrepancies. The feature spec formalizes complete relevant post-change behavior, including established unchanged baseline behavior; planning maps unchanged behavior to preservation or regression checks; finishing can then create the living spec without invention.
+3. **Genuinely new domain:** record evidence that the domain is absent and describe adjacent impact.
+
+A missing living spec never proves that a domain is new. A material source discrepancy is resolved through the proposal before approval.
+
+### Proposal Review and Operator Approval
+
+The proposal author transfers every accepted brainstorm decision into the proposal (behavior, scope, architecture, thresholds, exceptions, constraints, assumptions, risks, acceptance). A fresh `document-review` child with no brainstorm history checks semantic closure, clarity, consistency, grounding, depth content, and actionable completeness. Undefined option labels and references to prior chat are blocking findings. The reviewer cannot detect a decision omitted entirely from the proposal; the operator owns the check that the proposal captures the intended change. Unresolved controlled decisions block approval. Every edit to an approved proposal — including a format-only edit — creates a new version and repeats cold review and operator approval.
+
+### Feature-Spec Derivation and Review
+
+A fresh author derives the spec from the approved proposal, established baseline, and living specs. It preserves each claim's actor, trigger, timing, ordering, scope, conditions, exceptions, strength, threshold, and observable result, and never invents a decision. When two valid meanings remain, it stops and returns the decision through proposal revision. The spec reviewer assigns a temporary classification and disposition to every governing proposal claim (behavior and quality map to requirements; internal constraints stay with planning; acceptance examples map to scenarios; non-goals stay excluded; rationale creates no contract). Dispositions stay in review output and never become a committed ledger. Spec-review approval gates planning for every non-Direct level.
+
+### Planning and Execution
+
+The plan treats the feature spec as the behavioral contract and the approved proposal as the contract for intent, scope, binding architecture, constraints, non-goals, acceptance, and risk treatment. A proposal-and-spec conflict stops planning. Bounded plans contain one or two cohesive tasks and run inline via `executing-plans`; Standard and High-risk work routes to `subagent-driven-development` regardless of task count. Implementation dispatches derive controlled design context only from the approved artifacts; a controller never answers a missing controlled decision only inside a child prompt — it repairs the owning upstream artifact. Prompt-only repository evidence is valid when it selects no controlled outcome.
+
+### Review Accounting
+
+One initial reviewer dispatch covers one artifact version against one complete input set and one review contract. Duplicate initial reviews with identical inputs are prohibited. A changed artifact receives one new complete initial review; added context after `BLOCKED` or `NEEDS_CONTEXT` permits one new complete review with changed inputs. An unchanged rejected-finding confirmation is a targeted adjudication redispatch to the same reviewer profile and does not repeat a complete review. The High-risk spec and final reviews use one reviewer that performs a contract pass and a risk pass before one verdict. Every automated review gate applies the unchanged adjudication contract in `docs/specs/review-adjudication.md`.
+
+### Final Acceptance and Finishing
+
+Final acceptance checks approval identities, reassesses depth once from accumulated evidence, checks every proposal acceptance example against named evidence, and runs fresh repository verification. Any failure blocks synchronization. The synchronization applies accepted feature-spec changes idempotently, preserves unchanged behavior, and creates a living spec from the complete reviewed feature spec for an undocumented or new domain without invention. A fresh `document-review` child reviews each candidate synchronization; the sync commit follows only after approval. Stale factual enumerations in other living specs (such as the gate list in `docs/specs/review-adjudication.md`) are updated in the same reviewed pass, with procedure content untouched. Synchronization requests no operator approval. Finishing then offers exactly a local merge or a pull request; operator silence leaves the branch and worktree untouched.
 
 ## `task` Dispatch in the Flow
 
@@ -113,27 +124,12 @@ The full argument and result contract is in the [Tau `task` tool reference](../s
 | Agent | Tool access | Workflow use |
 | --- | --- | --- |
 | `implementation` | Tau's normal built-in coding tools | One implementation task at a time |
-| `code-review` | `read` + read-only `bash`, enforced by a public hook | Per-task, checkpoint, and final implementation review of named files; returns a strict `## Code Review` report ending in a status line |
-| `document-review` | `read` + read-only `bash`, enforced by a public hook | Feature-spec and plan review at the design gates; returns a strict `## Document Review` report ending in a status line |
-| `general-purpose` | Tau's normal built-in coding tools | Unpinned implementation or scouting work |
-| `read-only` | Only the `read` tool, enforced by a public hook | Unpinned substantial read-only investigation of named files |
+| `code-review` | `read` + read-only `bash`, enforced by a public hook | Per-task, final, and whole-change implementation reviews; returns a strict `## Code Review` report ending in a status line |
+| `document-review` | `read` + read-only `bash`, enforced by a public hook | Proposal, feature-spec, plan, and living-spec synchronization reviews; returns a strict `## Document Review` report ending in a status line |
+| `general-purpose` | Tau's normal built-in coding tools | Fresh-context feature-spec derivation and unpinned work |
+| `read-only` | Only the `read` tool, enforced by a public hook | Isolated behavior trials of skill guidance |
 
-The user can override provider, model, and thinking level per agent with the subagent config file (`[agents.<name>]` in `superpowers-subagent.toml`). Agents without a pin at any layer inherit the parent session's active provider, model, and thinking level at dispatch time.
-
-A typical reviewer call supplies every readable path and embeds any information the reviewer cannot obtain with `read`:
-
-```json
-{
-  "tasks": [
-    {
-      "agent": "code-review",
-      "task": "Review the named spec against the supplied requirements. Read docs/design/2026-08-14-example-spec.md.\n\n## Required context\n[COMPLETE REQUIREMENTS AND RELEVANT COMMAND OUTPUT]"
-    }
-  ]
-}
-```
-
-Review agents may run read-only `bash` themselves (`git diff`/`log`/`status`, `grep`/`rg`/`find`) but must never change repository or environment state; the plain `read-only` agent cannot run commands at all, so searches, `git diff`, and file identification for it come from the controller. Multiple items in one call run in parallel and must be independent; conditional implement/review/fix loops require separate calls so the controller can inspect each result.
+Review agents can run read-only `bash` themselves (`git diff`/`log`/`status`, `grep`/`rg`/`find`) but must never change repository or environment state. Multiple items in one call run in parallel and must be independent; conditional loops require separate calls so the controller can inspect each result.
 
 ### Result and Status Flow
 
@@ -141,8 +137,6 @@ Review agents may run read-only `bash` themselves (`git diff`/`log`/`status`, `g
 child Tau JSONL
     -> accepted message_end messages stored in details.results[*].messages
     -> the complete final assistant message becomes parent content
-       (concatenated text blocks of the last accepted assistant message
-       only; tool calls, thinking, and earlier messages are never relayed)
     -> last supported status marker recorded independently
     -> controller checks semantic status AND process/error fields
 ```
@@ -151,54 +145,62 @@ child Tau JSONL
 | --- | --- |
 | `DONE` | Continue to the next gate. |
 | `DONE_WITH_CONCERNS` | Read concerns; resolve correctness or scope issues before continuing. |
-| `NEEDS_CONTEXT` | Add the missing material to a new complete prompt and re-dispatch. |
+| `NEEDS_CONTEXT` | Add the missing material to a new complete prompt and re-dispatch. For a missing controlled decision, repair the owning upstream artifact first. |
 | `BLOCKED` | Change context, approach, task size, or escalate to the user. |
-
-Semantic status is not process state. A child may exit successfully while reporting `BLOCKED`, and a failed process may have partial messages. Inspect `details.results` for `exitCode`, `errorMessage`, `timedOut`, `cancelled`, and `status` before deciding what to do.
-
-Project-controlled agent definitions require confirmation by default. In headless Tau, a selected project agent fails closed unless the caller has inspected it and sets `confirmProjectAgents: false` for that call.
 
 ## Behavioral Requirement Lifecycle
 
 ```text
-feature spec                 plan                        implementation              living spec
-    |                             |                            |                           |
-    | ADDED/MODIFIED/REMOVED      | contracts + tests to prove | tests and reviews         |
-    |---------------------------->|--------------------------->|                           |
-    |                             |                            | verified accepted behavior |
-    |                             |                            |-------------------------->|
-    |                             |                            | merged, not copied         |
+approved proposal              feature spec                  plan                    implementation          living spec
+    |                              |                            |                        |                       |
+    | intent, outcomes,            | complete post-change       | tasks + tests to       | verified behavior      | current behavior
+    | acceptance, constraints      | behavior (fresh context)   | prove, constraints     | and constraints        |
+    |----------------------------->|--------------------------->|----------------------->|                       |
+    |            semantic fidelity review                       |  plan review           |---- accept --------->|
 ```
 
-The feature spec expresses the change from current behavior. Plan tasks and tests trace to it. Implementation review checks code against it while using the proposal as context. Finishing merges only accepted changes into the living spec.
+The feature spec expresses complete post-change behavior derived from the approved proposal. Plan tasks and tests trace to it while carrying proposal constraints. Implementation review checks code against the spec and the proposal. Finishing merges only accepted changes into the living spec.
 
 ## Gate Enforcement
 
 | Gate | Skill | What it blocks |
 | --- | --- | --- |
-| Proposal + feature spec | `brainstorming` | No code before both artifacts exist |
-| Spec reviewer + user approval | `brainstorming` | No planning handoff before behavioral and human approval |
-| Branch/worktree setup | `using-git-worktrees` | No artifacts or code on the default branch |
-| Plan reviewer | `writing-plans` | No execution with coverage gaps or incomplete contracts |
-| Worktree baseline | `using-git-worktrees` | No feature work from a failing unexplained baseline |
-| Per-task implementation review | `subagent-driven-development` | No task completes with open spec-compliance or code-quality findings |
-| Review-finding adjudication | `receiving-code-review` | Spec, plan, implementation, checkpoint, and ad-hoc reviews do not advance on unadjudicated findings, and no fix dispatch carries rejected findings |
-| Fresh verification | `verification-before-completion` / `finishing-a-development-branch` | No completion or integration claim without current evidence |
-| Living-spec sync | `finishing-a-development-branch` | No merge/PR before the branch carries the synced specs (skipped for no-behavior-change work) |
+| Depth classification | `using-superpowers` | No design work before a provisional depth from evidence |
+| Branch/worktree setup | `using-git-worktrees` | No persisted artifact or code on the default branch |
+| Proposal cold review + operator approval | `brainstorming` | No spec derivation before the exact proposal version is cold-reviewed and operator-approved |
+| Feature-spec review | `brainstorming` | No planning before semantic proposal-to-spec approval |
+| Plan review | `writing-plans` | No execution with coverage gaps, missing constraints, or incomplete contracts |
+| Per-task and final reviews | `subagent-driven-development` / `executing-plans` | No task or integration with open spec-compliance, code-quality, or proposal-constraint findings |
+| Review-finding adjudication | `receiving-code-review` | No gate advances on unadjudicated findings; no fix dispatch carries rejected findings |
+| Final acceptance | `finishing-a-development-branch` | No synchronization before identities, acceptance examples, and fresh verification pass |
+| Living-spec sync | `finishing-a-development-branch` | No integration before the reviewed synchronization is committed |
+| Fresh verification | `verification-before-completion` | No completion claim without current evidence |
 
 ## Edge Cases
 
 | Case | Handling |
 | --- | --- |
-| **Cold start** (no living spec) | Feature requirements are all ADDED; finishing creates the domain living spec. |
+| **Cold start** (no living spec) | Determine the baseline branch from evidence; an undocumented domain is reconstructed, not treated as new; finishing creates the domain living spec from the complete reviewed feature spec. |
 | **No behavioral change** | The feature spec declares `No Behavioral Changes`; finishing skips the sync. |
 | **Multiple domains** | The feature spec uses one domain section per living spec; sync each independently. |
-| **Implementation diverges from the spec** | Decide whether code or spec is wrong, update the correct artifact, recheck task coverage, and re-review. |
-| **Reviewer lacks context** | Supply named paths plus missing diff/search/command output in a new complete `task` prompt. |
-| **Child reports a semantic blocker** | Do not infer process failure; inspect details and re-dispatch or escalate. |
-| **Reviewer maintains a rejected Critical finding** | Stop all workflow dispatches, escalate to the user with an architectural overview and a situation summary, and resume per the user decision. |
+| **Omitted brainstorm decision** | Cold review cannot detect it; the operator owns intended-change fidelity. A discovered omission returns through proposal change control. |
+| **Missing living spec** | Never treated as proof of a new domain; reconstruct from evidence. |
+| **Material source conflict** | Resolved through the proposal before approval; never silently selected. |
+| **Depth escalation** | Later evidence stops work, revises the proposal, repeats cold review and operator approval, and invalidates affected downstream artifacts. After approval, depth never silently lowers. |
+| **Bounded task overflow** | A required third task stops planning or execution and invokes proposal change control. |
+| **Missing controlled implementation context** | Implementation stops; the owning upstream artifact is repaired through change control. Dispatch-only clarification is prohibited. |
+| **Implementation diverges from the spec** | Fix the code, or update the artifact; a controlled-meaning change returns to proposal approval. |
+| **Reviewer lacks context** | Supply named paths plus missing evidence in a new complete prompt; changed inputs permit one new complete review. |
+| **Child reports a semantic blocker** | Inspect details and re-dispatch or escalate. |
+| **Sync invention** | Behavior absent from the baseline and accepted spec is a blocking finding; integration stays blocked. |
+| **Stale cross-domain enumeration** | Updated in the same reviewed synchronization pass; procedure content untouched. |
 | **Operator never chooses an integration** | The branch and worktree stay untouched; nothing is integrated. |
+| **Maintained Critical rejection** | Stop all workflow dispatches, escalate to the user with an architectural overview and situation summary, resume per the user decision. |
 
 ## Isolation Boundaries
 
-`task` isolates conversation context and disables discovered child extensions and protected project resources. It is not an operating-system, filesystem, network, credential, provider, or model sandbox. The read-only and review profiles enforce Tau tool calls only (read-only: `read`; review: `read` plus instruction-governed read-only `bash`), and the instruction not to invoke ambient user skills is prompt guidance only. Parent content is the child's complete final assistant message; complete accepted messages remain in structured details.
+`task` isolates conversation context and disables discovered child extensions and protected project resources. It is not an operating-system, filesystem, network, credential, provider, or model sandbox. The read-only and review profiles enforce Tau tool calls only, and the instruction not to invoke ambient user skills is prompt guidance only. Parent content is the child's complete final assistant message; complete accepted messages remain in structured details.
+
+## Rollout and Rollback
+
+Rollout: install the changed skills (`./install.sh` or `git pull` plus re-install), then run `/reload` or restart active Tau sessions. Rollback: revert the workflow change in the repository, re-install the prior skills, and reload active sessions.
