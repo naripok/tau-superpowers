@@ -4,7 +4,7 @@ This document describes the spec-driven development flow enforced by the Tau Sup
 
 ## Tau Activation
 
-A user installation links skills individually under `~/.tau/skills`. In this checkout, Tau exposes the canonical tree through project discovery after project input is approved. The model initially receives skill metadata only and requests the full `SKILL.md` when its description matches the task. A user may invoke a skill explicitly with `/skill:<name>`.
+A user installation links skills individually under `~/.tau/skills`. In this checkout, Tau exposes the canonical tree through project discovery after project input is approved. The model initially receives skill metadata only and requests the full `SKILL.md` when its description matches the task. A user can invoke a skill explicitly with `/skill:<name>`.
 
 The Python extension registers the `task` tool when installed under `~/.tau/extensions/superpowers-subagent` or explicitly loaded with:
 
@@ -129,7 +129,7 @@ The full argument and result contract is in the [Tau `task` tool reference](../s
 | `general-purpose` | Tau's normal built-in coding tools | Fresh-context feature-spec derivation and unpinned work |
 | `read-only` | Only the `read` tool, enforced by a public hook | Isolated behavior trials of skill guidance |
 
-Review agents may run read-only `bash` themselves (`git diff`/`log`/`status`, `grep`/`rg`/`find`) but must never change repository or environment state. Multiple items in one call run in parallel and must be independent; conditional loops require separate calls so the controller can inspect each result.
+Review agents can run read-only `bash` themselves (`git diff`/`log`/`status`, `grep`/`rg`/`find`) but must never change repository or environment state. Multiple items in one call run in parallel and must be independent; conditional loops require separate calls so the controller can inspect each result.
 
 ### Result and Status Flow
 

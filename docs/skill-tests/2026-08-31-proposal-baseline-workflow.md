@@ -2610,3 +2610,127 @@ No trial relied on brainstorm history or an ambient skill: every trial embedded 
 complete corpus inline, and the read-only children ran without skills.
 
 No unfinished result section remains in this record.
+
+## Final-review fixes
+
+The final whole-change review returned three endorsed Important findings and endorsed
+Minor findings. All were fixed and re-verified:
+
+1. The proposal cold-reader check table gained `Clarity` and `Risk classification`
+   rows, matching the feature spec's cold-reader gate MUST clause.
+2. The Direct-to-non-Direct escalation rule was added to `using-superpowers` with the
+   Direct branch reordered after the skill check, a new static check
+   (`direct-to-non-direct: ...`) was added to `tests/test-proposal-baseline-guidance.sh`,
+   and this coverage table gains the matching row. The new check ran RED before the
+   guidance fix (1 of 170 checks failed: `FAIL: direct-to-non-direct: a behavioral
+   effect stops Direct execution and starts the proposal gate`), then passed.
+3. The Task 2 and Task 3 static-guidance RED outputs are now recorded verbatim below,
+   captured from a clean pre-edit checkout of commit `3a51c07` with the committed
+   suites. The earlier record paraphrased them; this replaces the paraphrase.
+4. Endorsed Minor findings: newly introduced banned modals (`may`) became `can`;
+   the one newly introduced em dash became a comma.
+
+### Verbatim pre-edit static outputs (commit 3a51c07 skills, committed suites)
+
+`bash tests/test-plan-execution-guidance.sh` against the 3a51c07 skill tree — exit 1:
+
+```
+FAIL: writing-plans: feature spec owns observable post-change behavior
+FAIL: writing-plans: approved proposal owns intent, scope, binding architecture, constraints, non-goals, acceptance, risk treatment
+FAIL: writing-plans: complementary contract language
+FAIL: writing-plans: plan stops on proposal and spec conflict
+FAIL: writing-plans: unchanged baseline maps only to preservation or regression checks
+FAIL: writing-plans: proposal-owned work retained by spec review maps to task or check
+FAIL: writing-plans: tasks carry applicable proposal constraints and feature-spec requirements
+FAIL: writing-plans: tasks restated without chat or bare cross-references
+FAIL: writing-plans: requirement mapping for changed clauses and preserved baseline exceptions
+FAIL: writing-plans: High-risk plan maps obligations to named evidence
+FAIL: writing-plans: approved None only when proposal marks inapplicable or approves no action
+FAIL: writing-plans: provisional Bounded plan one or two cohesive tasks
+FAIL: writing-plans: third required task stops planning and invokes proposal change control
+FAIL: writing-plans: plan header keeps fields and adds approved proposal path and role
+FAIL: writing-plans: self-review checks proposal constraints, delta coverage, preservation mapping, depth, task count
+FAIL: writing-plans: plan approval stays automated with no operator approval
+FAIL: writing-plans: Step 6 routes execution by workflow depth
+FAIL: writing-plans: Standard and High-risk run via subagent-driven-development regardless of task count
+FAIL: plan reviewer: required inputs include approved proposal identity and text
+FAIL: plan reviewer: required inputs include baseline evidence and living specs
+FAIL: plan reviewer: checks behavior coverage and baseline preservation
+FAIL: plan reviewer: checks proposal constraints, exclusions, acceptance, architecture ownership
+FAIL: plan reviewer: checks buildability, task proof, and depth
+FAIL: plan reviewer: rejects cross-reference omitting contract meaning
+FAIL: plan reviewer: rejects unchanged baseline mapped to change work
+FAIL: plan reviewer: rejects missing High-risk obligation evidence and unapproved None
+FAIL: plan reviewer: one initial review dispatch per version, contract, inputs, and task
+FAIL: plan reviewer: findings use the adjudication contract
+FAIL: sdd: dispatch carries exact approved proposal, reviewed feature spec, reviewed plan task
+FAIL: sdd: dispatch carries artifact identities and non-controlling evidence
+FAIL: sdd: controller never answers missing controlled decision only in a child prompt
+FAIL: sdd: missing controlled context stops implementation and repairs upstream artifact
+FAIL: sdd: prompt-only evidence only when it selects no controlled outcome
+FAIL: sdd: one initial reviewer per implementation version, input set, and review task
+FAIL: sdd: unchanged rejected-finding confirmation is a targeted adjudication redispatch
+FAIL: sdd: final whole-change review checks the complete feature spec and approved proposal
+FAIL: sdd: High-risk final reviewer performs contract and risk passes before one verdict
+FAIL: sdd: controlled artifact change uses proposal change control
+FAIL: sdd: safe derived format repair stays automated only when meaning cannot change
+FAIL: implementer: carries approved proposal identity and complete relevant content
+FAIL: implementer: carries reviewed feature spec and reviewed plan task without chat additions
+FAIL: implementer: labels repository facts as evidence that cannot select a controlled decision
+FAIL: implementer: stops before editing when a controlled decision is absent or conflicting
+FAIL: implementer: report names the owning upstream artifact with NEEDS_CONTEXT
+FAIL: implementer: does not accept dispatch-only clarification as a substitute for upstream repair
+FAIL: implementer: TDD, one commit, standards, self-review, report contracts remain
+FAIL: impl reviewer: final review uses complete feature spec and approved proposal as complementary contracts
+FAIL: impl reviewer: required evidence includes artifact identities and mapped High-risk evidence
+FAIL: impl reviewer: explicit Standard final and High-risk final scope modes
+FAIL: impl reviewer: distinguishes complete initial review from targeted unchanged rejection confirmation
+FAIL: impl reviewer: corrected implementation version receives a new complete initial review
+FAIL: executing-plans: accepts only an approved Bounded workflow
+FAIL: executing-plans: one or two cohesive plan tasks
+FAIL: executing-plans: inline execution with TDD and one commit per task
+FAIL: executing-plans: no per-task reviewers
+FAIL: executing-plans: one final whole-change reviewer after fresh checks
+FAIL: executing-plans: third required task or higher trigger stops and invokes proposal change control
+FAIL: executing-plans: Standard and High-risk route to subagent-driven-development regardless of task count
+Plan and execution guidance tests failed: 57 check(s) failed.
+plan-exec exit=1
+```
+
+`bash tests/test-finishing-workflow-guidance.sh` against the 3a51c07 skill tree — exit 1:
+
+```
+FAIL: finishing: final review precedes synchronization
+FAIL: finishing: depth reassessment from accumulated evidence
+FAIL: finishing: higher result stops finishing and invokes proposal change control
+FAIL: finishing: lower result never silently lowers approved depth
+FAIL: finishing: checks every proposal acceptance example against named evidence
+FAIL: finishing: failed review, acceptance, or verification blocks synchronization
+FAIL: finishing: cold review and operator approval attach to the current proposal identity
+FAIL: finishing: spec, plan, implementation, and final-review approvals attach to current inputs
+FAIL: finishing: High-risk final approval shows one reviewer completed contract and risk passes
+FAIL: finishing: never invents baseline behavior during synchronization
+FAIL: finishing: sync commit occurs only after review approval of the exact result
+FAIL: finishing: dispatches one fresh document-review synchronization check per candidate version
+FAIL: finishing: adjudicates sync findings before fixes
+FAIL: finishing: changed sync candidate gets one new complete initial review
+FAIL: finishing: unchanged sync rejection confirmation stays targeted
+FAIL: finishing: sync uses the existing strict Document Review format
+FAIL: finishing: no operator approval for synchronization
+FAIL: finishing: stale cross-domain gate enumeration updated in the same synchronization pass
+FAIL: finishing: procedure content stays unchanged; only stale factual content changes
+FAIL: finishing: enumeration update passes the synchronization review
+FAIL: finishing: offers exactly local merge or pull request after gates pass
+FAIL: finishing: performs no integration action without an explicit operator selection
+FAIL: finishing: undocumented-domain living spec creation happens only after final acceptance
+FAIL: skills/finishing-a-development-branch/living-spec-document-reviewer-prompt.md exists
+Finishing workflow guidance tests failed: 24 check(s) failed.
+finishing exit=1
+```
+
+Coverage rows added by the final-review fixes:
+
+| Required behavior-trial scenario | Proof | Result |
+| --- | --- | --- |
+| Direct work reveals behavior: Direct execution stops and the complete non-Direct proposal gate starts | `direct-to-non-direct` static checks in `tests/test-proposal-baseline-guidance.sh` (RED before the fix, GREEN after) and the escalation rule in `using-superpowers` | Static RED then GREEN |
+| Cold-reader clarity and risk-classification checks enforced | The `Clarity` and `Risk classification` rows in `skills/brainstorming/proposal-document-reviewer-prompt.md` | Template check present; suite passes |

@@ -33,7 +33,7 @@ Route by workflow depth, never by task count. The selected depth comes from the 
 
 ## Artifact-Derived Dispatches
 
-Every implementer dispatch derives controlled design context only from the exact approved proposal, the reviewed feature spec, and the reviewed plan task. The dispatch carries the artifact identities (commit hash or content digest) and may add repository facts, file paths, diffs, command output, and logs — labeled as evidence that cannot select a controlled decision.
+Every implementer dispatch derives controlled design context only from the exact approved proposal, the reviewed feature spec, and the reviewed plan task. The dispatch carries the artifact identities (commit hash or content digest) and can add repository facts, file paths, diffs, command output, and logs, labeled as evidence that cannot select a controlled decision.
 
 A controller never introduces or resolves intent, behavior, scope, binding architecture, thresholds, exceptions, constraints, assumptions, risk treatment, or operator-visible outcomes only inside a child prompt:
 

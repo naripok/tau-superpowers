@@ -124,17 +124,21 @@ Select the workflow depth first (see Workflow Depth). Then invoke relevant or re
 ```
 IF it is a simple operation (list above):
     do it directly — no skill, no subagent
-ELSE IF the Direct test passes (see Workflow Depth):
-    make the targeted edit and run the relevant repository checks
-    Direct work creates no proposal, feature spec, or plan
 ELSE IF any skill can apply (even 1%):
     read its SKILL.md
     announce: "Using [skill] to [purpose]"
     if it has a checklist, create task tracking per item
     follow the skill exactly
+ELSE IF the Direct test passes (see Workflow Depth):
+    make the targeted edit and run the relevant repository checks
+    Direct work creates no proposal, feature spec, or plan
 ELSE:
     respond (including clarifications)
 ```
+
+The Direct branch runs only after the skill check, so a change matching an applicable skill never bypasses the workflow through the Direct test.
+
+**Direct work that becomes non-Direct:** if a Direct edit reveals a behavioral, contract, data, security, privacy, operational, or controlled-document effect, or requires a design decision, stop the Direct edit. Start the non-Direct flow: run the depth procedure, then create, cold-review, and obtain operator approval of the proposal before any downstream work starts.
 
 For non-Direct work, brainstorming applies the proposal, feature-spec, plan, execution, and final-acceptance gates from the matrix.
 

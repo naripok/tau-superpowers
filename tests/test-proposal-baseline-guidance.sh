@@ -220,6 +220,12 @@ check "brainstorming: the stale dual-artifact checklist item is removed" \
 check "using-superpowers: the stale both-artifacts completion wording is removed" \
   lacks "$using" 'both exist'
 
+# --- Direct-to-non-direct escalation ---
+check "direct-to-non-direct: a behavioral effect stops Direct execution and starts the proposal gate" \
+  all_has "$using" 'behavioral effect|becomes non-Direct|reveals a behavioral|stops? Direct' 'proposal'
+check "direct-to-non-direct: Direct escalation requires cold review and operator approval before downstream work" \
+  all_has "$brain" 'Direct' 'cold review|cold-reader' 'operator approval'
+
 # --- Preserved artifact roles ---
 
 check "brainstorming: RFC 2119 keyword rule is preserved" has "$brain" 'RFC 2119'

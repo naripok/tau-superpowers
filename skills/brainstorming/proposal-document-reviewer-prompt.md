@@ -55,6 +55,8 @@ The child has no controller conversation history and receives no brainstorm hist
     | Depth | The proposal carries the content the selected depth requires. |
     | Impact and risk | Impact covers the affected areas, and each risk carries a treatment. |
     | Unresolved decisions | The `Unresolved Decisions` section reads `None`. Any unresolved controlled decision blocks approval. |
+    | Clarity | Every sentence has one meaning on one read. A statement a cold reader cannot interpret without guessing is a blocking clarity finding, even when every section exists. |
+    | Risk classification | The named evidence supports the selected depth and its risk classification. An unresolved, contradicted, or unsupported classification is a blocking finding. |
     | Actionable completeness | The present claims and required sections support downstream work: spec derivation, planning, and implementation. |
 
     ## Hard Limits

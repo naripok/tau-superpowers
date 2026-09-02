@@ -17,7 +17,7 @@ Final acceptance precedes every synchronization action. Check, in order:
 
 1. **Approval identities are current.** Check that cold-review approval and operator approval still attach to the exact current proposal version (commit hash or content digest). Check that the feature-spec, plan, implementation, and final-review approvals attach to their current exact inputs. A stale approval blocks finishing and returns the work to the owning gate.
 2. **High-risk final evidence.** For High-risk work, check that the one final reviewer completed the contract pass and the risk pass and that every mapped High-risk obligation has evidence. Missing evidence blocks finishing.
-3. **Depth reassessment.** Reassess the workflow depth once from all accumulated evidence when that evidence changed. A higher result stops finishing and invokes proposal change control. A lower result never silently lowers the approved depth; the work may retain the approved higher depth.
+3. **Depth reassessment.** Reassess the workflow depth once from all accumulated evidence when that evidence changed. A higher result stops finishing and invokes proposal change control. A lower result never silently lowers the approved depth; the work can retain the approved higher depth.
 4. **Proposal acceptance examples.** Check every proposal acceptance example against named evidence. A failed example blocks synchronization.
 5. **Fresh verification.** Run the repository's complete verification commands fresh (full test suite, lint, type check):
 
