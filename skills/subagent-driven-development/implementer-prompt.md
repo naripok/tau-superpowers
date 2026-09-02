@@ -26,7 +26,15 @@ The child has no controller conversation history, cannot converse mid-task, and 
 
     ## Context
 
-    [Scene-setting: where this fits, dependencies, architectural context]
+    [Approved artifact context: the exact approved proposal (identity + the sections this task needs), the reviewed feature-spec requirements this task implements, and the full plan-task text. This context comes from the reviewed artifacts and changes only through proposal change control.]
+
+    ## Controlled Context and Evidence
+
+    The artifact context above is the contract. Repository facts, file paths, diffs, command output, and logs in this prompt are evidence only: they cannot select a controlled decision (behavior, threshold, exception, constraint, architecture, scope).
+
+    - If a controlled decision you need is absent from, or conflicts with, the artifact context: stop before editing. Do not guess, and do not accept a chat-style clarification as a substitute.
+    - Report exactly what is missing, name the owning upstream artifact (proposal, feature spec, or plan), and end with NEEDS_CONTEXT. The controller repairs the artifact through proposal change control and re-dispatches.
+    - If only operational evidence is missing (test output, log lines, file locations) and it selects no controlled outcome, say precisely what you need in the same report.
 
     ## Before You Begin
 
@@ -35,6 +43,7 @@ The child has no controller conversation history, cannot converse mid-task, and 
     - The interfaces and expected behavior
     - Dependencies or assumptions
     - Every file path or command result you need
+    - Every controlled decision the task needs, present in the artifact context above
 
     There is no mid-task conversation with the controller. If essential information is
     missing, do not guess or modify files. Report exactly what is missing with status
