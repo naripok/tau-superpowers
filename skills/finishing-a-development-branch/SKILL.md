@@ -15,17 +15,18 @@ Run final acceptance. Review and commit the living-spec synchronization. Then of
 
 Final acceptance precedes every synchronization action. Check, in order:
 
-1. **Approval identities are current.** Check that cold-review approval and operator approval still attach to the exact current proposal version (commit hash or content digest). Check that the feature-spec, plan, implementation, and final-review approvals attach to their current exact inputs. A stale approval blocks finishing and returns the work to the owning gate.
+1. **Approval identities are current.** Check that cold-review approval and operator approval still attach to the exact current proposal version (commit hash or content digest). Check that the feature-spec, plan, implementation, and final-review approvals attach to their current exact inputs. The plan's approval attaches to the plan's identity of record, the exact reviewed version: progress-tracking checkbox flips do not stale it. A stale approval blocks finishing and returns the work to the owning gate.
 2. **High-risk final evidence.** For High-risk work, check that the one final reviewer completed the contract pass and the risk pass and that every mapped High-risk obligation has evidence. Missing evidence blocks finishing.
 3. **Depth reassessment.** Reassess the workflow depth once from all accumulated evidence when that evidence changed. A higher result stops finishing and invokes proposal change control. A lower result never silently lowers the approved depth; the work can retain the approved higher depth.
 4. **Proposal acceptance examples.** Check every proposal acceptance example against named evidence. A failed example blocks synchronization.
-5. **Fresh verification.** Run the repository's complete verification commands fresh (full test suite, lint, type check):
+5. **Plan progress record complete.** Check that the plan document shows every task's checkboxes complete. A plan with unchecked boxes blocks synchronization and integration until the record is reconciled: flip the missed completed tasks' boxes and commit each per the tracking-commit convention.
+6. **Fresh verification.** Run the repository's complete verification commands fresh (full test suite, lint, type check):
 
 ```bash
 npm test / cargo test / pytest / go test ./...
 ```
 
-**If any required review, acceptance example, or verification command fails:** report the failures and stop. Until final acceptance passes, do not proceed to synchronization.
+**If any required review, acceptance example, verification command, or the plan progress record fails:** report the failures and stop. Until final acceptance passes, do not proceed to synchronization.
 
 ### Step 2: Determine the Base Branch
 

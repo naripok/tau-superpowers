@@ -11,7 +11,7 @@ Write an implementation plan that defines **architecture, interfaces, and expect
 
 A plan task specifies which files to touch. It specifies the signatures and behavior contracts of new or changed functions and types. It specifies which behaviors tests must prove and the exact verification commands. It does NOT contain implementation code or test code.
 
-Assume the implementer is a skilled developer with zero context for our codebase. Give them complete contracts and exact commands. Trust them to write the code. DRY. YAGNI. TDD. One commit per task.
+Assume the implementer is a skilled developer with zero context for our codebase. Give them complete contracts and exact commands. Trust them to write the code. DRY. YAGNI. TDD. One implementation commit per task; the executor's plan-checkbox tracking commit is separate metadata.
 
 **Announce at start:** "Using writing-plans to create the implementation plan."
 
@@ -68,7 +68,7 @@ Write tasks that implement the feature spec. **Task sizing:** one task = one imp
 ```markdown
 # [Feature Name] Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use subagent-driven-development (recommended) or executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use subagent-driven-development (recommended) or executing-plans to implement this plan task-by-task. Mark every checkbox of a task `[x]` in the plan file when the task completes its gate, and record each flip in one tracking commit named `docs(plan): mark <plan-file-stem> Task N complete`.
 
 **Goal:** [One sentence describing what this builds]
 

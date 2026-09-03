@@ -59,6 +59,12 @@ has_all "finishing: cold review and operator approval attach to the current prop
 has_all "finishing: spec, plan, implementation, and final-review approvals attach to current inputs" "$FIN" \
   'approval' 'current|exact'
 
+# --- finishing: plan checkbox tracking ---
+has_all "finishing: final acceptance checks plan checkbox completeness and blocks" "$FIN" \
+  'checkbox' 'complete|every task' 'block|synchron'
+has_all "finishing: plan approval binds to the identity of record" "$FIN" \
+  'identity of record' 'flip|progress-tracking'
+
 # --- High-risk final evidence ---
 has_all "finishing: High-risk final approval shows one reviewer completed contract and risk passes" "$FIN" \
   'High-risk' 'contract' 'risk pass|risk'

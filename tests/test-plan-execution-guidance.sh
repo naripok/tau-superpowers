@@ -97,6 +97,16 @@ has "writing-plans: Bounded runs inline via executing-plans" "$WP" 'executing-pl
 has "writing-plans: Standard and High-risk run via subagent-driven-development regardless of task count" "$WP" \
   'regardless of task count|regardless'
 
+# --- writing-plans: plan checkbox tracking ---
+has_all "writing-plans: header instructs executors to mark task checkboxes complete in the plan file" "$WP" \
+  'agentic workers' 'mark' '\[x\]' 'plan file' 'docs\(plan\): mark'
+has "writing-plans: separates the implementation commit from tracking commits" "$WP" \
+  '[Oo]ne implementation commit per task'
+lacks "writing-plans: old tracking sentence removed" "$WP" \
+  'Steps use checkbox'
+lacks "writing-plans: no non-standard checkbox syntax (immediate-pass guard)" "$WP" \
+  '\[-\]|\[~\]|\[/\]'
+
 # --- plan reviewer template ---
 has_all "plan reviewer: required inputs include approved proposal identity and text" "$PR" \
   'approved proposal' 'identity'
