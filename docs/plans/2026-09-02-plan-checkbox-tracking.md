@@ -87,10 +87,10 @@ The first two suites carry the new contracts. The last three are preservation su
 
 **Check:** `bash tests/test-plan-execution-guidance.sh && bash tests/test-proposal-baseline-guidance.sh && bash tests/test-references.sh && bash tests/test-install.sh` — expected: all pass
 
-- [ ] Write the failing test assertions above. Run the suite and check each new assertion fails for the expected reason (the skill text does not yet carry the contracts)
-- [ ] Implement the `executing-plans` and `subagent-driven-development` changes within the contracts above
-- [ ] Run verification: all four Check commands pass
-- [ ] Commit: `git add skills/executing-plans/SKILL.md skills/subagent-driven-development/SKILL.md tests/test-plan-execution-guidance.sh && git commit -m "skills: plan checkbox tracking in execution skills"`
+- [x] Write the failing test assertions above. Run the suite and check each new assertion fails for the expected reason (the skill text does not yet carry the contracts)
+- [x] Implement the `executing-plans` and `subagent-driven-development` changes within the contracts above
+- [x] Run verification: all four Check commands pass
+- [x] Commit: `git add skills/executing-plans/SKILL.md skills/subagent-driven-development/SKILL.md tests/test-plan-execution-guidance.sh && git commit -m "skills: plan checkbox tracking in execution skills"`
 
 ### Task 2: Planning and finishing tracking contracts (writing-plans and finishing-a-development-branch)
 
