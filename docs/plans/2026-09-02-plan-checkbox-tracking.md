@@ -130,10 +130,10 @@ The first two suites carry the new contracts. The last three are preservation su
 
 **Check:** `bash tests/test-plan-execution-guidance.sh && bash tests/test-finishing-workflow-guidance.sh && bash tests/test-proposal-baseline-guidance.sh && bash tests/test-references.sh && bash tests/test-install.sh` — expected: all pass
 
-- [ ] Write the failing test assertions above. Run both suites and check each new assertion fails for the expected reason
-- [ ] Implement the `writing-plans` and `finishing-a-development-branch` changes within the contracts above
-- [ ] Run verification: all five Check commands pass
-- [ ] Commit: `git add skills/writing-plans/SKILL.md skills/finishing-a-development-branch/SKILL.md tests/test-finishing-workflow-guidance.sh tests/test-plan-execution-guidance.sh && git commit -m "skills: plan checkbox tracking in planning and finishing"`
+- [x] Write the failing test assertions above. Run both suites and check each new assertion fails for the expected reason
+- [x] Implement the `writing-plans` and `finishing-a-development-branch` changes within the contracts above
+- [x] Run verification: all five Check commands pass
+- [x] Commit: `git add skills/writing-plans/SKILL.md skills/finishing-a-development-branch/SKILL.md tests/test-finishing-workflow-guidance.sh tests/test-plan-execution-guidance.sh && git commit -m "skills: plan checkbox tracking in planning and finishing"`
 
 ## Preservation Mapping (unchanged baseline)
 
