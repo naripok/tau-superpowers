@@ -28,7 +28,7 @@ If any check fails, or the work is Standard or High-risk, stop and route per the
 1. Read the plan file
 2. Review the plan critically to identify questions or concerns
 3. If you have concerns, raise them with your human partner first
-4. If you have no concerns, copy the plan checklist into your working notes. Then proceed
+4. If you have no concerns, start execution. The plan file's checkboxes are the progress record: the controller marks them there as tasks complete. Do not copy the checklist into working notes
 
 ### Step 2: Check the Workspace
 
@@ -44,15 +44,15 @@ If you are on the default branch, stop. Create the worktree with using-git-workt
 
 For each task:
 
-1. Mark the task as in_progress
+1. Mark the task as in_progress in your task tracking. The plan document records completion only
 2. Implement the contract of the task with TDD. Write the failing tests for the "Tests must prove" list of the task. Watch each test fail for the expected reason. Implement the interface and the behavior. Refactor. You decide the exact implementation within the contract
 3. Run the verification commands of the task
 4. Commit
-5. Mark the task as completed
+5. Mark the task as completed: check every checkbox of the task `[x]` in the plan file, then commit exactly one tracking commit, immediately, with the message `docs(plan): mark <plan-file-stem> Task N complete` that contains only that flip. A flipped box never reverts
 
 ### Step 4: Final Whole-Change Review
 
-After the last task and its fresh checks, dispatch one `code-review` subagent over the complete change. Use the template at `../subagent-driven-development/implementation-reviewer-prompt.md` in its **Standard final** scope mode: the full feature spec and the approved proposal are the governing contracts. This skill does not dispatch per-task reviewers; the final whole-change review is the only implementation review.
+After the last task and its fresh checks, dispatch one `code-review` subagent over the complete change. Use the template at `../subagent-driven-development/implementation-reviewer-prompt.md` in its **Standard final** scope mode: the full feature spec and the approved proposal are the governing contracts. This skill does not dispatch per-task reviewers; the final whole-change review is the only implementation review. The dispatch supplies the feature spec, the approved proposal, the evidence, and the diff; the reviewer subagent neither reads nor edits the plan file.
 
 Before you act on any finding, adjudicate every finding per `receiving-code-review`. You are the implementer at this gate. Apply endorsed Critical and Important fixes yourself. Apply endorsed Minor findings yourself, or defer them and record each deferral. If adjudication rejects findings, re-dispatch the reviewer with the fixes, the rejected findings, and the rejection reasons. The gate does not continue while endorsed Critical or Important fixes remain unapplied. A maintained Critical finding stops the gate per the escalation section of `receiving-code-review`.
 

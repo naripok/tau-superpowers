@@ -43,14 +43,14 @@ A controller never introduces or resolves intent, behavior, scope, binding archi
 
 ## The Process
 
-1. Read the plan once. Extract every task with its full text and its proposal constraints. Create task tracking.
+1. Read the plan once. Extract every task with its full text and its proposal constraints. Create task tracking for in-progress state; the plan file's checkboxes are the progress record (completion only), and the controller flips a completed task's checkboxes there (step 2f).
 2. Per task:
    a. Dispatch the implementer (`./implementer-prompt.md`) with the approved proposal identity and content, the reviewed feature spec, the full plan-task text, and the artifact identities
    b. Handle the reported status (below)
    c. Check the implementer report: tests ran and pass, work committed, self-review done
    d. Dispatch the implementation reviewer (`./implementation-reviewer-prompt.md`). Give it the full feature-spec text, the approved proposal content, the task text, and the implementer report. Also give it every relevant file path, the artifact identities, the diff, and the verification output
    e. The reviewer reports on two dimensions: **Spec Compliance** and **Code Quality**. Before you act on any finding, adjudicate every finding per `receiving-code-review`. If adjudication endorses findings, re-dispatch the implementer. The re-dispatch carries the original task, the current state, and only the endorsed findings. Then re-dispatch the reviewer with the updated evidence, the rejected findings, and the rejection reasons. Repeat until both pass
-   f. Mark the task complete
+   f. Mark the task complete: check every checkbox of the task `[x]` in the plan file and commit exactly one tracking commit, immediately, with the message `docs(plan): mark <plan-file-stem> Task N complete` that contains only that flip. A flipped box never reverts. A task whose reviewer returns a needs-fixes verdict keeps unchecked checkboxes and gets no tracking commit until the review passes
 3. After the last task: dispatch the implementation reviewer over the entire change. The final review checks the FULL feature spec AND the approved proposal: observable behavior against the spec; scope, binding architecture, constraints, non-goals, acceptance, and risk treatment against the proposal. For High-risk work, the final reviewer performs a contract pass and a risk pass and reports one verdict. Missing mapped High-risk evidence blocks final approval. Per-task reviews check only their own task. Before you act on any finding, adjudicate every finding per `receiving-code-review`. Endorsed findings go to dispatched fix subagents
 4. Invoke finishing-a-development-branch
 
@@ -85,6 +85,7 @@ Never re-dispatch a stuck implementer with no changes, because a plain restart i
 
 - One initial reviewer dispatch covers one implementation version against one complete input set and one review task. Do not dispatch duplicate initial reviews with identical inputs.
 - An artifact or implementation change creates a new version and receives one new complete initial review.
+- A plan-file checkbox flip that records a completed task is a meaning-preserving tracking edit: it is not a new plan version, triggers no new complete initial review, does not invalidate plan approvals, and is not a changed upstream input. Downstream reviews that already approved keep their approvals, and no downstream re-review starts. Every other plan edit keeps the full version and re-review rules above.
 - Added context after `BLOCKED` or `NEEDS_CONTEXT` changes the inputs and permits one new complete initial review.
 - An unchanged rejected-finding confirmation is a targeted adjudication redispatch to the same reviewer profile. It carries only the rejected findings and their reasons. It does not repeat a complete review.
 - A format-only correction to a derived artifact stays in its automated review loop when it cannot change meaning. A correction that can change meaning, or any approved-proposal edit, goes through proposal change control.
@@ -126,7 +127,7 @@ Reviewer: Verdict Approved; both dimensions clean
 **Never:**
 - Implement on the default branch: work happens on the branch/worktree created during brainstorming
 - Dispatch implementers in parallel (they share the working tree)
-- Make a subagent read the plan file. Provide the full task text instead
+- Make a subagent read or edit the plan file. Provide the full task text instead; the controller is the only plan-file writer during execution
 - Answer a missing controlled decision only inside a dispatch prompt: repair the upstream artifact through proposal change control
 - Dispatch duplicate initial reviews of the same implementation version, inputs, and review task
 - Skip the per-task review or the final review

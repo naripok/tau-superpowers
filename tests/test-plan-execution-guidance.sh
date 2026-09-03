@@ -155,6 +155,22 @@ has_all "sdd: controlled artifact change uses proposal change control" "$SDD" \
 has_all "sdd: safe derived format repair stays automated only when meaning cannot change" "$SDD" \
   'format' 'meaning'
 
+# --- subagent-driven-development: plan checkbox tracking ---
+has_all "sdd: plan checkboxes are the progress record, completion only" "$SDD" \
+  'checkbox' 'progress record'
+has_all "sdd: step 2f flips checkboxes and commits one tracking commit" "$SDD" \
+  '\[x\]' 'tracking commit' 'docs\(plan\): mark'
+has_all "sdd: red flags prohibit reading or editing the plan file" "$SDD" \
+  'read or edit' 'only.*writer'
+has_all "sdd: review accounting exempts meaning-preserving progress-tracking flips" "$SDD" \
+  'meaning-preserving' 're-review|new version|initial review' 'upstream input'
+has_all "sdd: needs-fixes verdict keeps boxes unchecked with no tracking commit" "$SDD" \
+  'needs-fixes' 'unchecked|no tracking commit'
+has_all "sdd: flipped boxes never revert" "$SDD" \
+  'never' 'revert|un-check|uncheck'
+lacks "sdd: no non-standard checkbox syntax (immediate-pass guard)" "$SDD" \
+  '\[-\]|\[~\]|\[/\]'
+
 # --- implementer prompt ---
 has_all "implementer: carries approved proposal identity and complete relevant content" "$IMP" \
   'approved proposal' 'identity'
@@ -208,6 +224,22 @@ has_all "executing-plans: Standard and High-risk route to subagent-driven-develo
   'subagent-driven-development' 'regardless|workflow depth'
 lacks "executing-plans: no task-count routing remains" "$EP" \
   '3 or more substantive|plan is substantive \(3\+|1-2 trivial'
+
+# --- executing-plans: plan checkbox tracking ---
+has_all "executing-plans: plan file is the progress record" "$EP" \
+  'plan file' 'checkbox' 'progress record'
+lacks "executing-plans: working-notes checklist copy removed" "$EP" \
+  'copy the plan checklist into your working notes'
+has_all "executing-plans: completion step flips checkboxes and commits one tracking commit" "$EP" \
+  '\[x\]' 'tracking commit' 'docs\(plan\): mark'
+has_all "executing-plans: in-progress state targets controller task tracking" "$EP" \
+  'in_progress|in-progress' 'task tracking'
+has_all "executing-plans: flipped boxes never revert" "$EP" \
+  'never' 'revert|un-check|uncheck'
+has_all "executing-plans: final reviewer neither reads nor edits the plan file" "$EP" \
+  'neither reads nor edits|read or edit' 'plan file'
+lacks "executing-plans: no non-standard checkbox syntax (immediate-pass guard)" "$EP" \
+  '\[-\]|\[~\]|\[/\]'
 
 # --- preserved baseline roles ---
 has_all "preserved: requirement traceability and test proof in plan review" "$PR" \
