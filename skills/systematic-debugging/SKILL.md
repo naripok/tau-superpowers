@@ -226,7 +226,7 @@ If you catch yourself thinking any of these, STOP and take the action:
 | "Issue is simple, don't need process" | Simple issues have root causes too. The process is fast for simple bugs. |
 | "Emergency, no time for process" | Systematic debugging is FASTER than guess-and-check thrashing. |
 | **"One more fix attempt" (after 2+ failures)** | 3+ failures = an architectural problem. Question the fundamentals. Discuss with your human partner before more fixes. |
-| **Each fix reveals a new problem in a different place** | Same signal: wrong architecture, not failed hypothesis. See Phase 4.5. |
+| **Each fix reveals a new problem in a different place** | Same signal: wrong architecture, not failed hypothesis. See Phase 4, step 5. |
 
 **If you recognize a thought: STOP. Do the paired action before more code.**
 

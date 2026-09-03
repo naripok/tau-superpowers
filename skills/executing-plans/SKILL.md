@@ -1,6 +1,6 @@
 ---
 name: executing-plans
-description: Use when you have a written implementation plan to execute inline in the current session
+description: Use when executing an approved Bounded implementation plan inline in the current session
 ---
 
 # Executing Plans
@@ -52,7 +52,7 @@ For each task:
 
 ### Step 4: Final Whole-Change Review
 
-After the last task and its fresh checks, dispatch one `code-review` subagent over the complete change. Use the template at `../subagent-driven-development/implementation-reviewer-prompt.md` in its **Standard final** scope mode: the full feature spec and the approved proposal are the governing contracts. This skill does not dispatch per-task reviewers; the final whole-change review is the only implementation review. The dispatch supplies the feature spec, the approved proposal, the evidence, and the diff; the reviewer subagent neither reads nor edits the plan file.
+After the last task and its fresh checks, dispatch one `code-review` subagent over the complete change. Use the template at `../subagent-driven-development/implementation-reviewer-prompt.md` in its **Standard final** scope mode: the full feature spec and the approved proposal are the governing contracts. This skill does not dispatch per-task reviewers; the final whole-change review is the only implementation review. The dispatch supplies the feature spec, the living-spec text for every MODIFIED requirement, the approved proposal, the full task list, the evidence, and the diff; the reviewer subagent neither reads nor edits the plan file.
 
 Before you act on any finding, adjudicate every finding per `receiving-code-review`. You are the implementer at this gate. Apply endorsed Critical and Important fixes yourself. Apply endorsed Minor findings yourself, or defer them and record each deferral. If adjudication rejects findings, re-dispatch the reviewer with the fixes, the rejected findings, and the rejection reasons. The gate does not continue while endorsed Critical or Important fixes remain unapplied. A maintained Critical finding stops the gate per the escalation section of `receiving-code-review`.
 

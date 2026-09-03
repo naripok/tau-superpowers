@@ -1,6 +1,6 @@
 ---
 name: subagent-driven-development
-description: Use when executing implementation plans with independent tasks in the current session
+description: Use when executing a Standard or High-risk implementation plan in the current session
 ---
 
 # Subagent-Driven Development
@@ -19,14 +19,12 @@ Execute the plan by dispatching a fresh implementer subagent per task. Then disp
 ## When to Use
 
 ```
-IF the workflow depth is Bounded (one or two cohesive tasks, approved at that depth):
+IF no implementation plan exists:
+    brainstorm first per using-superpowers
+ELSE IF the workflow depth is Bounded:
     executing-plans (inline execution)
 ELSE IF the workflow depth is Standard or High-risk:
-    subagent-driven-development, regardless of task count
-ELSE IF no implementation plan exists:
-    brainstorm first, or execute manually
-ELSE IF tasks are tightly coupled:
-    manual execution
+    subagent-driven-development, regardless of task count or coupling
 ```
 
 Route by workflow depth, never by task count. The selected depth comes from the approved proposal and the using-superpowers depth procedure.
@@ -48,10 +46,10 @@ A controller never introduces or resolves intent, behavior, scope, binding archi
    a. Dispatch the implementer (`./implementer-prompt.md`) with the approved proposal identity and content, the reviewed feature spec, the full plan-task text, and the artifact identities
    b. Handle the reported status (below)
    c. Check the implementer report: tests ran and pass, work committed, self-review done
-   d. Dispatch the implementation reviewer (`./implementation-reviewer-prompt.md`). Give it the full feature-spec text, the approved proposal content, the task text, and the implementer report. Also give it every relevant file path, the artifact identities, the diff, and the verification output
+   d. Dispatch the implementation reviewer (`./implementation-reviewer-prompt.md`). Give it the full feature-spec text, the living-spec text for every MODIFIED requirement, the approved proposal content, the task text, and the implementer report. Also give it every relevant file path, the artifact identities, the diff, and the verification output
    e. The reviewer reports on two dimensions: **Spec Compliance** and **Code Quality**. Before you act on any finding, adjudicate every finding per `receiving-code-review`. If adjudication endorses findings, re-dispatch the implementer. The re-dispatch carries the original task, the current state, and only the endorsed findings. Then re-dispatch the reviewer with the updated evidence, the rejected findings, and the rejection reasons. Repeat until both pass
    f. Mark the task complete: check every checkbox of the task `[x]` in the plan file and commit exactly one tracking commit, immediately, with the message `docs(plan): mark <plan-file-stem> Task N complete` that contains only that flip. A flipped box never reverts. A task whose reviewer returns a needs-fixes verdict keeps unchecked checkboxes and gets no tracking commit until the review passes
-3. After the last task: dispatch the implementation reviewer over the entire change. The final review checks the FULL feature spec AND the approved proposal: observable behavior against the spec; scope, binding architecture, constraints, non-goals, acceptance, and risk treatment against the proposal. For High-risk work, the final reviewer performs a contract pass and a risk pass and reports one verdict. Missing mapped High-risk evidence blocks final approval. Per-task reviews check only their own task. Before you act on any finding, adjudicate every finding per `receiving-code-review`. Endorsed findings go to dispatched fix subagents
+3. After the last task: dispatch the implementation reviewer over the entire change. Supply the living-spec text for every MODIFIED requirement in the feature spec. The final review checks the FULL feature spec AND the approved proposal: observable behavior against the spec; scope, binding architecture, constraints, non-goals, acceptance, and risk treatment against the proposal. For High-risk work, the final reviewer performs a contract pass and a risk pass and reports one verdict. Missing mapped High-risk evidence blocks final approval. Per-task reviews check only their own task. Before you act on any finding, adjudicate every finding per `receiving-code-review`. Endorsed findings go to dispatched fix subagents
 4. Invoke finishing-a-development-branch
 
 ## Handling Implementer Status

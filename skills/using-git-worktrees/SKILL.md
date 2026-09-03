@@ -79,7 +79,7 @@ Ready to implement <feature-name>
 ## Integration
 
 **Called by:**
-- **brainstorming**: after design approval, before writing any artifact. Commit all artifacts and code to this branch.
+- **brainstorming**: after the design is presented, before any artifact is written. Commit all artifacts and code to this branch.
 - **executing-plans** / **subagent-driven-development**: check that execution happens inside the existing worktree. Do not create a second one.
 
 **Pairs with:**

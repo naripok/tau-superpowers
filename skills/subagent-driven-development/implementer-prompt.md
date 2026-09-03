@@ -57,7 +57,10 @@ The child has no controller conversation history, cannot converse mid-task, and 
        that contract is your decision
     2. Follow TDD explicitly. Write the failing tests for the task's "Tests must
        prove" list first. Run them and check that each fails for the expected
-       reason. Implement the minimum to pass. Run the tests again. Then refactor
+       reason. Implement the minimum to pass. Run the tests again. Then refactor.
+       If the task names a TDD exception (configuration files, generated code,
+       throwaway prototype), it is pre-approved. If an exception seems necessary
+       and none is named, report NEEDS_CONTEXT
     3. Run the task's verification commands
     4. Commit your work
     5. Self-review (see below)

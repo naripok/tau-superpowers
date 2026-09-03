@@ -60,8 +60,9 @@ To skip a step is to lie, not to check.
 **Regression tests (red-green):**
 
 ```
-✅ Write test → run (passes with fix) → revert fix → run (MUST FAIL) → restore fix → run (passes)
-❌ "I've written a regression test" (without the red-green check)
+✅ Preferred (test-driven-development): write the test → run → watch it fail → apply the fix → run → passes
+✅ Inherited fix (the fix already exists): write the test → run (passes with fix) → revert the fix → run (MUST FAIL) → restore → run (passes)
+❌ "I've written a regression test" (without watching it fail in one of these ways)
 ```
 
 **Build:**

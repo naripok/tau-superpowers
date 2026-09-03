@@ -38,7 +38,7 @@ The child has no controller conversation history. Name the plan, feature spec, a
     | Category | What to Look For |
     |----------|------------------|
     | Completeness | Every task has complete interface signatures, behavior contracts, a "tests must prove" list, and exact verification commands. No TODOs or placeholders. |
-    | Spec alignment | Every ADDED/MODIFIED requirement in the feature spec has a task whose tests cover its scenarios. The plan acts on REMOVED requirements. No scope creep beyond the spec. |
+    | Spec alignment | Every ADDED/MODIFIED requirement in the feature spec has a task whose tests cover its scenarios. The plan acts on REMOVED requirements. No scope creep beyond the feature spec and the approved proposal. |
     | Baseline preservation | Established unchanged baseline behavior maps only to preservation or regression checks, never to change work. Reject a plan that converts unchanged behavior into change tasks. |
     | Proposal constraints | Every proposal-owned constraint, non-goal, acceptance example, and risk treatment carries a task, a check, or an approved `None` disposition. `None` is valid only when the approved proposal marks the category inapplicable or approves no action. |
     | High-risk obligations | Every applicable compatibility, migration, rollout, rollback, observability, recovery, and approved risk-treatment obligation maps to named evidence. Reject missing mappings and unapproved `None` values. |
@@ -46,7 +46,7 @@ The child has no controller conversation history. Name the plan, feature spec, a
     | Architecture ownership | Plan-owned choices stay within approved boundaries. A change to externally material structure or an operator-selected constraint must have followed proposal change control. |
     | Depth | The plan matches its workflow depth: Bounded plans contain one or two cohesive tasks; Standard and High-risk plans carry their level's obligations. |
     | Living-spec grounding | Check the spec delta, the interface claims, and the file claims against the living-spec material and the affected source files. |
-    | Task decomposition | Tasks have clear boundaries, each traces to a spec requirement and its test proof, and each is sized as one coherent change producing one commit. |
+    | Task decomposition | Tasks have clear boundaries, each traces to a feature-spec requirement or a retained proposal-owned item with its test proof or named check, and each is sized as one coherent change producing one commit. |
     | Buildability | An implementer can build the right thing from the contracts without guessing the intended API, error behavior, or test expectations. |
     | Standards | The plan header carries the shared implementation standards and the approved-proposal contract, and no task prescribes a hack, workaround, silent fallback, or unnecessary abstraction. |
     | Style | Prose follows writing-developer-facing-text (pragmatic mode): short sentences, imperative steps, no banned modals. |

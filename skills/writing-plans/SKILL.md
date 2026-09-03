@@ -44,7 +44,7 @@ The proposal and the feature spec are **complementary contracts**. The plan impl
 
 **Baseline mapping:** map changed behavior to implementation tasks with named proof. Map established unchanged baseline behavior only to preservation or regression checks, never to change tasks. Proposal-owned work that spec review retained (internal constraints, non-behavioral in-scope work) maps to a task or a named check.
 
-Every task in the plan must map to a requirement in the feature spec.
+Every task in the plan must map to a feature-spec requirement or to a proposal-owned item that spec review retained (internal constraint, non-behavioral in-scope work, or risk treatment).
 
 ## Step 2: File Structure
 
@@ -68,7 +68,7 @@ Write tasks that implement the feature spec. **Task sizing:** one task = one imp
 ```markdown
 # [Feature Name] Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use subagent-driven-development (recommended) or executing-plans to implement this plan task-by-task. Mark every checkbox of a task `[x]` in the plan file when the task completes its gate, and record each flip in one tracking commit named `docs(plan): mark <plan-file-stem> Task N complete`.
+> **For agentic workers:** REQUIRED SUB-SKILL: Execute this plan task-by-task with the skill the workflow depth selects: executing-plans for Bounded, subagent-driven-development for Standard or High-risk. The controller marks every checkbox of a task `[x]` in the plan file when the task completes its gate, and records each flip in one tracking commit named `docs(plan): mark <plan-file-stem> Task N complete`.
 
 **Goal:** [One sentence describing what this builds]
 
@@ -97,7 +97,7 @@ Follow the header with a **commands section**. Give the exact project commands t
 - Modify: `exact/path/to/existing.py` — [what changes]
 - Test: `tests/exact/path/to/test.py`
 
-**Spec requirement:** [Which ADDED/MODIFIED/REMOVED requirement this task implements]
+**Spec or proposal source:** [Which ADDED/MODIFIED/REMOVED requirement this task implements — or which retained proposal-owned item (internal constraint, non-behavioral in-scope work, risk treatment) it carries]
 
 **Proposal constraints:** [Every proposal-owned constraint, non-goal, or risk treatment this task must respect; write `None` only when the proposal marks the category inapplicable for this task]
 
@@ -161,7 +161,7 @@ After you write the complete plan, check it yourself before you dispatch the rev
 
 **1. Spec coverage (spec → plan):** For each ADDED/MODIFIED requirement in the feature spec, is there a task whose "Tests must prove" list covers its scenarios? A requirement without a task and tests is a plan failure.
 
-**2. Reverse coverage (plan → spec):** Does every task map to a feature-spec requirement? Tasks that do not are scope creep.
+**2. Reverse coverage (plan → spec):** Does every task map to a feature-spec requirement or a retained proposal-owned item? Tasks that map to neither are scope creep.
 
 **3. Proposal coverage:** Does every proposal-owned constraint, non-goal, and risk treatment carry a task, a check, or an approved `None` disposition? A binding constraint absent from the tasks is a plan failure.
 

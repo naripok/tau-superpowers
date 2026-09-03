@@ -95,13 +95,12 @@ git merge "$FEATURE_BRANCH"
 
 # Verify the merged result; delete the feature branch only on success.
 if bash -lc "$TEST_COMMAND"; then
+  # Remove the worktree first so the branch is no longer checked out anywhere.
+  git worktree remove "$WORKTREE_PATH"  # if the work happened in a worktree; run from outside it
   git branch -d "$FEATURE_BRANCH"
 else
-  echo "Merged-result tests failed; keeping $FEATURE_BRANCH" >&2
+  echo "Merged-result tests failed; keeping $FEATURE_BRANCH and its worktree" >&2
 fi
-
-# Remove the worktree if one was used (run from outside the worktree).
-git worktree remove "$WORKTREE_PATH"
 ```
 
 #### Option 2: Push and Create a PR

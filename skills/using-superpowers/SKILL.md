@@ -37,7 +37,7 @@ Never dispatch a subagent and then do the same read or command yourself. The dis
 
 ## Writing Standard
 
-Write all developer-facing text per the writing-developer-facing-text skill. Use pragmatic mode. This text includes documentation, specs, plans, docstrings, code comments, commit message bodies, error and log messages, and reports to the user. Short sentences. Imperative procedures, with the condition before the command. Banned modals: should, would, may, might, could. Use "check" as the only verb for verification. Identifiers, code, and quoted messages stay exact. Language tooling rules for doc comments override style rules. Read the writing-developer-facing-text SKILL.md before you write or rewrite a long document.
+Write all developer-facing text per the writing-developer-facing-text skill. Use pragmatic mode. This text includes documentation, specs, plans, docstrings, code comments, commit message bodies, error and log messages, and reports to the user. Short sentences. Imperative procedures, with the condition before the command. Banned modals: should, would, may, might, could, shall. Exception: RFC 2119 keywords (SHALL, MUST, SHOULD) in requirement statements stay exact. Use "check" as the only verb for verification. Identifiers, code, and quoted messages stay exact. Language tooling rules for doc comments override style rules. Read the writing-developer-facing-text SKILL.md before you write or rewrite a long document.
 
 ## How Skills Work
 
@@ -115,7 +115,7 @@ Artifact paths do not prove state completion. Check the exact review and approva
 | Plan | None | Concise one-to-two-task plan and one review | Full plan and one review | Obligation-mapped plan and one review |
 | Execution | Targeted edit and relevant checks | Inline execution of one or two tasks | Per-task implementation and review | Mapped evidence plus per-task implementation and review |
 | Final acceptance | Relevant repository checks | One final whole-change review and fresh verification | One final whole-change review and fresh verification | One two-pass final review, acceptance checks, and fresh verification |
-| Living-spec synchronization and integration | None | Synchronize, check, then integrate | Synchronize, check, then integrate | Synchronize, check, then integrate after final-review approval |
+| Living-spec synchronization and integration | None | Synchronize, check, then integrate after final-review approval | Synchronize, check, then integrate after final-review approval | Synchronize, check, then integrate after final-review approval |
 
 ## The Flow
 
