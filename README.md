@@ -4,6 +4,49 @@ Tau Superpowers is a collection of Agent Skills for spec-driven development, TDD
 
 The project combines ideas and material from [obra/superpowers](https://github.com/obra/superpowers) and [Fission-AI/OpenSpec](https://github.com/Fission-AI/OpenSpec), adapted for [Tau](https://github.com/earendil-works/tau).
 
+## The Workflow
+
+A living spec at `docs/specs/<domain>.md` describes current behavior. Feature work follows a proposal-baseline flow: the reviewed proposal is the only formal operator-approval artifact, and every later artifact derives from it without the brainstorm conversation.
+
+```mermaid
+flowchart TD
+    T["Task arrives"] --> C["using-superpowers classifies the workflow depth"]
+    C -->|"Direct"| TE["Targeted edit and relevant checks"]
+    C -->|"Bounded, Standard, or High-risk"| BR["brainstorming: baseline evidence<br/>and proposal on a branch or worktree"]
+    BR --> CR["Cold proposal review by a document-review child"]
+    CR --> OA["Operator approval of the exact proposal version"]
+    OA --> FS["Feature spec derived in a fresh context,<br/>then spec review"]
+    FS --> PL["writing-plans: task contracts from the spec<br/>and the proposal, then plan review"]
+    PL --> RT{"Execution route"}
+    RT -->|"Bounded"| EI["executing-plans: inline tasks and<br/>one final whole-change review"]
+    RT -->|"Standard or High-risk"| SD["subagent-driven-development:<br/>per-task reviews by code-review children"]
+    EI --> FA["finishing-a-development-branch: final acceptance<br/>and reviewed living-spec synchronization"]
+    SD --> FA
+    FA --> IN["Operator chooses a local merge or a pull request"]
+```
+
+Every review gate loops: a review with blocking findings returns the artifact for repair, and a new review covers the changed version. Four skills apply at any stage:
+
+- `systematic-debugging` diagnoses root causes.
+- `test-driven-development` applies red-green-refactor discipline.
+- `receiving-code-review` adjudicates review findings.
+- `verification-before-completion` requires fresh evidence before completion claims.
+
+The main flow is:
+
+1. **Classify:** select the workflow depth from repository evidence: Direct, Bounded, Standard, or High-risk. Direct work is a targeted edit with no design artifacts. The depth matrix in `using-superpowers` defines each level's gates.
+2. **Brainstorm:** establish the current-behavior baseline (living-spec, undocumented, or new domain), write the proposal with required outcomes, acceptance examples, constraints, and risks, pass the cold-reader review, and obtain operator approval of that exact proposal version. A fresh context then derives the feature spec, and a reviewer checks proposal-to-spec semantic fidelity. All artifacts and code live on a branch or worktree, never on the default branch.
+3. **Plan:** map feature-spec behavior to tasks and tests, carry every proposal-owned constraint, and map unchanged baseline behavior to preservation checks. Plan review gates execution. The operator never approves the plan.
+4. **Execute:** Bounded work runs inline with one final whole-change review. Standard and High-risk work uses per-task implementation reviews and a final review against both contracts. Implementation dispatches carry artifact-derived design context only.
+5. **Finish:** run final acceptance (approval identities, depth reassessment, acceptance examples, fresh verification), review and commit the living-spec synchronization, then offer exactly a local merge or a pull request. Operator silence leaves the branch untouched.
+
+| Artifact | Role |
+| --- | --- |
+| `docs/specs/<domain>.md` | Canonical current behavior |
+| `docs/design/YYYY-MM-DD-<topic>-proposal.md` | Operator-approved intent: outcomes, acceptance, scope, constraints, approach, risks |
+| `docs/design/YYYY-MM-DD-<topic>-spec.md` | Complete observable post-change behavior, derived from the approved proposal |
+| `docs/plans/YYYY-MM-DD-<topic>.md` | Task contracts implementing spec behavior within proposal constraints |
+
 ## What You Get
 
 - 15 Tau-discoverable Agent Skills covering the full design-to-delivery workflow.
@@ -13,6 +56,28 @@ The project combines ideas and material from [obra/superpowers](https://github.c
 - A per-subagent config file (`~/.tau/superpowers-subagent.toml` and `<project>/.tau/superpowers-subagent.toml`) that pins provider, model, and `reasoningEffort` globally or per agent; an example file ships as `superpowers-subagent.example.toml`.
 - Per-child `reasoningEffort` at call or config-file level, applied as the child's Tau thinking level.
 - Parent-model content is each child's complete final assistant message, with the complete wire messages retained in structured result details.
+
+## Included Skills
+
+| Skill | Purpose |
+| --- | --- |
+| `brainstorming` | Establish the current-behavior baseline, cold-review the proposal, obtain proposal-only operator approval, and derive the feature spec in a fresh context |
+| `dispatching-parallel-agents` | Coordinate independent work concurrently |
+| `executing-plans` | Execute an approved Bounded workflow inline with one final whole-change review |
+| `finishing-a-development-branch` | Run final acceptance, review living-spec synchronization, and integrate on operator choice |
+| `receiving-code-review` | Review-finding adjudication: endorse and reject verdicts per finding and fix dispatches that carry only endorsed findings |
+| `requesting-code-review` | Request focused review before completion |
+| `subagent-driven-development` | Execute Standard and High-risk work with artifact-derived dispatches, per-task reviews, and a final whole-change review |
+| `systematic-debugging` | Diagnose root causes before changing code |
+| `test-driven-development` | Apply red-green-refactor discipline |
+| `using-git-worktrees` | Isolate feature work in Git worktrees |
+| `using-superpowers` | Select the workflow depth (Direct, Bounded, Standard, High-risk) and apply the workflow skills |
+| `verification-before-completion` | Require fresh evidence before completion claims |
+| `writing-developer-facing-text` | Write developer-facing text with ASD-STE100 Simplified Technical English rules |
+| `writing-plans` | Turn the feature spec and approved proposal into complementary contract-based implementation plans |
+| `writing-skills` | Author and test Tau Agent Skills |
+
+Tau initially loads only skill names, descriptions, and paths. It reads the full `SKILL.md` when a skill matches the task. Use `/skill:<name>` to invoke one explicitly.
 
 ## Requirements
 
@@ -63,28 +128,6 @@ tau --approve -e extensions/superpowers-subagent
 `--approve` is a run-only project-input decision. The explicit `-e` path loads Python code independently of project-extension discovery, so inspect it first. Cloning this repository alone never exposes executable code through project `.tau/extensions`.
 
 If you intentionally create your own project extension link, Tau requires both project trust and `--project-extensions`. A user-installed copy under `~/.tau/extensions`, as created by `install.sh`, is user code and is discovered by default.
-
-## Included Skills
-
-| Skill | Purpose |
-| --- | --- |
-| `brainstorming` | Establish the current-behavior baseline, cold-review the proposal, obtain proposal-only operator approval, and derive the feature spec in a fresh context |
-| `dispatching-parallel-agents` | Coordinate independent work concurrently |
-| `executing-plans` | Execute an approved Bounded workflow inline with one final whole-change review |
-| `finishing-a-development-branch` | Run final acceptance, review living-spec synchronization, and integrate on operator choice |
-| `receiving-code-review` | Review-finding adjudication: endorse and reject verdicts per finding and fix dispatches that carry only endorsed findings |
-| `requesting-code-review` | Request focused review before completion |
-| `subagent-driven-development` | Execute Standard and High-risk work with artifact-derived dispatches, per-task reviews, and a final whole-change review |
-| `systematic-debugging` | Diagnose root causes before changing code |
-| `test-driven-development` | Apply red-green-refactor discipline |
-| `using-git-worktrees` | Isolate feature work in Git worktrees |
-| `using-superpowers` | Select the workflow depth (Direct, Bounded, Standard, High-risk) and apply the workflow skills |
-| `verification-before-completion` | Require fresh evidence before completion claims |
-| `writing-developer-facing-text` | Write developer-facing text with ASD-STE100 Simplified Technical English rules |
-| `writing-plans` | Turn the feature spec and approved proposal into complementary contract-based implementation plans |
-| `writing-skills` | Author and test Tau Agent Skills |
-
-Tau initially loads only skill names, descriptions, and paths. It reads the full `SKILL.md` when a skill matches the task. Use `/skill:<name>` to invoke one explicitly.
 
 ## The `task` Extension
 
@@ -227,35 +270,6 @@ A call value overrides only the corresponding lower layer. The extension never s
 Children run with discovered extensions and protected project resources disabled, a recursion guard, and no Tau auto-approval. User-global skills cannot currently be disabled independently; children are instructed not to invoke them, but that prompt is behavioral guidance rather than enforcement.
 
 Installing or explicitly loading this extension executes Python with the same account privileges as Tau. Tau project trust controls project-input loading; it is not a process, filesystem, shell, network, credential, provider, or model sandbox. Use OS-level isolation and restricted credentials/network when those boundaries matter.
-
-## Living-Spec Workflow
-
-A living spec at `docs/specs/<domain>.md` describes current behavior. Feature work follows a proposal-baseline flow: the reviewed proposal is the only formal operator-approval artifact, and every later artifact derives from it without the brainstorm conversation.
-
-```text
-baseline evidence
-  -> cold-reviewed, operator-approved proposal (the intent baseline)
-  -> feature spec derived in a fresh context (complete post-change behavior)
-  -> contract-based implementation plan (spec behavior + proposal constraints)
-  -> TDD implementation + per-task and final reviews
-  -> final acceptance + reviewed living-spec synchronization
-  -> operator-chosen integration
-```
-
-The main flow is:
-
-1. **Classify:** select the workflow depth from repository evidence: Direct, Bounded, Standard, or High-risk. Direct work is a targeted edit with no design artifacts. The depth matrix in `using-superpowers` defines each level's gates.
-2. **Brainstorm:** establish the current-behavior baseline (living-spec, undocumented, or new domain), write the proposal with required outcomes, acceptance examples, constraints, and risks, pass the cold-reader review, and obtain operator approval of that exact proposal version. A fresh context then derives the feature spec, and a reviewer checks proposal-to-spec semantic fidelity. All artifacts and code live on a branch or worktree, never on the default branch.
-3. **Plan:** map feature-spec behavior to tasks and tests, carry every proposal-owned constraint, and map unchanged baseline behavior to preservation checks. Plan review gates execution; the operator never approves the plan.
-4. **Execute:** Bounded work runs inline with one final whole-change review; Standard and High-risk work uses per-task implementation reviews and a final review against both contracts. Implementation dispatches carry artifact-derived design context only.
-5. **Finish:** run final acceptance (approval identities, depth reassessment, acceptance examples, fresh verification), review and commit the living-spec synchronization, then offer exactly a local merge or a pull request. Operator silence leaves the branch untouched.
-
-| Artifact | Role |
-| --- | --- |
-| `docs/specs/<domain>.md` | Canonical current behavior |
-| `docs/design/YYYY-MM-DD-<topic>-proposal.md` | Operator-approved intent: outcomes, acceptance, scope, constraints, approach, risks |
-| `docs/design/YYYY-MM-DD-<topic>-spec.md` | Complete observable post-change behavior, derived from the approved proposal |
-| `docs/plans/YYYY-MM-DD-<topic>.md` | Task contracts implementing spec behavior within proposal constraints |
 
 ## Repository Layout
 
