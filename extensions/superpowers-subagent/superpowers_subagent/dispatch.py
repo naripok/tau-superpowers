@@ -16,7 +16,7 @@ from tau_agent.tools import (
 )
 from tau_agent.types import JSONValue
 
-from .catalog import CatalogSnapshot, catalog_snapshot, provider_model_override_error
+from .catalog import CatalogSnapshot, provider_model_override_error
 from .config import AgentOverrides, SubagentConfig
 from .discovery import discover_agents
 from .models import (
@@ -95,7 +95,7 @@ class TaskDispatcher:
         parent_reasoning_effort: str | None = None,
         config: SubagentConfig | None = None,
         usage_observer: UsageObserver | None = None,
-        catalog_fn: CatalogFn | None = catalog_snapshot,
+        catalog_fn: CatalogFn | None = None,
     ) -> None:
         self.default_cwd = default_cwd
         self.ui = ui

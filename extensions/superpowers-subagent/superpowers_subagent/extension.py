@@ -15,6 +15,7 @@ from tau_agent.tools import (
 from tau_agent.types import JSONValue
 from tau_coding.extensions import ExtensionAPI
 
+from .catalog import scoped_catalog_snapshot
 from .config import load_subagent_config
 from .discovery import discover_agents
 from .dispatch import TaskDispatcher
@@ -97,7 +98,7 @@ def _task_parameters(roster_text: str) -> dict[str, JSONValue]:
                     "Optional literal provider override. Omit it to give every child "
                     "this session's provider. When passed, it must be an exact "
                     "configured provider name (from `tau providers`; invalid names "
-                    "fail before any child starts, listing the valid ones)."
+                    "fail before any child starts, listing the configured ones)."
                 ),
             },
             "model": {
@@ -107,7 +108,7 @@ def _task_parameters(roster_text: str) -> dict[str, JSONValue]:
                     "Optional literal model override. Omit it to give every child "
                     "this session's model. When passed, it must be an exact model ID "
                     "supported by the selected provider (invalid IDs fail before any "
-                    "child starts, listing the valid ones)."
+                    "child starts, listing the provider's configured models)."
                 ),
             },
             "reasoningEffort": {
@@ -206,15 +207,25 @@ def setup(tau: ExtensionAPI) -> None:
         def observe(children: Sequence[ChildResult], final: bool) -> None:
             tracker.update(tool_call_id, children, final)
 
+        cwd = tau.context.cwd
+        parent_provider = tau.context.provider_name or None
+        parent_model = tau.context.model or None
+        config = load_subagent_config(cwd)
         dispatcher = TaskDispatcher(
-            default_cwd=tau.context.cwd,
+            default_cwd=cwd,
             ui=tau.context.ui,
             runner=runner,
-            parent_provider=tau.context.provider_name or None,
-            parent_model=tau.context.model or None,
+            parent_provider=parent_provider,
+            parent_model=parent_model,
             parent_reasoning_effort=_parent_thinking_level(tau),
-            config=load_subagent_config(tau.context.cwd),
+            config=config,
             usage_observer=observe,
+            catalog_fn=lambda: scoped_catalog_snapshot(
+                cwd,
+                parent_provider=parent_provider,
+                parent_model=parent_model,
+                config=config,
+            ),
         )
         try:
             return await dispatcher.execute(arguments, signal=signal, on_update=on_update)
