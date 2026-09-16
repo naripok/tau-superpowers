@@ -198,18 +198,23 @@ def build_scoped_snapshot(
             # it out so validation rejects the pin and lists real providers.
             continue
         if name in builtin_names:
-            models = {catalog_entry.default_model}
+            # Builtin providers list only what the harness selects; the catalog
+            # default is Tau's packaged fallback, not operator configuration.
+            models: set[str] = set()
         else:
             # User- or project-catalog-added provider: its declared model list
-            # is the operator's explicit scope.
-            models = set(catalog_entry.models)
-        models.add(catalog_entry.default_model)
+            # is the operator's explicit scope, default included.
+            models = {catalog_entry.default_model} | set(catalog_entry.models)
         preference_default = preference_defaults.get(name)
         if preference_default:
             models.add(preference_default)
         if name == parent_provider and parent_model:
             models.add(parent_model)
         models |= pinned_models.get(name, set())
+        if not models:
+            # Configured but with no model the harness selects: nothing to
+            # teach back until the operator scopes one (e.g. via /model).
+            continue
         models_by_provider[name] = frozenset(models)
     return CatalogSnapshot(
         providers=frozenset(models_by_provider), models_by_provider=models_by_provider

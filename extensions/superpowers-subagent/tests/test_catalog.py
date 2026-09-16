@@ -98,25 +98,43 @@ def test_unconfigured_builtin_provider_is_excluded() -> None:
         entries,
         builtin_names=frozenset({"openai", "anthropic"}),
         credential_names=frozenset({"openai"}),
+        preference_defaults={"openai": "gpt-5.6-sol"},
     )
 
     assert snapshot.providers == frozenset({"openai"})
-    assert snapshot.models_by_provider["openai"] == frozenset({"m-default"})
+    assert snapshot.models_by_provider["openai"] == frozenset({"gpt-5.6-sol"})
+
+
+def test_builtin_credential_without_selected_model_is_dropped() -> None:
+    """A key alone teaches back nothing: tau catalogs ship defaults no one scoped."""
+
+    entries = [make_entry("openai", credential_name="openai", default_model="gpt-5.5")]
+
+    snapshot = build(
+        entries,
+        builtin_names=frozenset({"openai"}),
+        credential_names=frozenset({"openai"}),
+    )
+
+    assert snapshot.providers == frozenset()
 
 
 def test_env_api_key_configures_provider() -> None:
     entries = [make_entry("anthropic", api_key_env="ANTHROPIC_API_KEY")]
 
     snapshot = build(
-        entries, builtin_names=frozenset({"anthropic"}), environ={"ANTHROPIC_API_KEY": "sk-x"}
+        entries,
+        builtin_names=frozenset({"anthropic"}),
+        environ={"ANTHROPIC_API_KEY": "sk-x"},
+        preference_defaults={"anthropic": "claude-sonnet-4-6"},
     )
 
     assert snapshot.providers == frozenset({"anthropic"})
-    assert snapshot.models_by_provider["anthropic"] == frozenset({"m-default"})
+    assert snapshot.models_by_provider["anthropic"] == frozenset({"claude-sonnet-4-6"})
 
 
 def test_scoped_pair_configures_provider_and_model() -> None:
-    entries = [make_entry("openrouter", credential_name="openrouter")]
+    entries = [make_entry("openrouter", credential_name="openrouter", default_model="other")]
 
     snapshot = build(
         entries,
@@ -124,7 +142,8 @@ def test_scoped_pair_configures_provider_and_model() -> None:
         scoped_pairs=[("openrouter", "z-ai/glm-5.3")],
     )
 
-    assert snapshot.models_by_provider["openrouter"] == frozenset({"m-default", "z-ai/glm-5.3"})
+    # The packaged catalog default must not leak into the scoped list.
+    assert snapshot.models_by_provider["openrouter"] == frozenset({"z-ai/glm-5.3"})
 
 
 def test_config_and_agent_pins_add_providers_and_models() -> None:
@@ -149,7 +168,7 @@ def test_config_and_agent_pins_add_providers_and_models() -> None:
 
     # local-gateway is user-catalog-added: its full declared list ships.
     assert snapshot.models_by_provider["local-gateway"] == frozenset({"qwen3.8-27b", "qwen3.8-8b"})
-    assert snapshot.models_by_provider["openrouter"] == frozenset({"m-default", "deepseek/x"})
+    assert snapshot.models_by_provider["openrouter"] == frozenset({"deepseek/x"})
 
 
 def test_parent_running_pair_is_always_configured() -> None:
@@ -166,7 +185,7 @@ def test_parent_running_pair_is_always_configured() -> None:
     assert snapshot.models_by_provider["session-provider"] == frozenset({"m1", "m2"})
 
 
-def test_builtin_provider_scopes_to_default_preference_and_pins() -> None:
+def test_builtin_provider_scopes_to_preference_scoped_and_pins() -> None:
     entries = [make_entry("openai", credential_name="openai", default_model="gpt-5.5")]
 
     snapshot = build(
@@ -177,9 +196,8 @@ def test_builtin_provider_scopes_to_default_preference_and_pins() -> None:
         preference_defaults={"openai": "gpt-5.6-sol"},
     )
 
-    assert snapshot.models_by_provider["openai"] == frozenset(
-        {"gpt-5.5", "gpt-5.6-sol", "gpt-5.5-mini"}
-    )
+    # The packaged default 'gpt-5.5' is not operator configuration: excluded.
+    assert snapshot.models_by_provider["openai"] == frozenset({"gpt-5.6-sol", "gpt-5.5-mini"})
 
 
 def test_pin_referenced_provider_absent_from_catalog_is_excluded() -> None:
@@ -189,6 +207,7 @@ def test_pin_referenced_provider_absent_from_catalog_is_excluded() -> None:
         [make_entry("openai", credential_name="openai")],
         builtin_names=frozenset({"openai"}),
         credential_names=frozenset({"openai"}),
+        preference_defaults={"openai": "m-default"},
         config=config,
     )
 
@@ -302,6 +321,4 @@ def test_settings_stubs_feed_scoping(tmp_path: Path, monkeypatch: Any) -> None:
     )
 
     assert result is not None
-    assert result.models_by_provider["openai"] == frozenset(
-        {"gpt-5.5", "gpt-5.6-sol", "gpt-5.5-codex"}
-    )
+    assert result.models_by_provider["openai"] == frozenset({"gpt-5.6-sol", "gpt-5.5-codex"})
