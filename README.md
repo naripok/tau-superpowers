@@ -51,6 +51,7 @@ The main flow is:
 
 - 15 Tau-discoverable Agent Skills covering the full design-to-delivery workflow.
 - A `task` tool that dispatches one or more isolated Tau subprocesses.
+- A self-describing call surface: discovered agents and their descriptions appear in the tool schema, placeholder overrides (`default`/`inherit`/`auto`) are tolerated as omitted with a repair note, and literal provider/model overrides are validated against Tau's provider catalog before any child starts, with the valid options in the error.
 - Bundled child agents: `general-purpose`, tool-enforced `read-only`, `implementation`, `code-review`, and `document-review` (`read` + read-only `bash`, strict `## Code Review`/`## Document Review` reports). Children inherit the parent session's active provider, model, and thinking effort by default, after call-level, config-file, and agent-definition values.
 - User and project agent definitions with deterministic precedence and explicit project-agent approval.
 - A per-subagent config file (`~/.tau/superpowers-subagent.toml` and `<project>/.tau/superpowers-subagent.toml`) that pins provider, model, and `reasoningEffort` globally or per agent; an example file ships as `superpowers-subagent.example.toml`.
@@ -178,8 +179,8 @@ Two or more items dispatch in parallel — independent work only:
 | `description` | Short orchestration label |
 | `agentScope` | `user` (default), `project`, or `both` |
 | `confirmProjectAgents` | Require project-agent confirmation (default `true`); `false` is explicit per-call approval |
-| `provider` | Optional literal provider override. Omit it to inherit configuration; otherwise pass an exact configured provider name from `tau providers`. |
-| `model` | Optional literal model override. Omit it to inherit configuration; otherwise pass an exact supported model ID. |
+| `provider` | Optional literal provider override. Omit it to inherit configuration; otherwise pass an exact configured provider name from `tau providers`. Invalid names fail before any child starts, listing the configured providers. |
+| `model` | Optional literal model override. Omit it to inherit configuration; otherwise pass an exact supported model ID. Invalid IDs fail before any child starts, listing the provider's models. |
 | `reasoningEffort` | Optional literal reasoningEffort override. Omit it to inherit configuration; otherwise pass exactly `off`, `minimal`, `low`, `medium`, `high`, or `xhigh`. It overrides the config file and agent definition; otherwise the level falls back to the config file, then the agent definition, then the parent session's thinking level. |
 | `timeoutSeconds` | Per-child timeout, greater than 0 and at most 3600; default 3600 |
 
@@ -224,7 +225,7 @@ The `read-only` profile loads a temporary public Tau hook that blocks every Tau 
 
 ## Provider, Model, and Thinking Effort Selection
 
-Normally omit `provider`, `model`, and `reasoningEffort`. Omission inherits configuration: subagents use the parent session's active provider, model, and thinking effort unless a config file or agent definition pins one. Each field is an optional literal override. When you provide one, use the exact configured provider name from `tau providers`, exact model ID supported by the selected provider, or one of the exact reasoning levels below. Do not use `default`, `inherit`, or `auto`; these placeholders do not select defaults and the task call rejects them. Run `tau providers` to discover configured providers and their exact supported model IDs. Configure durable Tau defaults with `/login` and `/model`.
+Normally omit `provider`, `model`, and `reasoningEffort`. Omission inherits configuration: subagents use the parent session's active provider, model, and thinking effort unless a config file or agent definition pins one. Each field is an optional literal override. When you provide one, use the exact configured provider name from `tau providers`, exact model ID supported by the selected provider, or one of the exact reasoning levels below. `default`, `inherit`, and `auto` are placeholders, not values: the task call treats them as omitted and reports a repair note, so omit the field instead. Invalid provider names and unsupported model IDs fail before any child starts, and the failure lists the configured options. Run `tau providers` to discover configured providers and their exact supported model IDs. Configure durable Tau defaults with `/login` and `/model`.
 
 Per-field resolution, highest first:
 

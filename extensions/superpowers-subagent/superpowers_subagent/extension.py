@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 
 from tau_agent.tools import (
     AgentTool,
@@ -15,99 +16,121 @@ from tau_agent.types import JSONValue
 from tau_coding.extensions import ExtensionAPI
 
 from .config import load_subagent_config
+from .discovery import discover_agents
 from .dispatch import TaskDispatcher
 from .models import THINKING_LEVELS, ChildResult
 from .rendering import render_task_call, render_task_result
 from .runner import RECURSION_GUARD, TauChildRunner
 from .sidebar import install as install_sidebar_section
 from .usage import SubagentUsageTracker
+from .utils import one_line
 
-_TASK_ITEM_SCHEMA: dict[str, JSONValue] = {
-    "type": "object",
-    "additionalProperties": False,
-    "required": ["agent", "task"],
-    "properties": {
-        "agent": {"type": "string", "minLength": 1},
-        "task": {"type": "string", "minLength": 1},
-        "cwd": {"type": "string"},
-    },
-}
 
-_TASK_PARAMETERS: dict[str, JSONValue] = {
-    "type": "object",
-    "additionalProperties": False,
-    "required": ["tasks"],
-    "properties": {
-        "description": {
-            "type": "string",
-            "description": "Short orchestration description for display.",
+def _agent_roster(cwd: Path | None) -> str:
+    """One-line roster of discovered agents for the always-visible tool surface.
+
+    Makes bundled, user, and project agents discoverable from the tool itself,
+    so a controller without the workflow skills still learns which agents
+    exist and what each is for. Any discovery failure yields an empty string;
+    the caller falls back to the static bundled list.
+    """
+
+    try:
+        discovery = discover_agents(cwd or Path.cwd(), "both")
+    except Exception:  # noqa: BLE001 - the tool surface must survive discovery issues
+        return ""
+    return "; ".join(f"`{agent.name}`: {one_line(agent.description)}" for agent in discovery.agents)
+
+
+def _task_item_schema(roster_text: str) -> dict[str, JSONValue]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["agent", "task"],
+        "properties": {
+            "agent": {
+                "type": "string",
+                "minLength": 1,
+                "description": f"Agent name. Available: {roster_text}.",
+            },
+            "task": {"type": "string", "minLength": 1},
+            "cwd": {"type": "string"},
         },
-        "tasks": {
-            "type": "array",
-            "minItems": 1,
-            "maxItems": 8,
-            "items": _TASK_ITEM_SCHEMA,
-            "description": (
-                "Delegated tasks, one child per item; each item runs as an "
-                "isolated child. One item runs a single child, two or more "
-                "run in parallel (max eight, four active)."
-            ),
+    }
+
+
+def _task_parameters(roster_text: str) -> dict[str, JSONValue]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["tasks"],
+        "properties": {
+            "description": {
+                "type": "string",
+                "description": "Short orchestration description for display.",
+            },
+            "tasks": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 8,
+                "items": _task_item_schema(roster_text),
+                "description": (
+                    "Delegated tasks, one child per item; each item runs as an "
+                    "isolated child. One item runs a single child, two or more "
+                    "run in parallel (max eight, four active)."
+                ),
+            },
+            "agentScope": {
+                "type": "string",
+                "enum": ["user", "project", "both"],
+                "default": "user",
+            },
+            "confirmProjectAgents": {
+                "type": "boolean",
+                "default": True,
+                "description": "Require interactive approval for resolved project agents.",
+            },
+            "provider": {
+                "type": "string",
+                "minLength": 1,
+                "description": (
+                    "Optional literal provider override. Omit it to give every child "
+                    "this session's provider. When passed, it must be an exact "
+                    "configured provider name (from `tau providers`; invalid names "
+                    "fail before any child starts, listing the valid ones)."
+                ),
+            },
+            "model": {
+                "type": "string",
+                "minLength": 1,
+                "description": (
+                    "Optional literal model override. Omit it to give every child "
+                    "this session's model. When passed, it must be an exact model ID "
+                    "supported by the selected provider (invalid IDs fail before any "
+                    "child starts, listing the valid ones)."
+                ),
+            },
+            "reasoningEffort": {
+                "type": "string",
+                "enum": ["off", "minimal", "low", "medium", "high", "xhigh"],
+                "description": (
+                    "Optional literal reasoningEffort override for every child: exactly "
+                    "one of `off`, `minimal`, `low`, `medium`, `high`, or `xhigh`. Omit it "
+                    "to give every child this session's thinking level. A call-level "
+                    "value overrides the config file and agent definition; otherwise "
+                    "the level falls back to the config file, then the agent "
+                    "definition, then the parent session's thinking level."
+                ),
+            },
+            "timeoutSeconds": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 3600,
+                "default": 3600,
+                "description": "Per-child timeout in seconds.",
+            },
         },
-        "agentScope": {
-            "type": "string",
-            "enum": ["user", "project", "both"],
-            "default": "user",
-        },
-        "confirmProjectAgents": {
-            "type": "boolean",
-            "default": True,
-            "description": "Require interactive approval for resolved project agents.",
-        },
-        "provider": {
-            "type": "string",
-            "minLength": 1,
-            "description": (
-                "Optional literal provider override. During normal calls, omit this field; "
-                "omitting it inherits configuration. Pass an exact configured provider name "
-                "from `tau providers`; "
-                "`default`, `inherit`, and `auto` are placeholders; placeholders do not "
-                "select defaults."
-            ),
-        },
-        "model": {
-            "type": "string",
-            "minLength": 1,
-            "description": (
-                "Optional literal model override. During normal calls, omit this field; "
-                "omitting it inherits configuration. Pass an exact model ID supported by the "
-                "selected provider; "
-                "`default`, `inherit`, and `auto` are placeholders; placeholders do not "
-                "select defaults."
-            ),
-        },
-        "reasoningEffort": {
-            "type": "string",
-            "enum": ["off", "minimal", "low", "medium", "high", "xhigh"],
-            "description": (
-                "Optional literal reasoningEffort override for every child. During normal "
-                "calls, omit this field; omitting it inherits configuration. Pass exactly one "
-                "of `off`, `minimal`, "
-                "`low`, `medium`, `high`, or `xhigh`; `default`, `inherit`, and "
-                "`auto` are placeholders; placeholders do not select defaults. A call-level "
-                "value overrides the config "
-                "file and agent definition. Otherwise the level falls back to the config "
-                "file, then the agent definition, then the parent session's thinking level."
-            ),
-        },
-        "timeoutSeconds": {
-            "type": "number",
-            "exclusiveMinimum": 0,
-            "maximum": 3600,
-            "default": 3600,
-            "description": "Per-child timeout in seconds.",
-        },
-    },
-}
+    }
 
 
 def _parent_thinking_level(tau: ExtensionAPI) -> str | None:
@@ -154,6 +177,17 @@ def setup(tau: ExtensionAPI) -> None:
     install_sidebar_section(tracker)
     runner = TauChildRunner()
 
+    try:
+        session_cwd: Path | None = tau.context.cwd
+    except Exception:  # noqa: BLE001 - context may be unbound during early setup
+        session_cwd = None
+    fallback_roster = (
+        "`general-purpose` (full tool access), `implementation` (code, tests, and "
+        "verification), `code-review` and `document-review` (adversarial read-only "
+        "review), `read-only` (enforced read-only investigation)"
+    )
+    roster_text = _agent_roster(session_cwd) or fallback_roster
+
     def on_session_start(event: object, _context: object) -> None:
         _reset_tracker_on_rebind(tracker, event)
 
@@ -199,12 +233,11 @@ def setup(tau: ExtensionAPI) -> None:
                 "dispatch work you are about to perform yourself. Every call takes "
                 "a tasks array: one item runs a single child, two or more run in "
                 "parallel (max eight, four active) preserving input order; use "
-                "separate calls for conditional sequences. Bundled agents include "
-                "general-purpose, implementation, code-review and document-review "
-                "(read plus read-only bash), and the enforced read-only profile. "
+                "separate calls for conditional sequences. Available agents (pass "
+                f"one as tasks[].agent): {roster_text}. "
                 "Project-controlled agent prompts require explicit approval."
             ),
-            parameters=_TASK_PARAMETERS,
+            parameters=_task_parameters(roster_text),
             execute_fn=execute_task,
             prompt_snippet="Dispatch substantive work to an isolated Tau subagent.",
             prompt_guidelines=(
@@ -227,15 +260,15 @@ def setup(tau: ExtensionAPI) -> None:
                 "work, `code-review` or `document-review` for reviews, `read-only` "
                 "for substantial read-only investigation of named files, and "
                 "`general-purpose` for everything else.",
-                "Provider, model, and reasoningEffort are optional literal overrides. "
-                "During normal task-tool calls, omit all three fields: provider, model, "
-                "and reasoningEffort. Omission inherits configuration; when an override "
-                "is required, pass an exact literal override: a configured provider name "
-                "from `tau providers`, a model ID supported by the selected provider, or "
-                "exactly one of "
-                "`off`, `minimal`, `low`, `medium`, `high`, or `xhigh`. Do not pass "
-                "`default`, `inherit`, or `auto`: placeholders do not select defaults. "
-                "Durable per-agent pins belong in the superpowers-subagent.toml config file.",
+                "Provider, model, and reasoningEffort are optional overrides; omit "
+                "all three on normal calls and every child runs on this session's "
+                "provider, model, and thinking level. Never send placeholder values "
+                "such as `default`, `inherit`, or `auto`: the tool treats them as "
+                "omitted. When an override is required, pass an exact configured "
+                "provider name (see `tau providers`), an exact model ID supported by "
+                "that provider, or one of `off`, `minimal`, `low`, `medium`, `high`, "
+                "`xhigh`; durable per-agent pins belong in the "
+                "superpowers-subagent.toml config file.",
                 "Handle BLOCKED and NEEDS_CONTEXT child results explicitly: BLOCKED "
                 "means the task could not be completed as dispatched — address the "
                 "blocker or change the approach; NEEDS_CONTEXT means required "

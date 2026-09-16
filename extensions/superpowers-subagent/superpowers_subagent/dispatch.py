@@ -16,6 +16,7 @@ from tau_agent.tools import (
 )
 from tau_agent.types import JSONValue
 
+from .catalog import CatalogSnapshot, catalog_snapshot, provider_model_override_error
 from .config import AgentOverrides, SubagentConfig
 from .discovery import discover_agents
 from .models import (
@@ -28,7 +29,13 @@ from .models import (
     details_dict,
 )
 from .runner import TauChildRunner
-from .utils import final_output, parse_status, resolve_child_cwd
+from .utils import (
+    effective_provider_model,
+    final_output,
+    one_line,
+    parse_status,
+    resolve_child_cwd,
+)
 
 MAX_TASKS = 8
 MAX_CONCURRENCY = 4
@@ -60,6 +67,9 @@ class ParsedRequest:
     model: str | None
     reasoning_effort: str | None
     timeout_seconds: float
+    #: Repair notes surfaced to the controller, one line per tolerated mistake
+    #: (for example placeholders coerced to omitted).
+    notices: tuple[str, ...] = ()
 
 
 class ValidationFailure(ValueError):
@@ -67,6 +77,7 @@ class ValidationFailure(ValueError):
 
 
 DiscoveryFn = Callable[[Path, AgentScope], DiscoveryResult]
+CatalogFn = Callable[[], CatalogSnapshot | None]
 
 
 class TaskDispatcher:
@@ -84,6 +95,7 @@ class TaskDispatcher:
         parent_reasoning_effort: str | None = None,
         config: SubagentConfig | None = None,
         usage_observer: UsageObserver | None = None,
+        catalog_fn: CatalogFn | None = catalog_snapshot,
     ) -> None:
         self.default_cwd = default_cwd
         self.ui = ui
@@ -94,6 +106,7 @@ class TaskDispatcher:
         self.parent_reasoning_effort = parent_reasoning_effort
         self.config = config
         self.usage_observer = usage_observer
+        self.catalog_fn = catalog_fn
 
     async def execute(
         self,
@@ -109,9 +122,8 @@ class TaskDispatcher:
         try:
             request = validate_arguments(arguments)
         except ValidationFailure as exc:
-            available = _available_agents(discovery)
             return _tool_result(
-                f"Invalid parameters: {exc}\nAvailable agents: {available}",
+                _invalid_parameters_content(str(exc), discovery, self),
                 scope=scope,
                 discovery=discovery,
                 config=self.config,
@@ -120,6 +132,16 @@ class TaskDispatcher:
             )
 
         agents = discovery.by_name()
+        catalog_error = self._catalog_override_error(request, agents)
+        if catalog_error is not None:
+            return _tool_result(
+                _invalid_parameters_content(catalog_error, discovery, self),
+                scope=request.agent_scope,
+                discovery=discovery,
+                config=self.config,
+                config_diagnostics=self._config_diagnostics,
+                results=[],
+            )
         project_agents = sorted(
             {
                 item.agent
@@ -188,6 +210,48 @@ class TaskDispatcher:
             for name in sorted(unmatched)
         )
         return (*self.config.diagnostics, *extras)
+
+    def _catalog_override_error(
+        self,
+        request: ParsedRequest,
+        agents: dict[str, AgentConfig],
+    ) -> str | None:
+        """Fail fast on literal overrides the provider catalog cannot honor.
+
+        Skips unknown agents: they fail with their own structured result. The
+        resolution mirrors ``_run_item`` exactly, so an accepted pair is the
+        pair the child would actually receive. Without a catalog the check is
+        skipped and dispatch behaves as before.
+        """
+
+        if self.catalog_fn is None:
+            return None
+        snapshot = self.catalog_fn()
+        if snapshot is None:
+            return None
+        for index, item in enumerate(request.items):
+            agent = agents.get(item.agent)
+            if agent is None:
+                continue
+            provider, model = effective_provider_model(
+                agent,
+                request.provider,
+                request.model,
+                config_overrides=self.config.overrides_for(item.agent) if self.config else None,
+                config_defaults=self.config.defaults if self.config else None,
+                parent_provider=self.parent_provider,
+                parent_model=self.parent_model,
+            )
+            error = provider_model_override_error(
+                provider,
+                model,
+                parent_provider=self.parent_provider,
+                parent_model=self.parent_model,
+                snapshot=snapshot,
+            )
+            if error is not None:
+                return f"tasks[{index}]: {error}"
+        return None
 
     async def _run_children(
         self,
@@ -287,11 +351,7 @@ class TaskDispatcher:
     ) -> ChildResult:
         agent = agents.get(item.agent)
         if agent is None:
-            return _unknown_agent_result(
-                item,
-                self.default_cwd,
-                _available_agents_from_map(agents),
-            )
+            return _unknown_agent_result(item, self.default_cwd, _roster(agents))
         config_overrides: AgentOverrides | None = None
         config_defaults: AgentOverrides | None = None
         if self.config is not None:
@@ -319,6 +379,7 @@ class TaskDispatcher:
 def validate_arguments(arguments: Mapping[str, JSONValue]) -> ParsedRequest:
     """Validate and normalize one homogeneous tasks-array Task call."""
 
+    notices: list[str] = []
     allowed = {
         "description",
         "tasks",
@@ -342,9 +403,9 @@ def validate_arguments(arguments: Mapping[str, JSONValue]) -> ParsedRequest:
     confirm = arguments.get("confirmProjectAgents", True)
     if not isinstance(confirm, bool):
         raise ValidationFailure("confirmProjectAgents must be a boolean")
-    provider = _optional_literal_override(arguments, "provider")
-    model = _optional_literal_override(arguments, "model")
-    reasoning_effort = _optional_thinking_level(arguments, "reasoningEffort")
+    provider = _optional_literal_override(arguments, "provider", notices)
+    model = _optional_literal_override(arguments, "model", notices)
+    reasoning_effort = _optional_thinking_level(arguments, "reasoningEffort", notices)
     timeout_value = arguments.get("timeoutSeconds", DEFAULT_TIMEOUT_SECONDS)
     if (
         isinstance(timeout_value, bool)
@@ -374,6 +435,7 @@ def validate_arguments(arguments: Mapping[str, JSONValue]) -> ParsedRequest:
         model=model,
         reasoning_effort=reasoning_effort,
         timeout_seconds=timeout,
+        notices=tuple(notices),
     )
 
 
@@ -411,8 +473,19 @@ def _optional_string(arguments: Mapping[str, JSONValue], key: str, *, nonempty: 
     return value
 
 
-def _optional_literal_override(arguments: Mapping[str, JSONValue], key: str) -> str | None:
-    """Return a trimmed literal override or reject values that imply inheritance."""
+def _optional_literal_override(
+    arguments: Mapping[str, JSONValue],
+    key: str,
+    notices: list[str],
+) -> str | None:
+    """Return a trimmed literal override, coercing placeholders to omitted.
+
+    Models keep sending ``default``/``inherit``/``auto`` however firmly the
+    schema forbids them, and their intent is unambiguous: inherit. Coercing to
+    omitted with a repair note keeps the dispatch alive and teaches the fix,
+    instead of spending a failed call on it.
+    """
+
     value = _optional_string(arguments, key, nonempty=False)
     if value is None:
         return None
@@ -423,20 +496,31 @@ def _optional_literal_override(arguments: Mapping[str, JSONValue], key: str) -> 
             f"omit {key} for inherited configuration"
         )
     if normalized.lower() in _RESERVED_OVERRIDE_PLACEHOLDERS:
-        raise ValidationFailure(
-            f"{key} must be an exact literal override, not `default`, `inherit`, or `auto`; "
-            f"omit {key} for inherited configuration"
+        notices.append(
+            f"{key}: {normalized!r} is a placeholder, not a literal value; treated as "
+            f"omitted, so {key} inherits configuration. Omit the field next time."
         )
+        return None
     return normalized
 
 
-def _optional_thinking_level(arguments: Mapping[str, JSONValue], key: str) -> str | None:
+def _optional_thinking_level(
+    arguments: Mapping[str, JSONValue],
+    key: str,
+    notices: list[str],
+) -> str | None:
     if key not in arguments:
         return None
     value = arguments[key]
     if not isinstance(value, str):
         raise ValidationFailure(f"{key} must be a string")
     normalized = value.strip().lower()
+    if normalized in _RESERVED_OVERRIDE_PLACEHOLDERS:
+        notices.append(
+            f"{key}: {normalized!r} is a placeholder, not a literal value; treated as "
+            f"omitted, so {key} inherits configuration. Omit the field next time."
+        )
+        return None
     if normalized not in THINKING_LEVELS:
         allowed = ", ".join(THINKING_LEVELS)
         raise ValidationFailure(f"{key} must be one of: {allowed}")
@@ -490,7 +574,7 @@ def _final_result(
     child in input order."""
 
     return _tool_result(
-        _result_content(results),
+        _result_content(results, request.notices),
         scope=request.agent_scope,
         discovery=discovery,
         config=config,
@@ -500,19 +584,25 @@ def _final_result(
     )
 
 
-def _result_content(results: list[ChildResult]) -> str:
+def _result_content(results: list[ChildResult], notices: tuple[str, ...] = ()) -> str:
     if len(results) == 1:
         result = results[0]
         if not result.succeeded:
-            return f"Agent {result.agent} failed: {result.error_message or 'see details'}"
-        return final_output(result.messages) or "(no output)"
-    succeeded = sum(result.succeeded for result in results)
-    sections = [
-        f"[{result.agent}] ({'completed' if result.succeeded else 'failed'})\n\n"
-        f"{final_output(result.messages) or result.error_message or '(no output)'}"
-        for result in results
-    ]
-    return f"{succeeded}/{len(results)} succeeded\n\n" + "\n\n\n".join(sections)
+            base = f"Agent {result.agent} failed: {result.error_message or 'see details'}"
+        else:
+            base = final_output(result.messages) or "(no output)"
+    else:
+        succeeded = sum(result.succeeded for result in results)
+        sections = [
+            f"[{result.agent}] ({'completed' if result.succeeded else 'failed'})\n\n"
+            f"{final_output(result.messages) or result.error_message or '(no output)'}"
+            for result in results
+        ]
+        base = f"{succeeded}/{len(results)} succeeded\n\n" + "\n\n\n".join(sections)
+    if not notices:
+        return base
+    notes = "".join(f"Note: {notice}\n" for notice in notices)
+    return notes + "\n" + base
 
 
 def _emit_update(
@@ -547,14 +637,14 @@ def _emit_update(
 def _unknown_agent_result(
     item: TaskItem,
     default_cwd: Path,
-    available: str,
+    roster: str,
 ) -> ChildResult:
     result = ChildResult(
         agent=item.agent,
         agent_source="unknown",
         task=item.task,
         cwd=str(resolve_child_cwd(default_cwd, item.cwd)),
-        error_message=f"Unknown agent {item.agent!r}. Available agents: {available}.",
+        error_message=f"Unknown agent {item.agent!r}. Available agents: {roster}.",
     )
     result.status = parse_status("", failed=True)
     return result
@@ -581,16 +671,45 @@ def _not_started_result(
     return result
 
 
-def _available_agents(discovery: DiscoveryResult) -> str:
-    if not discovery.agents:
-        return "none"
-    return ", ".join(f"{agent.name} ({agent.source})" for agent in discovery.agents)
+def _roster(agents: dict[str, AgentConfig]) -> str:
+    """One line per discovered agent so the controller can self-correct by name."""
 
-
-def _available_agents_from_map(agents: dict[str, AgentConfig]) -> str:
     if not agents:
         return "none"
-    return ", ".join(f"{name} ({agents[name].source})" for name in sorted(agents))
+    return "; ".join(
+        f"{name} ({agents[name].source}): {one_line(agents[name].description)}"
+        for name in sorted(agents)
+    )
+
+
+def _invalid_parameters_content(
+    error: str,
+    discovery: DiscoveryResult,
+    dispatcher: TaskDispatcher,
+) -> str:
+    """Teach back the call surface: roster, session inheritance, and an example.
+
+    Without the bundled workflow skills, this failure content is the only
+    place a struggling controller learns the full call contract, so it must
+    name the valid values, not just reject the call.
+    """
+
+    agents = discovery.by_name()
+    lines = [f"Invalid parameters: {error}", "", f"Available agents: {_roster(agents)}"]
+    if dispatcher.parent_provider or dispatcher.parent_model:
+        lines.append(
+            "This session runs on provider "
+            f"{dispatcher.parent_provider!r}, model {dispatcher.parent_model!r}: omit "
+            "provider, model, and reasoningEffort to give every child exactly this "
+            "configuration."
+        )
+    lines.append(
+        "reasoningEffort, when passed, must be one of: " + ", ".join(THINKING_LEVELS) + "."
+    )
+    lines.append(
+        'Example: {"tasks": [{"agent": "general-purpose", "task": "Find what fails in app/"}]}'
+    )
+    return "\n".join(lines)
 
 
 def _is_cancelled(signal: ToolCancellationToken | None) -> bool:

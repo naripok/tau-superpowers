@@ -19,6 +19,15 @@ _STATUS_MARKER = re.compile(
 )
 
 
+def one_line(text: str, *, limit: int = 120) -> str:
+    """Collapse whitespace and clip to ``limit`` characters for tool-surface text."""
+
+    collapsed = " ".join(text.split())
+    if len(collapsed) <= limit:
+        return collapsed
+    return collapsed[: limit - 1].rstrip() + "…"
+
+
 def final_output(messages: list[AgentMessage]) -> str:
     """Concatenate text blocks from the last assistant message."""
 

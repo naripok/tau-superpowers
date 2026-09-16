@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 from tau_agent.messages import AssistantMessage, TextContent
 
+from superpowers_subagent.catalog import CatalogSnapshot
 from superpowers_subagent.config import AgentOverrides, SubagentConfig
 from superpowers_subagent.dispatch import TaskDispatcher, ValidationFailure, validate_arguments
 from superpowers_subagent.models import (
@@ -165,6 +166,7 @@ def make_dispatcher(
     parent_reasoning_effort: str | None = None,
     config: SubagentConfig | None = None,
     usage_observer: Any = None,
+    catalog_fn: Any = None,
 ) -> TaskDispatcher:
     discovery = make_discovery(tmp_path, source=source)
     return TaskDispatcher(
@@ -177,6 +179,9 @@ def make_dispatcher(
         parent_reasoning_effort=parent_reasoning_effort,
         config=config,
         usage_observer=usage_observer,
+        # Default test fixture: no catalog, matching the pre-catalog behavior.
+        # Catalog-specific tests pass their own catalog_fn.
+        catalog_fn=catalog_fn if catalog_fn is not None else (lambda: None),
     )
 
 
@@ -299,7 +304,7 @@ def test_validation_accepts_items_and_independent_overrides() -> None:
     assert request.timeout_seconds == 2.5
 
 
-@pytest.mark.parametrize("field", ("provider", "model"))
+@pytest.mark.parametrize("field", ("provider", "model", "reasoningEffort"))
 @pytest.mark.parametrize(
     "value",
     (
@@ -314,49 +319,39 @@ def test_validation_accepts_items_and_independent_overrides() -> None:
         "AuTo",
     ),
 )
-def test_validation_rejects_reserved_literal_override_placeholders(field: str, value: str) -> None:
-    """Prove provider and model placeholders fail after whitespace and case normalization."""
+def test_validation_treats_reserved_placeholders_as_omitted(field: str, value: str) -> None:
+    """Placeholders carry an unambiguous inherit intent: coerce to omitted plus a note."""
 
-    with pytest.raises(ValidationFailure) as excinfo:
-        validate_arguments({"tasks": [{"agent": "a", "task": "x"}], field: value})
+    request = validate_arguments({"tasks": [{"agent": "a", "task": "x"}], field: value})
 
-    message = str(excinfo.value)
-    assert field in message
-    assert f"{field} must be an exact literal override" in message
-    assert "omit" in message
+    attribute = {
+        "provider": "provider",
+        "model": "model",
+        "reasoningEffort": "reasoning_effort",
+    }[field]
+    assert getattr(request, attribute) is None
+    assert any(field in notice and "omitted" in notice for notice in request.notices)
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("field", ("provider", "model"))
-@pytest.mark.parametrize(
-    "value",
-    (
-        "default",
-        " DEFAULT ",
-        "DeFaUlT",
-        "inherit",
-        " INHERIT ",
-        "InHeRiT",
-        "auto",
-        " AUTO ",
-        "AuTo",
-    ),
-)
-async def test_reserved_literal_override_returns_validation_result_without_child(
+@pytest.mark.parametrize("value", ("default", " DEFAULT ", "inherit", "AuTo"))
+async def test_reserved_placeholders_dispatch_children_without_overrides(
     tmp_path: Path, field: str, value: str
 ) -> None:
-    """Prove rejected provider and model placeholders return normally before a child starts."""
+    """Prove tolerated placeholders run children on inherited configuration."""
 
     runner = FakeRunner()
     result = await make_dispatcher(tmp_path, runner).execute(
         {"tasks": [{"agent": "general-purpose", "task": "work"}], field: value}
     )
 
-    assert result.text.startswith(f"Invalid parameters: {field}")
-    assert f"{field} must be an exact literal override" in result.text
-    assert "omit" in result.text
-    assert result.details["results"] == []
-    assert runner.calls == []
+    assert result.text.startswith("Note:")
+    assert f"{field}:" in result.text
+    assert "omitted" in result.text
+    assert len(runner.calls) == 1
+    assert runner.calls[0]["provider_override"] is None
+    assert runner.calls[0]["model_override"] is None
 
 
 @pytest.mark.asyncio
@@ -402,10 +397,136 @@ async def test_invalid_call_returns_normal_tool_result_with_schema_details(tmp_p
     result = await make_dispatcher(tmp_path, runner).execute({})
 
     assert "Invalid parameters" in result.text
+    assert "Available agents:" in result.text
     assert "general-purpose (bundled)" in result.text
+    # The teach-back content carries an example so the controller can self-correct.
+    assert 'Example: {"tasks": [' in result.text
     assert result.details["schemaVersion"] == 2
     assert "mode" not in result.details
     assert result.details["results"] == []
+    assert runner.calls == []
+
+
+_FAKE_CATALOG = CatalogSnapshot(
+    providers=frozenset({"openai", "openrouter"}),
+    models_by_provider={
+        "openai": frozenset({"gpt-5.6-sol", "gpt-5.5"}),
+        "openrouter": frozenset({"z-ai/glm-5.3"}),
+    },
+)
+
+
+@pytest.mark.asyncio
+async def test_unknown_provider_fails_fast_before_children(tmp_path: Path) -> None:
+    runner = FakeRunner()
+    result = await make_dispatcher(
+        tmp_path,
+        runner,
+        parent_provider="openai",
+        catalog_fn=lambda: _FAKE_CATALOG,
+    ).execute(
+        {
+            "tasks": [{"agent": "general-purpose", "task": "work"}],
+            "provider": "opneai",
+        }
+    )
+
+    assert "not a configured Tau provider" in result.text
+    assert "openai, openrouter" in result.text
+    assert "Available agents:" in result.text
+    assert "This session runs on provider 'openai'" in result.text
+    assert result.details["results"] == []
+    assert runner.calls == []
+
+
+@pytest.mark.asyncio
+async def test_unsupported_model_fails_fast_before_children(tmp_path: Path) -> None:
+    runner = FakeRunner()
+    result = await make_dispatcher(
+        tmp_path,
+        runner,
+        parent_provider="openai",
+        catalog_fn=lambda: _FAKE_CATALOG,
+    ).execute(
+        {
+            "tasks": [{"agent": "general-purpose", "task": "work"}],
+            "provider": "openrouter",
+            "model": "gpt-5.6-sol",
+        }
+    )
+
+    assert "not configured for provider 'openrouter'" in result.text
+    assert "z-ai/glm-5.3" in result.text
+    assert result.details["results"] == []
+    assert runner.calls == []
+
+
+@pytest.mark.asyncio
+async def test_parent_running_pair_passes_catalog_validation(tmp_path: Path) -> None:
+    """The pair the parent session is literally running on must never be rejected."""
+
+    runner = FakeRunner()
+    result = await make_dispatcher(
+        tmp_path,
+        runner,
+        parent_provider="openai",
+        parent_model="gpt-5.6-sol",
+        catalog_fn=lambda: _FAKE_CATALOG,
+    ).execute(
+        {
+            "tasks": [{"agent": "general-purpose", "task": "work"}],
+            "provider": "openai",
+            "model": "gpt-5.6-sol",
+        }
+    )
+
+    assert len(runner.calls) == 1
+    assert not result.text.startswith("Invalid parameters")
+
+
+@pytest.mark.asyncio
+async def test_missing_catalog_skips_validation(tmp_path: Path) -> None:
+    runner = FakeRunner()
+    await make_dispatcher(tmp_path, runner, catalog_fn=lambda: None).execute(
+        {
+            "tasks": [{"agent": "general-purpose", "task": "work"}],
+            "provider": "bogus-provider",
+        }
+    )
+
+    assert len(runner.calls) == 1
+    assert runner.calls[0]["provider_override"] == "bogus-provider"
+
+
+@pytest.mark.asyncio
+async def test_unknown_agent_skips_catalog_validation(tmp_path: Path) -> None:
+    runner = FakeRunner()
+    result = await make_dispatcher(tmp_path, runner, catalog_fn=lambda: _FAKE_CATALOG).execute(
+        {
+            "tasks": [{"agent": "missing", "task": "work"}],
+            "provider": "bogus-provider",
+        }
+    )
+
+    assert result.text.startswith("Agent missing failed: Unknown agent 'missing'")
+    assert runner.calls == []
+
+
+@pytest.mark.asyncio
+async def test_catalog_validates_resolved_agent_pins(tmp_path: Path) -> None:
+    """Agent-definition pins are part of the resolved pair the catalog checks."""
+
+    runner = FakeRunner()
+    result = await make_dispatcher(
+        tmp_path,
+        runner,
+        parent_provider="openai",
+        catalog_fn=lambda: _FAKE_CATALOG,
+    ).execute({"tasks": [{"agent": "general-purpose", "task": "work"}]})
+
+    # make_discovery pins general-purpose to provider 'agent-provider': unresolvable.
+    assert "not a configured Tau provider" in result.text
+    assert "agent-provider" in result.text
     assert runner.calls == []
 
 

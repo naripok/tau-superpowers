@@ -10,6 +10,7 @@ import pytest
 from tau_agent.tools import AgentToolResult
 
 from superpowers_subagent.extension import setup
+from superpowers_subagent.models import AgentConfig, DiscoveryResult
 from superpowers_subagent.runner import RECURSION_GUARD
 
 
@@ -128,7 +129,7 @@ def test_task_tool_prompt_states_threshold_and_homogeneous_tasks(monkeypatch: An
 
 
 def test_task_schema_defines_literal_override_contract(monkeypatch: Any) -> None:
-    """Prove literal overrides state inheritance, exact-value requirements, and reasoning levels."""
+    """Prove override fields state session inheritance, exact values, and fail-fast."""
 
     monkeypatch.delenv(RECURSION_GUARD, raising=False)
     import superpowers_subagent.extension as extension_module
@@ -141,26 +142,78 @@ def test_task_schema_defines_literal_override_contract(monkeypatch: Any) -> None
     for field in ("provider", "model", "reasoningEffort"):
         description = properties[field]["description"].lower()
         assert "optional literal" in description
-        assert "during normal calls, omit this field" in description
-        assert "inherit" in description
+        assert "omit it to give every child this session's" in description
         assert "exact" in description
-        for placeholder in ("default", "inherit", "auto"):
-            assert f"`{placeholder}`" in description
-        assert "placeholders do not select defaults" in description
     provider = properties["provider"]["description"].lower()
     assert "tau providers" in provider
     assert "configured provider" in provider
+    assert "fail before any child starts" in provider
     model = properties["model"]["description"].lower()
     assert "selected provider" in model
     assert "supported" in model
+    assert "fail before any child starts" in model
     reasoning = properties["reasoningEffort"]
     assert reasoning["enum"] == ["off", "minimal", "low", "medium", "high", "xhigh"]
     for level in ("off", "minimal", "low", "medium", "high", "xhigh"):
         assert f"`{level}`" in reasoning["description"]
 
 
+def test_task_schema_embeds_discovered_agent_roster(monkeypatch: Any) -> None:
+    """The agent property teaches the full roster, so no skill file is needed."""
+
+    monkeypatch.delenv(RECURSION_GUARD, raising=False)
+    import superpowers_subagent.extension as extension_module
+
+    monkeypatch.setattr(extension_module, "install_sidebar_section", lambda _tracker: None)
+    agents = (
+        AgentConfig(
+            name="alpha",
+            description="Alpha investigates named files. " * 8,
+            system_prompt="",
+            source="bundled",
+            file_path=Path("alpha.md"),
+        ),
+    )
+    monkeypatch.setattr(
+        extension_module,
+        "discover_agents",
+        lambda _cwd, _scope: DiscoveryResult(
+            agents=agents, project_agents_dir=None, diagnostics=()
+        ),
+    )
+    tau = FakeTau()
+    setup(tau)  # type: ignore[arg-type]
+
+    tool = tau.tools[0]
+    assert "`alpha`:" in tool.description
+    assert "Alpha investigates named files." in tool.description
+    agent_property = tool.parameters["properties"]["tasks"]["items"]["properties"]["agent"]
+    assert agent_property["description"].startswith("Agent name. Available: `alpha`:")
+
+
+def test_setup_falls_back_to_bundled_roster_when_discovery_fails(monkeypatch: Any) -> None:
+    """Discovery problems degrade to the static bundled roster, never to no tool."""
+
+    monkeypatch.delenv(RECURSION_GUARD, raising=False)
+    import superpowers_subagent.extension as extension_module
+
+    monkeypatch.setattr(extension_module, "install_sidebar_section", lambda _tracker: None)
+
+    def broken_discovery(_cwd: Any, _scope: Any) -> DiscoveryResult:
+        raise RuntimeError("agents unavailable")
+
+    monkeypatch.setattr(extension_module, "discover_agents", broken_discovery)
+    tau = FakeTau()
+    setup(tau)  # type: ignore[arg-type]
+
+    description = tau.tools[0].description
+    assert "`general-purpose`" in description
+    assert "`code-review`" in description
+    assert "`read-only`" in description
+
+
 def test_task_prompt_requires_omitted_or_exact_literal_overrides(monkeypatch: Any) -> None:
-    """Prove always-visible guidance prevents placeholder values from reaching children."""
+    """Prove always-visible guidance prefers omission and teaches exact overrides."""
 
     monkeypatch.delenv(RECURSION_GUARD, raising=False)
     import superpowers_subagent.extension as extension_module
@@ -170,19 +223,18 @@ def test_task_prompt_requires_omitted_or_exact_literal_overrides(monkeypatch: An
     setup(tau)  # type: ignore[arg-type]
 
     guidance = " ".join(tau.tools[0].prompt_guidelines).lower()
-    assert "omit all three fields" in guidance
-    assert "provider, model, and reasoningeffort" in guidance
-    assert "optional literal overrides" in guidance
-    assert "exact literal" in guidance
+    assert "omit all three on normal calls" in guidance
+    assert "this session's provider, model, and thinking level" in guidance
+    assert "placeholder values" in guidance
+    for placeholder in ("`default`", "`inherit`", "`auto`"):
+        assert placeholder in guidance
+    assert "treats them as omitted" in guidance
+    assert "exact configured provider name" in guidance
     assert "tau providers" in guidance
-    assert "configured provider" in guidance
-    assert "selected provider" in guidance
-    assert "supported" in guidance
-    for level in ("off", "minimal", "low", "medium", "high", "xhigh"):
-        assert f"`{level}`" in guidance
-    for placeholder in ("default", "inherit", "auto"):
-        assert f"`{placeholder}`" in guidance
-        assert "do not pass" in guidance
+    assert "exact model id supported by that provider" in guidance
+    for level in ("`off`", "`minimal`", "`low`", "`medium`", "`high`", "`xhigh`"):
+        assert level in guidance
+    assert "superpowers-subagent.toml" in guidance
 
 
 def test_readme_documents_literal_override_contract() -> None:
@@ -208,7 +260,9 @@ def test_readme_documents_literal_override_contract() -> None:
     )
     for placeholder in ("`default`", "`inherit`", "`auto`"):
         assert placeholder in selection
-    assert "placeholders do not select defaults" in selection
+    assert "placeholders, not values" in selection
+    assert "treats them as omitted and reports a repair note" in selection
+    assert "fail before any child starts" in selection
     provider_row = next(
         line for line in common_options.splitlines() if line.startswith("| `provider` |")
     )
