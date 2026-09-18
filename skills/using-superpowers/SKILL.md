@@ -41,9 +41,36 @@ Write all developer-facing text per the writing-developer-facing-text skill. Use
 
 ## How Skills Work
 
-Tau initially places only the name, description, and path of each skill in the system prompt. Users can invoke a skill explicitly with `/skill:<name>`. Resolve supporting files relative to the skill directory.
+Tau initially places only the name, description, and path of each model-invocable skill in the system prompt. Users can invoke a skill explicitly with `/skill:<name>`. Resolve supporting files relative to the skill directory.
 
-The `task` tool handles subagent dispatch (see [`references/tau-tools.md`](references/tau-tools.md)). A child does not inherit this conversation, so every delegated task must be self-contained.
+This package uses two tiers:
+
+- **Entrypoint skills** are model-invocable. Tau lists them in every skill index, including subagent prompts. They route work into the package: this skill, systematic-debugging, writing-developer-facing-text, and writing-skills.
+- **Chained skills** set `disable-model-invocation: true` in their frontmatter. Tau keeps them out of every skill index. A workflow step that requires a chained skill loads it on demand: read its `SKILL.md` by sibling path, then follow it. A chained skill without a reachable reference from a visible skill, a dispatch template, or a sibling skill is dead.
+
+The `task` tool handles subagent dispatch (see [`references/tau-tools.md`](references/tau-tools.md)). A child does not inherit this conversation, so every delegated task must be self-contained. Children cannot invoke skills; the dispatch templates carry the behavior children need.
+
+## Skill Map
+
+Every skill in this package is one directory under the installed skills root, so a sibling reference `../<name>/SKILL.md` resolves from any skill in the package. Load a chained skill at the step that requires it, not before:
+
+| Skill | Tier | Load it when |
+| --- | --- | --- |
+| using-superpowers (this skill) | entrypoint | any nontrivial task, before routing |
+| systematic-debugging | entrypoint | any bug, test failure, or unexpected behavior |
+| writing-developer-facing-text | entrypoint | writing or rewriting developer-facing text |
+| writing-skills | entrypoint | creating or editing skills |
+| brainstorming | chained | non-Direct work: proposal, feature spec |
+| using-git-worktrees | chained | workspace isolation before any artifact is persisted |
+| writing-plans | chained | approved feature spec, before implementation |
+| executing-plans | chained | executing an approved Bounded plan inline |
+| subagent-driven-development | chained | executing a Standard or High-risk plan |
+| test-driven-development | chained | before any production code |
+| requesting-code-review | chained | before any review dispatch |
+| receiving-code-review | chained | before acting on any review finding |
+| verification-before-completion | chained | before any completion claim, in every branch of The Flow |
+| dispatching-parallel-agents | chained | 2+ independent substantive tasks with no shared state |
+| finishing-a-development-branch | chained | after the final review passes |
 
 ## Workflow Depth
 
@@ -125,12 +152,13 @@ Select the workflow depth first (see Workflow Depth). Then invoke relevant or re
 IF it is a simple operation (list above):
     do it directly — no skill, no subagent
 ELSE IF any skill can apply (even 1%):
-    read its SKILL.md
+    read its SKILL.md — a chained skill loads by its sibling path from the Skill Map
     announce: "Using [skill] to [purpose]"
     if it has a checklist, create task tracking per item
     follow the skill exactly
 ELSE IF the Direct test passes (see Workflow Depth):
     make the targeted edit and run the relevant repository checks
+    read ../verification-before-completion/SKILL.md and pass its gate before any completion claim
     Direct work creates no proposal, feature spec, or plan
 ELSE:
     respond (including clarifications)
@@ -149,7 +177,7 @@ When multiple skills can apply:
 1. **Process skills first** (brainstorming, systematic-debugging): they determine HOW to approach the task.
 2. **Implementation skills second** (domain-specific): they guide execution.
 
-"Let's build X" → brainstorming first, then implementation skills.
+"Let's build X" → brainstorming (`../brainstorming/SKILL.md`) first, then implementation skills.
 "Fix this bug" → systematic-debugging first, then domain-specific skills.
 
 **What counts as "already brainstormed":** brainstorming is complete when the exact current proposal version holds cold-review approval and operator approval, and the derived feature spec holds spec-review approval. Artifact paths do not prove state completion. Check the exact review and approval status of each artifact version. A conversation about the idea is not brainstorming. If the state is incomplete for a non-Direct change, invoke brainstorming. Do this even if you already discussed the idea at length.

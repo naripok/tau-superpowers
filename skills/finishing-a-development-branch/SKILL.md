@@ -1,6 +1,7 @@
 ---
 name: finishing-a-development-branch
 description: Use when implementation is complete, all tests pass, and you need to integrate the work
+disable-model-invocation: true
 ---
 
 # Finishing a Development Branch
@@ -55,7 +56,7 @@ Rules:
 - The synchronized living spec must be semantically closed: it expresses complete current behavior without depending on the proposal, plan, or chat history.
 - **Cross-domain enumeration update:** when accepted gate-wiring changes make another living spec's factual enumeration stale (for example, a gate-wiring list in another living spec), update only that stale factual content in the same synchronization pass. The procedure and behavior content of that living spec stays unchanged. The update passes through the same synchronization review.
 
-Then dispatch one fresh `document-review` synchronization check for the candidate living-spec version. Use the template at `living-spec-document-reviewer-prompt.md`. The accepted feature spec and the established pre-sync behavior govern the gate. Before you act on any finding, adjudicate every finding per `receiving-code-review`. A changed synchronization candidate receives one new complete initial review. An unchanged rejection confirmation is a targeted adjudication redispatch. The workflow requests no operator approval for synchronization.
+Then dispatch one fresh `document-review` synchronization check for the candidate living-spec version. Use the template at `living-spec-document-reviewer-prompt.md`. The accepted feature spec and the established pre-sync behavior govern the gate. Before you act on any finding, adjudicate every finding per `receiving-code-review` (`../receiving-code-review/SKILL.md`). A changed synchronization candidate receives one new complete initial review. An unchanged rejection confirmation is a targeted adjudication redispatch. The workflow requests no operator approval for synchronization.
 
 Commit the sync to the branch only after the synchronization review approves the exact result:
 

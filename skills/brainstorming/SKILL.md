@@ -1,6 +1,7 @@
 ---
 name: brainstorming
 description: Use before any creative work: new features, components, or behavior changes.
+disable-model-invocation: true
 ---
 
 # Brainstorming Ideas Into Designs
@@ -36,7 +37,7 @@ Copy this checklist into your working notes. Mark each item as you complete it. 
 - [ ] **Ask clarifying questions**: purpose, constraints, success criteria. Assess scope first. If the request spans multiple independent subsystems, help the user decompose it into sub-projects. Each sub-project gets its own brainstorm, spec, plan, and implementation cycle. Batch independent questions in one message. Prefer multiple-choice
 - [ ] **Propose 2-3 approaches**: with trade-offs and your recommendation. Lead with your recommendation
 - [ ] **Present the complete design**: One message, scaled to complexity. Cover: architecture, components, data flow, error handling, testing. Record every accepted decision. This conversation is elicitation for the proposal author. It grants no approval
-- [ ] **Set up the worktree**: Invoke using-git-worktrees before you persist any artifact. Commit all artifacts and code to this branch, never to the default branch
+- [ ] **Set up the worktree**: Invoke using-git-worktrees (`../using-git-worktrees/SKILL.md`) before you persist any artifact. Commit all artifacts and code to this branch, never to the default branch
 - [ ] **Write the proposal**: `docs/design/YYYY-MM-DD-<topic>-proposal.md` at the selected depth. Transfer every accepted decision from this conversation into the proposal
 - [ ] **Dispatch the cold proposal review**: Use `proposal-document-reviewer-prompt.md`. One initial review per proposal version. Loop until the reviewer approves. Resolve blocking findings before operator review
 - [ ] **Operator approval**: Present the cold-reviewed proposal. The operator checks that it captures the intended change. Record the approval as an immutable identity: the commit hash or a content digest of that exact version. An unresolved controlled decision blocks approval
@@ -193,7 +194,7 @@ No requirements added, modified, or removed.
 
 Dispatch a `document-review` subagent using `spec-document-reviewer-prompt.md`. One initial review covers one spec version, one complete input set, and one review task.
 
-- **Adjudication:** Before you act on any finding, adjudicate every finding per `receiving-code-review`. Fix endorsed findings through dispatched subagents. The reviewer re-dispatch carries the fixes, the rejection list, and the rejection reasons for confirmation. An unchanged rejection confirmation stays a targeted redispatch
+- **Adjudication:** Before you act on any finding, adjudicate every finding per `receiving-code-review` (`../receiving-code-review/SKILL.md`). Fix endorsed findings through dispatched subagents. The reviewer re-dispatch carries the fixes, the rejection list, and the rejection reasons for confirmation. An unchanged rejection confirmation stays a targeted redispatch
 - **Issues found:** Fix the endorsed findings. Dispatch one new complete initial review for the changed version. Loop until the reviewer approves
 - **Fundamental issues:** The spec is architecture instead of behavior, or the approach is wrong at the behavioral level. Present the findings to the user. Ask whether to revise the approach. Do not silently rewrite the spec
 - Planning starts only after semantic spec-review approval. The workflow requests no operator approval for the feature spec, the plan, or living-spec synchronization.
@@ -209,4 +210,4 @@ git commit -m "docs: proposal and feature spec for <topic>"
 
 ### Transition
 
-Invoke the writing-plans skill. Do NOT invoke any other skill: writing-plans is the only next step.
+Invoke the writing-plans skill: read `../writing-plans/SKILL.md` and follow it. Do NOT invoke any other skill: writing-plans is the only next step.

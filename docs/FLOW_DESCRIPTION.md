@@ -6,6 +6,8 @@ This document describes the spec-driven development flow enforced by the Tau Sup
 
 A user installation links skills individually under `~/.tau/skills`. In this checkout, Tau exposes the canonical tree through project discovery after project input is approved. The model initially receives skill metadata only and requests the full `SKILL.md` when its description matches the task. A user can invoke a skill explicitly with `/skill:<name>`.
 
+The package loads in two tiers: the entrypoint skills (`using-superpowers`, `systematic-debugging`, `writing-developer-facing-text`, `writing-skills`) stay in every skill index, and the step skills set `disable-model-invocation: true`. Each workflow step loads its successors on demand by sibling path; `using-superpowers` owns the skill map.
+
 The Python extension registers the `task` tool when installed under `~/.tau/extensions/superpowers-subagent` or explicitly loaded with:
 
 ```bash

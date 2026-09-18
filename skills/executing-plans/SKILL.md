@@ -1,6 +1,7 @@
 ---
 name: executing-plans
 description: Use when executing an approved Bounded implementation plan inline in the current session
+disable-model-invocation: true
 ---
 
 # Executing Plans
@@ -38,14 +39,14 @@ Work on the feature branch or worktree that you created during brainstorming. Ne
 git branch --show-current
 ```
 
-If you are on the default branch, stop. Create the worktree with using-git-worktrees first.
+If you are on the default branch, stop. Create the worktree with using-git-worktrees (`../using-git-worktrees/SKILL.md`) first.
 
 ### Step 3: Execute Tasks
 
 For each task:
 
 1. Mark the task as in_progress in your task tracking. The plan document records completion only
-2. Implement the contract of the task with TDD. Write the failing tests for the "Tests must prove" list of the task. Watch each test fail for the expected reason. Implement the interface and the behavior. Refactor. You decide the exact implementation within the contract
+2. Implement the contract of the task with TDD: read `../test-driven-development/SKILL.md` and follow it. Write the failing tests for the "Tests must prove" list of the task. Watch each test fail for the expected reason. Implement the interface and the behavior. Refactor. You decide the exact implementation within the contract
 3. Run the verification commands of the task
 4. Commit
 5. Mark the task as completed: check every checkbox of the task `[x]` in the plan file, then commit exactly one tracking commit, immediately, with the message `docs(plan): mark <plan-file-stem> Task N complete` that contains only that flip. A flipped box never reverts
@@ -54,14 +55,14 @@ For each task:
 
 After the last task and its fresh checks, dispatch one `code-review` subagent over the complete change. Use the template at `../subagent-driven-development/implementation-reviewer-prompt.md` in its **Standard final** scope mode: the full feature spec and the approved proposal are the governing contracts. This skill does not dispatch per-task reviewers; the final whole-change review is the only implementation review. The dispatch supplies the feature spec, the living-spec text for every MODIFIED requirement, the approved proposal, the full task list, the evidence, and the diff; the reviewer subagent neither reads nor edits the plan file.
 
-Before you act on any finding, adjudicate every finding per `receiving-code-review`. You are the implementer at this gate. Apply endorsed Critical and Important fixes yourself. Apply endorsed Minor findings yourself, or defer them and record each deferral. If adjudication rejects findings, re-dispatch the reviewer with the fixes, the rejected findings, and the rejection reasons. The gate does not continue while endorsed Critical or Important fixes remain unapplied. A maintained Critical finding stops the gate per the escalation section of `receiving-code-review`.
+Before you act on any finding, adjudicate every finding per `receiving-code-review` (`../receiving-code-review/SKILL.md`). You are the implementer at this gate. Apply endorsed Critical and Important fixes yourself. Apply endorsed Minor findings yourself, or defer them and record each deferral. If adjudication rejects findings, re-dispatch the reviewer with the fixes, the rejected findings, and the rejection reasons. The gate does not continue while endorsed Critical or Important fixes remain unapplied. A maintained Critical finding stops the gate per the escalation section of `receiving-code-review`.
 
 ### Step 5: Complete Development
 
 After the final review passes:
 
 - Announce: "Using finishing-a-development-branch to complete this work."
-- **REQUIRED SUB-SKILL:** Use finishing-a-development-branch
+- **REQUIRED SUB-SKILL:** Use finishing-a-development-branch. Read `../finishing-a-development-branch/SKILL.md` and follow it
 - **Report deviations:** in the final implementation summary, report every place where execution changed course from the plan. State the flaw, why the change was needed, and its implications
 
 ## Depth Boundaries

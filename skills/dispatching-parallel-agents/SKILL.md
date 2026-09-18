@@ -1,6 +1,7 @@
 ---
 name: dispatching-parallel-agents
 description: Use when facing 2+ independent substantive tasks with no shared state or sequential dependencies
+disable-model-invocation: true
 ---
 
 # Dispatching Parallel Agents

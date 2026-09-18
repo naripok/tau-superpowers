@@ -1,6 +1,7 @@
 ---
 name: writing-plans
 description: Use when you have a spec or requirements for a multi-step task, before touching code
+disable-model-invocation: true
 ---
 
 # Writing Plans
@@ -181,7 +182,7 @@ Fix issues inline, then continue. Add missing tasks. Add missing test behaviors.
 
 Dispatch a `document-review` subagent using `plan-document-reviewer-prompt.md` to check plan completeness and spec alignment.
 
-- **Adjudication:** Before you act on any finding, adjudicate every finding per `receiving-code-review`. Fix endorsed findings through dispatched subagents. The reviewer re-dispatch carries the fixes, the rejection list, and the rejection reasons for confirmation.
+- **Adjudication:** Before you act on any finding, adjudicate every finding per `receiving-code-review` (`../receiving-code-review/SKILL.md`). Fix endorsed findings through dispatched subagents. The reviewer re-dispatch carries the fixes, the rejection list, and the rejection reasons for confirmation.
 - **Issues found:** fix the endorsed findings, then re-dispatch the reviewer. Loop until the reviewer approves.
 - Plan approval stays automated. The workflow never requests operator approval of the plan.
 - Do NOT proceed to execution until the reviewer approves.
@@ -199,7 +200,7 @@ Then execute:
 
 Route execution by **workflow depth**, not plan task count:
 
-- **Bounded:** invoke executing-plans. The controller executes the one or two tasks inline.
-- **Standard or High-risk:** invoke subagent-driven-development, regardless of task count.
+- **Bounded:** invoke executing-plans: read `../executing-plans/SKILL.md` and follow it. The controller executes the one or two tasks inline.
+- **Standard or High-risk:** invoke subagent-driven-development: read `../subagent-driven-development/SKILL.md` and follow it, regardless of task count.
 
 State which you are using. Do not ask the operator to choose.

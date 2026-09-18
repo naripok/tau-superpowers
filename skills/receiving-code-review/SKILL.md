@@ -1,6 +1,7 @@
 ---
 name: receiving-code-review
 description: Use when receiving code review feedback, before implementing any suggestion
+disable-model-invocation: true
 ---
 
 # Code Review Reception

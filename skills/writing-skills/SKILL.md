@@ -22,7 +22,9 @@ Tau discovers skills from these directories in increasing precedence:
 3. `<cwd>/.tau/skills/`
 4. `<cwd>/.agents/skills/`
 
-Each skill is a directory that contains `SKILL.md`. A higher-precedence skill with the same name overrides a lower-precedence one. Tau initially injects only the name, description, and path of each skill into the system prompt. When the description matches the task of the agent, the agent reads the full `SKILL.md`. If you change a skill in an active TUI, run `/reload`. Users invoke a skill explicitly with `/skill:<name> [request]`.
+Each skill is a directory that contains `SKILL.md`. A higher-precedence skill with the same name overrides a lower-precedence one. Tau initially injects only the name, description, and path of each model-invocable skill into the system prompt. When the description matches the task of the agent, the agent reads the full `SKILL.md`. If you change a skill in an active TUI, run `/reload`. Users invoke a skill explicitly with `/skill:<name> [request]`.
+
+A skill with `disable-model-invocation: true` in its frontmatter is excluded from every skill index, including subagent prompts. Tau keeps it available through explicit `/skill:<name>` invocation. Use this for step skills of a workflow package: a few entrypoint skills route the work, and each workflow step loads the next skill on demand by sibling path. Every step of context only pays for the entrypoints plus the current step.
 
 ## When to Create a Skill
 
@@ -116,10 +118,10 @@ Use active voice and verb-first names. Gerunds work well for processes:
 
 ## Token Efficiency
 
-- Keep descriptions concise. Tau always indexes their metadata.
+- Keep descriptions concise. Tau always indexes the metadata of model-invocable skills.
 - Keep frequently-used skill bodies focused. Move heavy reference and tools to supporting files.
 - Cross-reference other skills by name instead of repeating their content
-- One excellent example beats several mediocre ones
+- One excellent example beats several mediocre examples
 - Do not explain what a command already makes obvious. Do not give multiple examples of the same pattern.
 
 ## Cross-Referencing Other Skills
@@ -131,7 +133,13 @@ Reference by skill name with an explicit requirement marker:
 - BAD: `See skills/testing/test-driven-development` (assumes an installation layout)
 - BAD: `Open @skills/testing/test-driven-development/SKILL.md` (repository paths are not skill invocation)
 
-`/skill:<name>` is user-facing syntax. Prose inside a skill states dependencies by name.
+A skill hidden with `disable-model-invocation: true` never appears in a skill index, so a name reference alone cannot resolve at the moment of need. A required transition to a hidden skill carries its sibling path:
+
+- GOOD: `**REQUIRED SUB-SKILL:** Use test-driven-development. Read ../test-driven-development/SKILL.md and follow it`
+
+Sibling paths (`../<name>/SKILL.md`) resolve in every install layout because the installer keeps all skills as siblings under one skills root. Keep the reachability rule: every hidden skill needs at least one reachable reference from a visible skill, a dispatch template, or a sibling skill. An unreachable hidden skill is dead weight.
+
+`/skill:<name>` is user-facing syntax. Prose inside a skill states dependencies by name, plus the sibling path for hidden skills.
 
 ## Self-Contained References
 

@@ -1,6 +1,7 @@
 ---
 name: requesting-code-review
 description: Use when completing a task or major feature, or before merging, to check work against requirements
+disable-model-invocation: true
 ---
 
 # Requesting Code Review
@@ -45,7 +46,7 @@ Embed the complete diff, verification output, and every relevant file path. The 
 
 **4. Act on feedback:**
 
-Before you act on any finding, adjudicate every finding per `receiving-code-review`. Then:
+Before you act on any finding, adjudicate every finding per `receiving-code-review` (`../receiving-code-review/SKILL.md`). Then:
 
 - Send endorsed Critical and Important findings to dispatched fix subagents
 - Apply endorsed Minor findings through the same fix path, or note them for later and record each deferral

@@ -173,7 +173,7 @@ You MUST complete each phase before you proceed to the next.
    - If you can automate it, write an automated test
    - If there is no framework, write a one-off test script
    - You MUST have this test before you fix
-   - Use the `test-driven-development` skill to write proper failing tests
+   - Use the `test-driven-development` skill (`../test-driven-development/SKILL.md`) to write proper failing tests
 
 2. **Implement Single Fix**
    - Address the identified root cause
@@ -270,5 +270,5 @@ These techniques are part of systematic debugging. You can find them in this dir
 - **`condition-based-waiting.md`** - Replace arbitrary timeouts with condition polling
 
 **Related skills:**
-- **test-driven-development** - For creating the failing test case (Phase 4, Step 1)
-- **verification-before-completion** - Check that the fix worked before you claim success
+- **test-driven-development** (`../test-driven-development/SKILL.md`) - For creating the failing test case (Phase 4, Step 1)
+- **verification-before-completion** (`../verification-before-completion/SKILL.md`) - Check that the fix worked before you claim success

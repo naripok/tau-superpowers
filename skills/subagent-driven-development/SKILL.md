@@ -1,6 +1,7 @@
 ---
 name: subagent-driven-development
 description: Use when executing a Standard or High-risk implementation plan in the current session
+disable-model-invocation: true
 ---
 
 # Subagent-Driven Development
@@ -47,10 +48,10 @@ A controller never introduces or resolves intent, behavior, scope, binding archi
    b. Handle the reported status (below)
    c. Check the implementer report: tests ran and pass, work committed, self-review done
    d. Dispatch the implementation reviewer (`./implementation-reviewer-prompt.md`). Give it the full feature-spec text, the living-spec text for every MODIFIED requirement, the approved proposal content, the task text, and the implementer report. Also give it every relevant file path, the artifact identities, the diff, and the verification output
-   e. The reviewer reports on two dimensions: **Spec Compliance** and **Code Quality**. Before you act on any finding, adjudicate every finding per `receiving-code-review`. If adjudication endorses findings, re-dispatch the implementer. The re-dispatch carries the original task, the current state, and only the endorsed findings. Then re-dispatch the reviewer with the updated evidence, the rejected findings, and the rejection reasons. Repeat until both pass
+   e. The reviewer reports on two dimensions: **Spec Compliance** and **Code Quality**. Before you act on any finding, adjudicate every finding per `receiving-code-review` (`../receiving-code-review/SKILL.md`). If adjudication endorses findings, re-dispatch the implementer. The re-dispatch carries the original task, the current state, and only the endorsed findings. Then re-dispatch the reviewer with the updated evidence, the rejected findings, and the rejection reasons. Repeat until both pass
    f. Mark the task complete: check every checkbox of the task `[x]` in the plan file and commit exactly one tracking commit, immediately, with the message `docs(plan): mark <plan-file-stem> Task N complete` that contains only that flip. A flipped box never reverts. A task whose reviewer returns a needs-fixes verdict keeps unchecked checkboxes and gets no tracking commit until the review passes
 3. After the last task: dispatch the implementation reviewer over the entire change. Supply the living-spec text for every MODIFIED requirement in the feature spec. The final review checks the FULL feature spec AND the approved proposal: observable behavior against the spec; scope, binding architecture, constraints, non-goals, acceptance, and risk treatment against the proposal. For High-risk work, the final reviewer performs a contract pass and a risk pass and reports one verdict. Missing mapped High-risk evidence blocks final approval. Per-task reviews check only their own task. Before you act on any finding, adjudicate every finding per `receiving-code-review`. Endorsed findings go to dispatched fix subagents
-4. Invoke finishing-a-development-branch
+4. Invoke finishing-a-development-branch: read `../finishing-a-development-branch/SKILL.md` and follow it
 
 ## Handling Implementer Status
 
