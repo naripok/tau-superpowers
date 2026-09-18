@@ -24,7 +24,7 @@ Five facts drive every rule below:
 The first line is something the reader can do. Not context. Not a plan. The action.
 
 Bad: "Let's think about this. Your auth flow has a few moving pieces..."
-Good: "Run `npm install jsonwebtoken`, then edit `src/auth.ts:42`."
+Good: "Run `npm install jsonwebtoken`. Then edit `src/auth.ts:42`."
 
 If the answer is a command, path, or snippet, it goes first. Prose comes after, if at all.
 
@@ -39,9 +39,9 @@ Bad: "First open the file, find the function, swap it out, then run the tests."
 Good:
 
 ```
-1. Open `src/auth.ts`
-2. Replace `verifyToken` (lines 42 to 58) with the snippet below
-3. Run `npm test -- auth.spec.ts`
+1. Open `src/auth.ts`.
+2. Replace `verifyToken` (lines 42 to 58) with the snippet below.
+3. Run `npm test -- auth.spec.ts`.
 ```
 
 ### 3. End with one concrete next action
@@ -49,7 +49,7 @@ Good:
 If anything is left open, name ONE thing the reader can do in under two minutes. Even "open the file" counts.
 
 Bad: "Hope that helps. Let me know if you want to dig deeper."
-Good: "Next: run `npm test` and paste the first failing line."
+Good: "Next, run `npm test`. Then paste the first failing line."
 
 ### 4. Suppress tangents
 
@@ -65,7 +65,7 @@ A question that comes up mid-work is not a tangent: answer it yourself if you ca
 The reader cannot hold "we are on step 3 of 5" between messages. Restate it.
 
 Bad: "Done. Ready for the next part?"
-Good: "Step 3 of 5 done: schema updated. Next: backfill the new column. Run the script?"
+Good: "Step 3 of 5 is done: the schema is updated. Next, backfill the new column. Run the script."
 
 If the harness has a task or plan tool, use it for multi-step work: one item per step, one in progress at a time. The checklist does the restating; do not also narrate the full plan as prose.
 
@@ -81,14 +81,14 @@ Good: "About 15 minutes if tests already cover this. An afternoon if not."
 Show what now works, in concrete terms. Do not bury wins in a recap.
 
 Bad: "I've made some changes to the auth flow. Among other things..."
-Good: "Login now works with magic links. Try: `npm run dev`, open `/login`."
+Good: "Login now works with magic links. Run `npm run dev`. Then open `/login`."
 
 ### 8. Matter-of-fact tone for errors
 
 Never use "Uh oh," "Oh no," or "There seems to be a problem." State cause and fix.
 
 Bad: "Uh oh, the test is failing. There seems to be an issue..."
-Good: "Test fails at `auth.spec.ts:42`: expected 200, got 401. Cause: missing auth header. Fix: add `Authorization: Bearer ${token}` to the request."
+Good: "The test failed at `auth.spec.ts:42`. It expected 200 but got 401. The cause is a missing auth header. Add `Authorization: Bearer ${token}` to the request."
 
 ### 9. Cap lists to 5 items
 
