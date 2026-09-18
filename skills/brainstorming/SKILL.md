@@ -68,7 +68,7 @@ Each proposal and spec gate makes one initial review dispatch per artifact versi
 
 ## The Proposal
 
-The proposal is the sole operator approval artifact. Write it per the writing-unambiguous-text skill, pragmatic mode. Save to `docs/design/YYYY-MM-DD-<topic>-proposal.md`.
+The proposal is the sole operator approval artifact. Write it per the writing-unambiguous-text skill. Save to `docs/design/YYYY-MM-DD-<topic>-proposal.md`.
 
 The author uses this conversation as elicitation input and transfers every accepted decision into the proposal: behavior, scope, binding architecture, thresholds, exceptions, constraints, assumptions, risk treatment, and acceptance. Downstream agents never read this conversation.
 

@@ -37,7 +37,7 @@ Never dispatch a subagent and then do the same read or command yourself. The dis
 
 ## Writing Standard
 
-Write all developer-facing text per the writing-unambiguous-text skill. Use pragmatic mode. This text includes documentation, specs, plans, docstrings, code comments, commit message bodies, error and log messages, and reports to the user. Short sentences. Imperative procedures, with the condition before the command. Banned modals: should, would, may, might, could, shall. Exception: RFC 2119 keywords (SHALL, MUST, SHOULD) in requirement statements stay exact. Use "check" as the only verb for verification. Identifiers, code, and quoted messages stay exact. Language tooling rules for doc comments override style rules. Read the writing-unambiguous-text SKILL.md before you write or rewrite a long document.
+Write all developer-facing text per the writing-unambiguous-text skill. This text includes documentation, specs, plans, docstrings, code comments, commit message bodies, error and log messages, and reports to the user. Short sentences. Imperative procedures, with the condition before the command. Banned modals: should, would, may, might, could, shall. Exception: RFC 2119 keywords (SHALL, MUST, SHOULD) in requirement statements stay exact. Use "check" as the only verb for verification. Identifiers, code, and quoted messages stay exact. Language tooling rules for doc comments override style rules. Read the writing-unambiguous-text SKILL.md before you write or rewrite a long document.
 
 ## How Skills Work
 

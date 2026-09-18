@@ -117,7 +117,7 @@ Before marking work complete:
 - [ ] You wrote minimal code to pass each test
 - [ ] All tests pass and the output is pristine (no errors, no warnings)
 - [ ] Tests use real code (mocks only if unavoidable)
-- [ ] Test docstrings say what behavior the test proves and why, per writing-unambiguous-text (pragmatic mode)
+- [ ] Test docstrings say what behavior the test proves and why, per writing-unambiguous-text
 - [ ] Edge cases and error paths that the requirement names are covered
 
 If any box is unchecked, you skipped TDD. Start over.

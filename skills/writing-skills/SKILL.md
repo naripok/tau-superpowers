@@ -229,7 +229,7 @@ Before you move to the next skill, complete this checklist for EACH skill. Deplo
 - [ ] Check that `name` is valid and matches its directory. Check that the frontmatter has `name` and `description` (≤1024 chars).
 - [ ] Check that the description starts with "Use when...", uses third person, lists triggers only, and has no workflow summary.
 - [ ] Check that the body states procedure as rules and steps: no rationale, no persuasion, no narratives.
-- [ ] Check that the text follows the writing-unambiguous-text skill (pragmatic mode). Run its self-check.
+- [ ] Check that the text follows the writing-unambiguous-text skill. Run its self-check.
 - [ ] Include one excellent example. Keep supporting files only for heavy reference or tools.
 - [ ] Check that every reference in the skill and its supporting files resolves inside the installed tree (see Self-Contained References).
 - [ ] Re-run the scenarios with the skill. Check that the agent complies.

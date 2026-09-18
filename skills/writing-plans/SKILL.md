@@ -21,7 +21,7 @@ Assume the implementer is a skilled developer with zero context for our codebase
 **Save plans to:** `docs/plans/YYYY-MM-DD-<topic>.md`
 - (User preferences for plan location override this default)
 
-**Style:** write the plan per the writing-unambiguous-text skill, pragmatic mode.
+**Style:** write the plan per the writing-unambiguous-text skill.
 
 ## Scope Check
 
@@ -154,7 +154,7 @@ Every plan embeds the shared code standards in its header so that implementers a
 - **No hacks or workarounds**: implement the correct, complete solution by design. Never write a "fix later" workaround.
 - **Informative docstrings**: application code: what the code does and why, not how. Tests: what behavior the test proves and why the test is needed.
 - **Documentation of current state only**: docs describe the current implemented behavior and why it is that way, never old system states or removed behavior.
-- **Simple English**: docstrings, comments, and documentation follow the writing-unambiguous-text skill, pragmatic mode.
+- **Simple English**: docstrings, comments, and documentation follow the writing-unambiguous-text skill.
 
 ## Step 4: Self-Review
 
