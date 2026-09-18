@@ -1,6 +1,6 @@
 ---
 name: writing-developer-facing-text
-description: Use when writing or rewriting developer-facing text: documentation, READMEs, runbooks, procedures, error messages, release notes, incident reports, commit messages, agent prompts, UI copy. Use it to make the text clear, short, and unambiguous. Also when the user says "make this readable" or "simplify this text", or asks for text that translates well.
+description: Use when writing or rewriting ambiguity-sensitive or developer-facing text: documentation, READMEs, runbooks, procedures, error messages, release notes, incident reports, agent prompts.
 ---
 
 # Simple English: A Practical Standard for Clear Technical Prose
@@ -124,5 +124,3 @@ Self-check: source facts preserved (Rule 19), over-limit sentences split with ex
 ## Limits
 
 This standard is for technical facts and instructions. Do not apply it to marketing copy or brand writing: it deletes persuasion by design. Offer it for the docs instead.
-
-No tool can guarantee conformance to the official standard. If a user asks for that, apply these rules and point to the attribution line for the official source.
