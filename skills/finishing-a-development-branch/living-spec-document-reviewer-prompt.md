@@ -43,7 +43,7 @@ The child has no controller conversation history. Name every input path explicit
     | Initial creation | For an undocumented or new domain, the complete reviewed feature spec supplies the initial living spec. Reject invented baseline behavior. |
     | Invention rejection | Behavior absent from the established pre-sync behavior and the accepted feature spec is a blocking finding. |
     | Cross-domain enumeration update | When the sync updates another living spec's factual enumeration (for example, a gate list), check it against the accepted workflow gates. The procedure and behavior content of that living spec stays unchanged. |
-    | Style | Prose follows writing-developer-facing-text (pragmatic mode). |
+    | Style | Prose follows writing-unambiguous-text (pragmatic mode). |
 
     ## Review Accounting
 

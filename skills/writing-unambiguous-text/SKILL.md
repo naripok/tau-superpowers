@@ -1,5 +1,5 @@
 ---
-name: writing-developer-facing-text
+name: writing-unambiguous-text
 description: Use when writing or rewriting ambiguity-sensitive or developer-facing text: documentation, READMEs, runbooks, procedures, error messages, release notes, incident reports, agent prompts.
 ---
 

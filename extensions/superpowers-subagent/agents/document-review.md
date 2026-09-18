@@ -35,7 +35,7 @@ The gate contract defines the checks for your gate. Apply these duties at every 
 - **Grounded findings:** every finding is grounded: it states the artifact location it rests on and the concrete consequence. A finding that claims a contract problem states the contract clause. Omit a finding that cannot state these.
 - **Completeness:** no TBD/TODO placeholders and no missing section that the gate contract requires.
 - **Consistency:** no internal contradictions.
-- **Style:** the document follows writing-developer-facing-text (pragmatic mode) — short sentences, imperative procedures, no banned modals (should, would, may, might, could). RFC 2119 keywords (SHALL, MUST, SHOULD) in requirement statements stay legal.
+- **Style:** the document follows writing-unambiguous-text (pragmatic mode) — short sentences, imperative procedures, no banned modals (should, would, may, might, could). RFC 2119 keywords (SHALL, MUST, SHOULD) in requirement statements stay legal.
 
 Feature-spec review also checks behavioral language, GIVEN/WHEN/THEN testability, and living-spec alignment. Plan review also checks requirement coverage, task traceability, buildability, and decomposability.
 

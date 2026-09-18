@@ -37,7 +37,7 @@ Never dispatch a subagent and then do the same read or command yourself. The dis
 
 ## Writing Standard
 
-Write all developer-facing text per the writing-developer-facing-text skill. Use pragmatic mode. This text includes documentation, specs, plans, docstrings, code comments, commit message bodies, error and log messages, and reports to the user. Short sentences. Imperative procedures, with the condition before the command. Banned modals: should, would, may, might, could, shall. Exception: RFC 2119 keywords (SHALL, MUST, SHOULD) in requirement statements stay exact. Use "check" as the only verb for verification. Identifiers, code, and quoted messages stay exact. Language tooling rules for doc comments override style rules. Read the writing-developer-facing-text SKILL.md before you write or rewrite a long document.
+Write all developer-facing text per the writing-unambiguous-text skill. Use pragmatic mode. This text includes documentation, specs, plans, docstrings, code comments, commit message bodies, error and log messages, and reports to the user. Short sentences. Imperative procedures, with the condition before the command. Banned modals: should, would, may, might, could, shall. Exception: RFC 2119 keywords (SHALL, MUST, SHOULD) in requirement statements stay exact. Use "check" as the only verb for verification. Identifiers, code, and quoted messages stay exact. Language tooling rules for doc comments override style rules. Read the writing-unambiguous-text SKILL.md before you write or rewrite a long document.
 
 ## How Skills Work
 
@@ -45,7 +45,7 @@ Tau initially places only the name, description, and path of each model-invocabl
 
 This package uses two tiers:
 
-- **Entrypoint skills** are model-invocable. Tau lists them in every skill index, including subagent prompts. They route work into the package: this skill, systematic-debugging, writing-developer-facing-text, and writing-skills.
+- **Entrypoint skills** are model-invocable. Tau lists them in every skill index, including subagent prompts. They route work into the package: this skill, systematic-debugging, writing-unambiguous-text, and writing-skills.
 - **Chained skills** set `disable-model-invocation: true` in their frontmatter. Tau keeps them out of every skill index. A workflow step that requires a chained skill loads it on demand: read its `SKILL.md` by sibling path, then follow it. A chained skill without a reachable reference from a visible skill, a dispatch template, or a sibling skill is dead.
 
 The `task` tool handles subagent dispatch (see [`references/tau-tools.md`](references/tau-tools.md)). A child does not inherit this conversation, so every delegated task must be self-contained. Children cannot invoke skills; the dispatch templates carry the behavior children need.
@@ -58,7 +58,7 @@ Every skill in this package is one directory under the installed skills root, so
 | --- | --- | --- |
 | using-superpowers (this skill) | entrypoint | any nontrivial task, before routing |
 | systematic-debugging | entrypoint | any bug, test failure, or unexpected behavior |
-| writing-developer-facing-text | entrypoint | writing or rewriting developer-facing text |
+| writing-unambiguous-text | entrypoint | writing or rewriting developer-facing text |
 | writing-skills | entrypoint | creating or editing skills |
 | brainstorming | chained | non-Direct work: proposal, feature spec |
 | using-git-worktrees | chained | workspace isolation before any artifact is persisted |

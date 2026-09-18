@@ -74,13 +74,13 @@ The main flow is:
 | `using-git-worktrees` | Isolate feature work in Git worktrees |
 | `using-superpowers` | Select the workflow depth (Direct, Bounded, Standard, High-risk) and apply the workflow skills |
 | `verification-before-completion` | Require fresh evidence before completion claims |
-| `writing-developer-facing-text` | Write developer-facing text with ASD-STE100 Simplified Technical English rules |
+| `writing-unambiguous-text` | Write developer-facing text with ASD-STE100 Simplified Technical English rules |
 | `writing-plans` | Turn the feature spec and approved proposal into complementary contract-based implementation plans |
 | `writing-skills` | Author and test Tau Agent Skills |
 
 Tau initially loads only skill names, descriptions, and paths, and reads the full `SKILL.md` when a skill matches the task. Use `/skill:<name>` to invoke one explicitly.
 
-The package uses two tiers. Four entrypoint skills stay model-invocable and route work in: `using-superpowers` (workflow and depth gates), `systematic-debugging`, `writing-developer-facing-text`, and `writing-skills`. Every other skill sets `disable-model-invocation: true`, so no skill index carries it. A workflow step that needs a chained skill reads its `SKILL.md` by sibling path at that step; `using-superpowers` owns the skill map and the reachability rule.
+The package uses two tiers. Four entrypoint skills stay model-invocable and route work in: `using-superpowers` (workflow and depth gates), `systematic-debugging`, `writing-unambiguous-text`, and `writing-skills`. Every other skill sets `disable-model-invocation: true`, so no skill index carries it. A workflow step that needs a chained skill reads its `SKILL.md` by sibling path at that step; `using-superpowers` owns the skill map and the reachability rule.
 
 ## Requirements
 
