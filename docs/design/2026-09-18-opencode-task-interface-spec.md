@@ -25,6 +25,7 @@ Repair notes SHALL appear as `Note:` lines before the envelope. The inner conten
 - WHEN the result content is built
 - THEN the envelope state is `error`
 - AND the `task_error` tag wraps the complete final assistant message
+- AND the envelope `id` is the child session id
 
 ##### Scenario: Error envelope without a final message
 - GIVEN a child fails with no final assistant message
@@ -63,6 +64,15 @@ Repair notes SHALL appear as `Note:` lines before the envelope. The inner conten
 - WHEN the result content is built
 - THEN the envelope state is `error` with no `id` attribute
 - AND the `task_error` tag wraps the startup error text
+
+##### Scenario: Interactive denial envelope
+- GIVEN a requested name resolves to a project definition
+- AND the session runs interactively
+- WHEN the operator denies the approval request
+- THEN the call cancels before any child starts
+- AND the envelope state is `error` with no `id` attribute
+- AND the `task_error` tag wraps the denial error text
+- AND the details entry carries no `taskId` and `planned` is 1
 
 #### Requirement: task_id resume
 
@@ -297,7 +307,7 @@ The description roster and the `subagent_type` description roster SHALL be stati
 ### MODIFIED Requirements
 
 #### Requirement: task interface and validation
-<!-- Only the changed parts. The sync preserves existing content not mentioned. This replaces the `tasks`-array surface: the array, the 1-8 item rule, the `{agent, task, cwd?}` item shape, the four-children concurrency cap, and the input-order rule are superseded by the flat single-object surface below. The living spec's Purpose paragraph and the Intentional Port Differences table also describe the `tasks`-array surface; the finishing-stage sync rewrites both to the flat single-object surface. The removed-fields sentence ("The removed top-level `agent`, `task`, `cwd`, and `chain` fields...") is superseded by the uniform unknown-field rule, because `cwd` is now a valid field. The invalid-request paragraph is replaced by the fail-closed behaviors below. -->
+<!-- Only the changed parts. The sync preserves existing content not mentioned. This replaces the `tasks`-array surface: the array, the 1-8 item rule, the `{agent, task, cwd?}` item shape, the four-children concurrency cap, and the input-order rule are superseded by the flat single-object surface below. The living spec's Purpose paragraph and the Intentional Port Differences table also describe the `tasks`-array surface; the finishing-stage sync rewrites both to the flat single-object surface. The finishing-stage sync also rewrites the living spec's Headless fail closed scenario content description (under Explicit project-agent approval) to the teach-back rule below. The removed-fields sentence ("The removed top-level `agent`, `task`, `cwd`, and `chain` fields...") is superseded by the uniform unknown-field rule, because `cwd` is now a valid field. The invalid-request paragraph is replaced by the fail-closed behaviors below. -->
 
 A `task` call SHALL carry exactly one task as one flat object. The fields SHALL be exactly `prompt`, `subagent_type`, `description`, `task_id`, `cwd`, `agentScope`, `confirmProjectAgents`, `provider`, `model`, `reasoningEffort`, and `timeoutSeconds`. The tool SHALL run exactly one child per call.
 
