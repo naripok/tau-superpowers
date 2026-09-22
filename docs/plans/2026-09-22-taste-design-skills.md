@@ -204,9 +204,9 @@ bash tests/check-references.sh
 # expected: exit 0, no findings
 ```
 
-- [ ] Create the seven `SKILL.md` files: the pinned frontmatter block, then the verbatim upstream body
-- [ ] Run the check commands; every check passes
-- [ ] Commit: `git add skills/designing-frontend-interfaces skills/enforcing-strict-design-direction skills/redesigning-existing-interfaces skills/designing-premium-soft-interfaces skills/designing-minimalist-interfaces skills/designing-brutalist-interfaces skills/enforcing-complete-output && git commit -m "skills: carry 7 taste design skills from upstream"` (the pre-commit hook runs the staged reference scan)
+- [x] Create the seven `SKILL.md` files: the pinned frontmatter block, then the verbatim upstream body
+- [x] Run the check commands; every check passes
+- [x] Commit: `git add skills/designing-frontend-interfaces skills/enforcing-strict-design-direction skills/redesigning-existing-interfaces skills/designing-premium-soft-interfaces skills/designing-minimalist-interfaces skills/designing-brutalist-interfaces skills/enforcing-complete-output && git commit -m "skills: carry 7 taste design skills from upstream"` (the pre-commit hook runs the staged reference scan)
 
 ### Task 2: Route the new skills in using-superpowers
 
