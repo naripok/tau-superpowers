@@ -278,14 +278,21 @@ sed -n '/^## Skill Map/,/^## Workflow Depth/p' skills/using-superpowers/SKILL.md
   | awk '/^\| --- /{t=1; next} t && /^\|/{c++} END{print c+0}'
 # expected output: 23
 
-for n in designing-frontend-interfaces enforcing-strict-design-direction redesigning-existing-interfaces designing-premium-soft-interfaces designing-minimalist-interfaces designing-brutalist-interfaces enforcing-complete-output; do
-  grep -F "| $n | chained |" skills/using-superpowers/SKILL.md >/dev/null && echo "ROW OK: $n" || echo "ROW MISSING: $n"
-done
+grep -F "| designing-frontend-interfaces | chained | frontend work: build or restyle |" skills/using-superpowers/SKILL.md && echo "ROW OK: designing-frontend-interfaces"
+grep -F "| enforcing-strict-design-direction | chained | strict motion and layout enforcement |" skills/using-superpowers/SKILL.md && echo "ROW OK: enforcing-strict-design-direction"
+grep -F "| redesigning-existing-interfaces | chained | existing-project redesigns |" skills/using-superpowers/SKILL.md && echo "ROW OK: redesigning-existing-interfaces"
+grep -F "| designing-premium-soft-interfaces | chained | a chosen soft-premium direction |" skills/using-superpowers/SKILL.md && echo "ROW OK: designing-premium-soft-interfaces"
+grep -F "| designing-minimalist-interfaces | chained | a chosen minimalist direction |" skills/using-superpowers/SKILL.md && echo "ROW OK: designing-minimalist-interfaces"
+grep -F "| designing-brutalist-interfaces | chained | a chosen brutalist direction |" skills/using-superpowers/SKILL.md && echo "ROW OK: designing-brutalist-interfaces"
+grep -F "| enforcing-complete-output | chained | truncation or placeholder shortcuts |" skills/using-superpowers/SKILL.md && echo "ROW OK: enforcing-complete-output"
 # expected: ROW OK for all 7 names
 
-grep -F "| writing-actionable-text | entrypoint |" skills/using-superpowers/SKILL.md && echo "ENTRYPOINT ROW OK"
+grep -F "| writing-actionable-text | entrypoint | writing responses, instructions, docs, runbooks, or error messages |" skills/using-superpowers/SKILL.md && echo "ENTRYPOINT ROW OK"
 grep -F "writing-unambiguous-text, writing-skills, and writing-actionable-text." skills/using-superpowers/SKILL.md && echo "ENTRYPOINT WORDING OK"
-awk '/^## Skill Priority/{f=1} f' skills/using-superpowers/SKILL.md | grep -F "designing-frontend-interfaces" && echo "PRIORITY LINE OK"
+for n in designing-frontend-interfaces designing-premium-soft-interfaces designing-minimalist-interfaces designing-brutalist-interfaces; do
+  awk '/^## Skill Priority/{f=1} f' skills/using-superpowers/SKILL.md | grep -F "$n" >/dev/null && echo "PRIORITY LINE OK: $n" || echo "PRIORITY MISSING: $n"
+done
+# expected: PRIORITY LINE OK for all 4 names
 
 git diff HEAD -- skills/using-superpowers/SKILL.md | grep -E '^[-+](name|description):'
 # expected: no output
@@ -391,13 +398,22 @@ sed -n '/^## Included Skills/,/^## Requirements/p' README.md \
   | awk '/^\| --- /{t=1; next} t && /^\|/{c++} END{print c+0}'
 # expected output: 23
 
-for n in designing-brutalist-interfaces designing-frontend-interfaces designing-minimalist-interfaces designing-premium-soft-interfaces enforcing-complete-output enforcing-strict-design-direction redesigning-existing-interfaces writing-actionable-text; do
-  grep -F "\`$n\`" README.md >/dev/null && echo "ROW OK: $n" || echo "ROW MISSING: $n"
-done
+grep -F '| `designing-brutalist-interfaces` | Design raw mechanical brutalist interfaces with Swiss print, military terminal aesthetics, and rigid grids |' README.md && echo "ROW OK: designing-brutalist-interfaces"
+grep -F '| `designing-frontend-interfaces` | Design frontend interfaces from a brief with an inferred direction and no templated look |' README.md && echo "ROW OK: designing-frontend-interfaces"
+grep -F '| `designing-minimalist-interfaces` | Design clean editorial minimalist interfaces with warm monochrome and flat bento grids |' README.md && echo "ROW OK: designing-minimalist-interfaces"
+grep -F '| `designing-premium-soft-interfaces` | Design high-end premium interfaces with agency-level fonts, spacing, shadows, and motion |' README.md && echo "ROW OK: designing-premium-soft-interfaces"
+grep -F '| `enforcing-complete-output` | Enforce complete, unabridged output with no truncation and no placeholder patterns |' README.md && echo "ROW OK: enforcing-complete-output"
+grep -F '| `enforcing-strict-design-direction` | Enforce strict layout, typography, and GSAP motion direction for award-level frontend builds |' README.md && echo "ROW OK: enforcing-strict-design-direction"
+grep -F '| `redesigning-existing-interfaces` | Redesign existing websites and apps to premium quality without breaking functionality |' README.md && echo "ROW OK: redesigning-existing-interfaces"
+grep -F '| `writing-actionable-text` | Write responses, instructions, docs, runbooks, and error messages that drive immediate action |' README.md && echo "ROW OK: writing-actionable-text"
 # expected: ROW OK for all 8 names
 
 grep -F "Five entrypoint skills stay model-invocable" README.md && echo "WORDING OK"
 test "$(awk '/^## /{s=$0} END{print s}' README.md)" = "## Attribution" && echo "ATTRIBUTION LAST OK"
+for s in "naripok/taste-skill" "Leonxlnx/taste-skill" "MIT" "under new names with adapted frontmatter and verbatim upstream bodies"; do
+  awk '/^## Attribution/{f=1} f' README.md | grep -F "$s" >/dev/null && echo "ATTRIBUTION OK: $s" || echo "ATTRIBUTION MISSING: $s"
+done
+# expected: ATTRIBUTION OK for all 4 strings
 
 bash tests/test-install.sh
 bash tests/test-references.sh
