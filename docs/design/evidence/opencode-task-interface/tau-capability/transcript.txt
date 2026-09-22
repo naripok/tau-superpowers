@@ -634,14 +634,20 @@ Try 'tau --help' for help.
 # Reading: every model field in the resumed stream is z-ai/glm-5.3 (the changed model),
 # and the assistant reply 'gamma' streamed. The session was created with z-ai/glm-5.3-flash.
 
-# Resumed-run cwd section, appended 2026-09-22T18:58Z.
-# Session oc-ev-smoke-c was created in /tmp/tau-capability-evidence (see its record in the tau sessions --all block above).
-# Command: tau --session oc-ev-smoke-c --mode json --cwd /tmp/other-cwd "Reply: zeta" (run from /tmp/tau-capability-evidence)
-# Recorded BEFORE the run, the session's cwd from tau sessions --all:
-oc-ev-smoke-c	Single Word Alpha Reply	z-ai/glm-5.3	/tmp/tau-capability-evidence
-# AFTER the run:
-[exit=0]
-"text":"z"
-"text":"zeta"
-# The session's cwd record after the resumed run in /tmp/other-cwd:
-oc-ev-smoke-c	Single Word Alpha Reply	z-ai/glm-5.3	/tmp/tau-capability-evidence
+# Resumed-run cwd section, appended 2026-09-22T13:35Z.
+# Session oc-ev-smoke-c was created in /tmp/tau-capability-evidence (its record above shows that cwd).
+#
+# Command 1 (run in /tmp/tau-capability-evidence, exit 0):
+#   tau --session oc-ev-smoke-c --mode json --cwd /tmp/other-cwd 'Run the shell command pwd and reply with its exact output only'
+# The complete stream of command 1 is the sibling file resume-cwd-pwd.raw.jsonl.
+#
+# Observation A: the child executed the bash tool. The stream's toolResult line records:
+#   "toolName":"bash" ... "text":"/tmp/tau-capability-evidence\n" ... "command":"pwd" ... "exit_code":0
+#
+# Observation B: the session record after the run (tau sessions --all | grep oc-ev-smoke-c):
+#   oc-ev-smoke-c	Single Word Alpha Reply	z-ai/glm-5.3	/tmp/tau-capability-evidence
+#
+# Reading: the resumed child ran pwd in /tmp/tau-capability-evidence, the session's creation cwd,
+# although the command line passed --cwd /tmp/other-cwd. A resumed run executes in the session's
+# recorded creation cwd, and the call's --cwd does not relocate it. The store record keeps the
+# creation cwd.

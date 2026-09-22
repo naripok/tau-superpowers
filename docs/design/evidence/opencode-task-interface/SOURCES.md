@@ -35,5 +35,7 @@ Immutable snapshots of the upstream sources the proposal cites. Retrieved 2026-0
 
 Two directories under this manifest hold transcripts recorded on this machine rather than upstream snapshots. Each transcript self-documents its capture date, tool versions, working directory, commands, complete output, and exit codes:
 
-- `tau-capability/transcript.txt`: Tau CLI session capabilities (pinned session ids, `--session-role subagent` hiding, resume stream, `Unknown session:` failure)
+- `tau-capability/transcript.txt`: Tau CLI session capabilities (pinned session ids, `--session-role subagent` hiding, resume stream, changed-model resume, resumed-run cwd behavior, `Unknown session:` failure)
+- `tau-capability/resume-changed-model.raw.jsonl`: complete stream of the changed-model resume run
+- `tau-capability/resume-cwd-pwd.raw.jsonl`: complete stream of the resumed run that executed `bash pwd` under `--cwd /tmp/other-cwd`
 - `baseline-tests/transcript.txt`: the extension test suite run at baseline commit `b833ebd` (267 tests, all passing)
