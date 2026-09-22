@@ -438,6 +438,6 @@ git diff --name-only b833ebd..HEAD | sort
 # skills/using-superpowers/SKILL.md
 ```
 
-- [ ] Apply the four pinned edits to `README.md`
-- [ ] Run the check commands; every check passes
-- [ ] Commit: `git add README.md && git commit -m "docs: sync README to the 23-skill catalog with attribution"`
+- [x] Apply the four pinned edits to `README.md`
+- [x] Run the check commands; every check passes
+- [x] Commit: `git add README.md && git commit -m "docs: sync README to the 23-skill catalog with attribution"`
