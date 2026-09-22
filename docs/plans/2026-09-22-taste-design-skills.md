@@ -46,11 +46,7 @@ bash tests/test-finishing-workflow-guidance.sh
 
 No environment setup beyond the repository itself. The test scripts run the installer against a sandboxed temporary HOME and need `git`, `bash`, and `rsync`.
 
-Body and frontmatter extraction used by the task checks: the body of a `SKILL.md` is the content below the closing frontmatter delimiter, printed by:
-
-```bash
-awk '/^---$/{n++; next} n>=2' <file>
-```
+Body and frontmatter extraction used by the task checks: the body of a `SKILL.md` is the raw content below the closing frontmatter delimiter, printed by `tail -n +5 <upstream-file>` for an upstream file (frontmatter is exactly opening `---`, `name`, `description`, closing `---` on line 4) and by `tail -n +6 <new-file>` for a new skill file (pinned 5-line frontmatter, closing `---` on line 5). The tail keeps every body byte, including `---` horizontal-rule lines. Never use an awk rule that skips every `^---$` line: it deletes body horizontal rules and hides body mutations.
 
 ---
 
@@ -76,7 +72,7 @@ awk '/^---$/{n++; next} n>=2' <file>
 - Carry nothing from upstream except the seven `SKILL.md` files: no other file, no other upstream directory, no asset, script, example, or research file.
 - Upstream source pin: commit `e988add` of `/tmp/taste-skill` (mirror of `Leonxlnx/taste-skill`, MIT).
 
-**Interface:** each created file is a 5-line frontmatter block (pinned below) followed by the verbatim upstream body. The upstream body for a skill is the output of `awk '/^---$/{n++; next} n>=2' /tmp/taste-skill/skills/<upstream-dir>/SKILL.md` for its mapped upstream directory.
+**Interface:** each created file is a 5-line frontmatter block (pinned below) followed by the verbatim upstream body. The upstream body for a skill is the raw output of `tail -n +5 /tmp/taste-skill/skills/<upstream-dir>/SKILL.md` for its mapped upstream directory; build each file by writing the pinned 5-line block, then appending those raw upstream bytes unchanged (for example with `tail -n +5 <upstream-file> >> <new-file>`). Never pass the body through an extraction that skips `---` lines.
 
 Upstream-to-new mapping:
 
@@ -167,7 +163,7 @@ disable-model-invocation: true
 **Tests must prove:**
 - Upstream pin: the clone sits at upstream commit `e988add`.
 - Directory inventory: each new directory contains exactly one file, `SKILL.md`.
-- Verbatim body carry: each new body is byte-identical to its upstream body; 7 diffs, all with empty output.
+- Verbatim body carry: each new body is byte-identical to its upstream body; 7 `cmp` compares of the raw tails, all silent.
 - Frontmatter exactness: each file starts with its pinned 5-line block; 7 diffs, all with empty output.
 - Self-contained references: `bash tests/check-references.sh` exits 0, and the pre-commit hook (staged scan) passes on the commit.
 
@@ -187,8 +183,8 @@ for pair in \
   "output-skill enforcing-complete-output"
 do
   set -- $pair
-  diff <(awk '/^---$/{n++; next} n>=2' "/tmp/taste-skill/skills/$1/SKILL.md") \
-       <(awk '/^---$/{n++; next} n>=2' "skills/$2/SKILL.md") \
+  cmp <(tail -n +5 "/tmp/taste-skill/skills/$1/SKILL.md") \
+      <(tail -n +6 "skills/$2/SKILL.md") \
     && echo "BODY OK: $2"
   test "$(ls "skills/$2")" = "SKILL.md" && echo "INVENTORY OK: $2"
 done
