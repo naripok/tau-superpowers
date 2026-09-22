@@ -49,7 +49,7 @@ The main flow is:
 
 ## What You Get
 
-- 15 Tau-discoverable Agent Skills covering the full design-to-delivery workflow.
+- 23 Tau-discoverable Agent Skills covering the full design-to-delivery workflow.
 - A `task` tool that dispatches one or more isolated Tau subprocesses.
 - A self-describing call surface: discovered agents and their descriptions appear in the tool schema, placeholder overrides (`default`/`inherit`/`auto`) are tolerated as omitted with a repair note, and literal provider/model overrides are validated before any child starts against only the providers and models the harness can actually run (credentials, scoped models, pins, and the session's own pair — never a whole builtin catalog), with the valid options in the error.
 - Bundled child agents: `general-purpose`, tool-enforced `read-only`, `implementation`, `code-review`, and `document-review` (`read` + read-only `bash`, strict `## Code Review`/`## Document Review` reports). Children inherit the parent session's active provider, model, and thinking effort by default, after call-level, config-file, and agent-definition values.
@@ -63,10 +63,17 @@ The main flow is:
 | Skill | Purpose |
 | --- | --- |
 | `brainstorming` | Establish the current-behavior baseline, cold-review the proposal, obtain proposal-only operator approval, and derive the feature spec in a fresh context |
+| `designing-brutalist-interfaces` | Design raw mechanical brutalist interfaces with Swiss print, military terminal aesthetics, and rigid grids |
+| `designing-frontend-interfaces` | Design frontend interfaces from a brief with an inferred direction and no templated look |
+| `designing-minimalist-interfaces` | Design clean editorial minimalist interfaces with warm monochrome and flat bento grids |
+| `designing-premium-soft-interfaces` | Design high-end premium interfaces with agency-level fonts, spacing, shadows, and motion |
 | `dispatching-parallel-agents` | Coordinate independent work concurrently |
+| `enforcing-complete-output` | Enforce complete, unabridged output with no truncation and no placeholder patterns |
+| `enforcing-strict-design-direction` | Enforce strict layout, typography, and GSAP motion direction for award-level frontend builds |
 | `executing-plans` | Execute an approved Bounded workflow inline with one final whole-change review |
 | `finishing-a-development-branch` | Run final acceptance, review living-spec synchronization, and integrate on operator choice |
 | `receiving-code-review` | Review-finding adjudication: endorse and reject verdicts per finding and fix dispatches that carry only endorsed findings |
+| `redesigning-existing-interfaces` | Redesign existing websites and apps to premium quality without breaking functionality |
 | `requesting-code-review` | Request focused review before completion |
 | `subagent-driven-development` | Execute Standard and High-risk work with artifact-derived dispatches, per-task reviews, and a final whole-change review |
 | `systematic-debugging` | Diagnose root causes before changing code |
@@ -75,12 +82,13 @@ The main flow is:
 | `using-superpowers` | Select the workflow depth (Direct, Bounded, Standard, High-risk) and apply the workflow skills |
 | `verification-before-completion` | Require fresh evidence before completion claims |
 | `writing-unambiguous-text` | Write developer-facing text with ASD-STE100 Simplified Technical English rules |
+| `writing-actionable-text` | Write responses, instructions, docs, runbooks, and error messages that drive immediate action |
 | `writing-plans` | Turn the feature spec and approved proposal into complementary contract-based implementation plans |
 | `writing-skills` | Author and test Tau Agent Skills |
 
 Tau initially loads only skill names, descriptions, and paths, and reads the full `SKILL.md` when a skill matches the task. Use `/skill:<name>` to invoke one explicitly.
 
-The package uses two tiers. Four entrypoint skills stay model-invocable and route work in: `using-superpowers` (workflow and depth gates), `systematic-debugging`, `writing-unambiguous-text`, and `writing-skills`. Every other skill sets `disable-model-invocation: true`, so no skill index carries it. A workflow step that needs a chained skill reads its `SKILL.md` by sibling path at that step; `using-superpowers` owns the skill map and the reachability rule.
+The package uses two tiers. Five entrypoint skills stay model-invocable and route work in: `using-superpowers` (workflow and depth gates), `systematic-debugging`, `writing-unambiguous-text`, `writing-skills`, and `writing-actionable-text`. Every other skill sets `disable-model-invocation: true`, so no skill index carries it. A workflow step that needs a chained skill reads its `SKILL.md` by sibling path at that step; `using-superpowers` owns the skill map and the reachability rule.
 
 ## Requirements
 
@@ -348,3 +356,7 @@ git config core.hooksPath .githooks
 ```
 
 The scan lives at `tests/check-references.sh`. Check the shipped tree with `bash tests/check-references.sh`, and check the scan behavior with `bash tests/test-references.sh`.
+
+## Attribution
+
+The frontend design and output-discipline skills derive from the [taste-skill](https://github.com/naripok/taste-skill) collection, a mirror of [Leonxlnx/taste-skill](https://github.com/Leonxlnx/taste-skill), licensed MIT. They ship in this package under new names with adapted frontmatter and verbatim upstream bodies.
