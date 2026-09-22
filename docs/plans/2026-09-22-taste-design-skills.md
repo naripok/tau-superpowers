@@ -297,8 +297,8 @@ done
 git diff HEAD -- skills/using-superpowers/SKILL.md | grep -E '^[-+](name|description):'
 # expected: no output
 
-git diff HEAD -- skills/using-superpowers/SKILL.md | grep -c '^-[^-]'
-# expected output: 1 (the old four-name entrypoint bullet)
+git diff --numstat -- skills/using-superpowers/SKILL.md
+# expected output: 10 and 1, TAB-separated (10 added lines: 8 Skill Map rows, 1 Skill Priority line, 1 rewritten entrypoint bullet; 1 deleted line: the old four-name entrypoint bullet)
 ```
 
 - [ ] Apply the three pinned edits to `skills/using-superpowers/SKILL.md`
