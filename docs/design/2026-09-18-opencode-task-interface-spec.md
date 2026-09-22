@@ -74,6 +74,12 @@ Repair notes SHALL appear as `Note:` lines before the envelope. The inner conten
 - AND the `task_error` tag wraps the denial error text
 - AND the details entry carries no `taskId` and `planned` is 1
 
+##### Scenario: Cancellation before startup envelope
+- GIVEN a call is cancelled before the child process starts
+- WHEN the result content is built
+- THEN the envelope state is `error` with no `id` attribute
+- AND the `task_error` tag wraps the cancellation error text
+
 #### Requirement: task_id resume
 
 A call with `task_id` SHALL resume that child session instead of creating one. A resume run SHALL launch a new child process against the existing session. The session SHALL retain its previous messages and tool outputs. The call's `prompt` SHALL be the new user turn. The result content SHALL relay the new final assistant message in an envelope whose `id` is the existing session's id.
@@ -189,7 +195,7 @@ A resumed child whose Tau invocation fails with a cleaned stderr excerpt matchin
 
 Every fresh run SHALL create a pinned child session. The tool SHALL generate a new session id for every fresh child. The tool SHALL record it as the child's `taskId` on the child result, in the details entry, and as the envelope `id`. The child session SHALL carry the subagent role, so it stays out of the default `tau sessions` listing and lists under `tau sessions --all`. The runner SHALL record the id for every fresh-child attempt, including an attempt that fails after startup. When tau never persisted the session record, a later resume with that id SHALL fall back per the Unknown task_id fallback requirement.
 
-Child sessions accumulate in the Tau session store with no retention. The accepted recovery for unwanted child sessions is manual store maintenance while no tau process uses the store. The store root is `~/.tau/sessions/`, with one directory per parent project, one `index.jsonl` per project directory, and one transcript file per session. The maintenance steps:
+Child sessions accumulate in the Tau session store with no retention. The accepted recovery for unwanted child sessions is manual store maintenance while no tau process uses the store. The store root is `~/.tau/sessions/`, with one directory per parent project, one `index.jsonl` per project directory, and one `<session-id>.jsonl` transcript per session. Each index line records the session's `id` and its transcript `path`. The maintenance steps:
 
 1. Find the child's line by `id` in the project `index.jsonl` files under the store root.
 2. Stop the tau processes that use the store.
@@ -444,7 +450,7 @@ Each child SHALL run as a separate Tau JSON-mode process with safe argv and no s
 
 Call-level `provider`, `model`, and `reasoningEffort` fields SHALL be optional literal overrides. Callers SHALL omit them for normal dispatch and inheritance. Validation SHALL trim surrounding whitespace and SHALL reject a value that is empty after trimming. A case-insensitive `default`, `inherit`, or `auto` placeholder SHALL coerce to omitted with a repair note, and resolution SHALL continue at the next lower layer. A rejected value SHALL fail the call closed and explain that omitting the field selects inherited configuration. `reasoningEffort` SHALL use the same trimming and placeholder coercion as `provider` and `model`.
 
-The task schema, always-visible prompt guidance, and README SHALL identify all three fields as optional literal overrides. They SHALL tell callers to omit the fields during normal calls and for inheritance. They SHALL state that a `default`, `inherit`, or `auto` placeholder is coerced to omitted with a repair note.
+The task schema, always-visible prompt guidance, and README SHALL identify all three fields as optional literal overrides. They SHALL tell callers to omit the fields during normal calls and for inheritance. They SHALL state that a `default`, `inherit`, or `auto` placeholder is coerced to omitted with a repair note. Provider guidance SHALL require an exact configured provider name from `tau providers`. Model guidance SHALL require an exact model ID supported by the selected provider. Reasoning guidance SHALL list `off`, `minimal`, `low`, `medium`, `high`, and `xhigh`.
 
 ##### Scenario: Placeholder coerces to omitted
 - GIVEN a call passes `Default` with surrounding whitespace as `provider`
@@ -465,6 +471,7 @@ The task schema, always-visible prompt guidance, and README SHALL identify all t
 - WHEN validation runs
 - THEN no child starts
 - AND content explains that omitting the field selects inherited configuration
+- AND content states that the field requires a non-empty string
 
 ##### Scenario: Override guidance states coercion
 - GIVEN a caller reads the task schema, the always-visible prompt guidance, and the README override documentation
@@ -472,6 +479,9 @@ The task schema, always-visible prompt guidance, and README SHALL identify all t
 - THEN each source identifies the three fields as optional literal overrides
 - AND each source tells the caller to omit the fields during normal calls and for inheritance
 - AND each source states that a `default`, `inherit`, or `auto` placeholder is coerced to omitted with a repair note
+- AND provider guidance refers to an exact configured provider name from `tau providers`
+- AND model guidance refers to an exact model ID supported by the selected provider
+- AND reasoning guidance lists `off`, `minimal`, `low`, `medium`, `high`, and `xhigh`
 
 #### Requirement: Content envelope and complete details
 <!-- Only the changed parts. The sync preserves existing content not mentioned. The content construction changes: every child-starting result carries the task result envelope, and the previous single-child message form and multi-child section form are superseded. The fail-closed result contract is new. Details keep `schemaVersion: 2` and the one-element `results` array, `planned` is fixed at 1, and each result gains the additive `taskId` field. The details field list, the `configPaths` and `configDiagnostics` rule, and the stderr-retention rules stay unchanged. -->
