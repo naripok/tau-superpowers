@@ -71,9 +71,11 @@ This change makes the flat single-object form the only form. Field names unify t
 
    The annotation values come from the bundled agent profiles. `general-purpose` and `implementation` use the `general-purpose` profile and render `Tools: all`. `read-only` uses the `read-only` profile and renders `Tools: read`. `code-review` and `document-review` use the `review` profile and render `Tools: read, bash`, where the review instructions govern `bash` use.
 
-   The description roster and the `subagent_type` description roster are static per session. They list the agents discovered at session start under `agentScope: both`, anchored at the session cwd, with the collision precedence of Required Outcome 1. A discovery failure at session start falls back to the bundled agents. Per-call teach-backs use the call's resolved scope.
+   The description roster and the `subagent_type` description roster are static per session. They list the agents discovered at session start from the bundled and user layers only, anchored at the session cwd, with the collision precedence of Required Outcome 1. A discovery failure at session start falls back to the bundled agents. Teach-back rosters list the same bundled and user agents. Project agents stay out of every roster, because their descriptions enter the model surface only through the approval flow of Required Outcome 10. Per-call teach-backs use the call's resolved scope for eligibility, and a project agent that is eligible appears in a teach-back by name only.
 
-   The retained guidance rules, stated in full. The dispatch threshold: delegate only substantive multi-step work that benefits from an isolated context window, or long-running work that must not block this session. The prohibitions: never delegate simple reads, searches, commands, or small edits. Never dispatch a task and then do the same work. The prompt requirement: a self-contained prompt. The usage notes above add the verification-statement requirement.
+   Each roster line renders its annotation from that resolved definition's effective profile. The bundled mappings above are defaults for unshadowed bundled definitions.
+
+   The retained guidance rules, stated in full. The dispatch threshold: delegate only substantive multi-step work that benefits from an isolated context window, or long-running work that must not block this session. The prohibitions: never delegate simple reads, searches, commands, or small edits. Never dispatch a task and then do the same work. The prompt requirement: a self-contained prompt. The usage notes above add the verification-statement requirement. The override guidance stays on its existing surfaces: exact configured provider names from `tau providers`, exact model IDs supported by the selected provider, the six reasoning levels, and omission of all three on normal calls.
 4. Model-facing result content is one task envelope: `<task id="<taskId>" state="completed|error">` wrapping a `task_result` or `task_error` tag. `taskId` is the child's Tau session id. Envelope state is the process outcome only. `completed` means the child finished and delivered a final assistant message, whatever status marker that message carries inside its text. `error` means the child failed, was cancelled, timed out, or ended with no final assistant message. Child status markers (`DONE`, `DONE_WITH_CONCERNS`, `BLOCKED`, `NEEDS_CONTEXT`) live inside the message text and do not change the envelope state.
 
    A successful child wraps its complete final assistant message in `task_result`. A final message without text wraps the placeholder `(no output)`. A child in the `error` state wraps its final assistant message in `task_error`. When no final message exists, the tag wraps the OpenCode failure form defined in Required Outcome 6. Repair notes appear as `Note:` lines before the envelope. The envelope tags are informational.
@@ -102,7 +104,7 @@ This change makes the flat single-object form the only form. Field names unify t
 7. Several `task` calls in one assistant message run concurrently. Each call is validated, approved, and dispatched independently. Each result carries its own envelope. One call's failure does not stop the others. Two concurrent calls that carry the same `task_id` do not both run. Exactly one starts its child, and the other fails closed with a teach-back that names the same-id conflict. The exclusion is process-safe: a lock keyed by `task_id` coordinates parent processes on the machine that hosts the session store. The losing call's result carries the fail-closed contract of Required Outcome 2: teach-back content, no envelope, an empty `results` array, and no `planned` field.
 8. Per-call lifecycle: the default timeout is 3600 seconds, and a call override must be greater than 0 and at most 10800. Cancellation terminates the child process, waits no more than five seconds, and kills it if necessary. Cancellation preserves partial messages and stderr and removes every temporary prompt and policy file. Partial updates stream from the single child's accepted messages.
 9. Recursion stays closed. Children never register the `task` tool. The binary recursion guard environment variable and `--no-extensions` in the child argv stay in place. The subagent config file supports no keys beyond `provider`, `model`, and `reasoningEffort`.
-10. Requested definitions that resolve to the project layer require interactive approval or explicit `confirmProjectAgents: false`. Headless execution without explicit approval fails closed with a teach-back that names the project agents directory.
+10. Requested definitions that resolve to the project layer require interactive approval or explicit `confirmProjectAgents: false`. Headless execution without explicit approval fails closed with a teach-back that names the project agents directory. The approval flow presents the project definition to the operator. Project definitions and their descriptions enter the model surface only through that approval or the explicit flag.
 
 ## Acceptance Examples
 
@@ -171,7 +173,7 @@ Alternatives considered:
 
 ## Impact
 
-- Code: `extension.py` (schema, description, guidelines)
+- Code: `extension.py` (schema, description, guidelines, roster scope)
 - `dispatch.py` (validation, teach-backs, envelope content, single-child dispatch)
 - `runner.py` (session argv, resume, unknown-session fallback, resume-variant prompt)
 - `models.py` (`taskId` on the child result and details)
@@ -201,6 +203,8 @@ Alternatives considered:
 **Rollback:** the trigger is a failed acceptance check or a regression the fix loop cannot resolve. The steps are a revert of the branch commits, a re-install of the prior extension and skills, and a session restart. The session store keeps every pinned child session, the rolled-back surface never reads them, and they need no cleanup.
 
 **Recursion:** children never see the `task` tool. A child instructed to delegate cannot delegate and reports that in its final message. This is the operator's chosen trade-off.
+
+**Security:** project agents are repository-controlled. Their definitions and descriptions enter the model surface only through the approval flow or an explicit `confirmProjectAgents: false`, so the static and teach-back rosters exclude them. A repository that controls `.tau/agents` can still inject through an approved agent's prompt or description at the consent moment. The operator accepts that the approval prompt is the consent boundary.
 
 **Rollout:** the extension version stays 0.1.0 in `pyproject.toml`. The installer reports updated paths. Behavior changes are observable only after a session restart.
 
