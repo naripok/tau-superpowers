@@ -301,9 +301,9 @@ git diff --numstat -- skills/using-superpowers/SKILL.md
 # expected output: 10 and 1, TAB-separated (10 added lines: 8 Skill Map rows, 1 Skill Priority line, 1 rewritten entrypoint bullet; 1 deleted line: the old four-name entrypoint bullet)
 ```
 
-- [ ] Apply the three pinned edits to `skills/using-superpowers/SKILL.md`
-- [ ] Run the check commands; every check passes
-- [ ] Commit: `git add skills/using-superpowers/SKILL.md && git commit -m "skills: route taste design skills in the skill map and priority"`
+- [x] Apply the three pinned edits to `skills/using-superpowers/SKILL.md`
+- [x] Run the check commands; every check passes
+- [x] Commit: `git add skills/using-superpowers/SKILL.md && git commit -m "skills: route taste design skills in the skill map and priority"`
 
 ### Task 3: Sync the README and pass the full suite
 
