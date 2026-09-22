@@ -633,3 +633,15 @@ Try 'tau --help' for help.
 #
 # Reading: every model field in the resumed stream is z-ai/glm-5.3 (the changed model),
 # and the assistant reply 'gamma' streamed. The session was created with z-ai/glm-5.3-flash.
+
+# Resumed-run cwd section, appended 2026-09-22T18:58Z.
+# Session oc-ev-smoke-c was created in /tmp/tau-capability-evidence (see its record in the tau sessions --all block above).
+# Command: tau --session oc-ev-smoke-c --mode json --cwd /tmp/other-cwd "Reply: zeta" (run from /tmp/tau-capability-evidence)
+# Recorded BEFORE the run, the session's cwd from tau sessions --all:
+oc-ev-smoke-c	Single Word Alpha Reply	z-ai/glm-5.3	/tmp/tau-capability-evidence
+# AFTER the run:
+[exit=0]
+"text":"z"
+"text":"zeta"
+# The session's cwd record after the resumed run in /tmp/other-cwd:
+oc-ev-smoke-c	Single Word Alpha Reply	z-ai/glm-5.3	/tmp/tau-capability-evidence
