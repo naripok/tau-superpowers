@@ -118,7 +118,7 @@ The runner SHALL regenerate the agent body prompt and the profile policy extensi
 
 #### Requirement: Resume working directory
 
-A resumed run SHALL use the session's recorded creation cwd as its working directory. The call's `cwd` SHALL NOT relocate a resumed run. A resume call that carries `cwd` SHALL get a repair note that states the resumed run uses the session's recorded cwd. The store record SHALL keep its creation cwd.
+A resumed run SHALL use the session's recorded creation cwd as its working directory. The call's `cwd` SHALL NOT relocate a resumed run. A resume call whose session verification passes and that carries `cwd` SHALL get a repair note that states the resumed run uses the session's recorded cwd. The store record SHALL keep its creation cwd.
 
 ##### Scenario: Resume cwd is the recorded cwd
 - GIVEN a child session created in one directory
@@ -135,7 +135,7 @@ A resumed run SHALL use the session's recorded creation cwd as its working direc
 
 Resume authorization SHALL be possession-based. Possession of the `task_id` SHALL authorize the resume. The tool SHALL NOT add per-caller authorization and SHALL NOT add access auditing. A call from any parent session SHALL resume any child session named by its `task_id`, including a parent in a different project. The same-id lock SHALL coordinate task-tool calls only.
 
-The accepted prevention for cross-account exposure is the single-user deployment. A direct resume of a child session by another process is not prevented by the same-id lock. The operator accepts both exposures.
+The accepted prevention for cross-account exposure is the single-user deployment. A direct resume of a child session by another process is not prevented by the same-id lock. The operator accepts both exposures. The store's file permissions are the operating system's defaults. Tau establishes no permission contract.
 
 ##### Scenario: Cross-project resume proceeds
 - GIVEN a child session created under one project
@@ -424,7 +424,7 @@ Each child SHALL run as a separate Tau JSON-mode process with safe argv and no s
 - AND the argv keeps the fresh-run flags and extensions
 
 #### Requirement: Provider, model, and reasoning-effort overrides
-<!-- Only the changed parts. The sync preserves existing content not mentioned. The placeholder rule changes: `default`, `inherit`, and `auto` coerce to omitted with a repair note instead of being rejected. `reasoningEffort` gains the same trimming and placeholder coercion. The guidance states the coercion instead of "placeholders do not select defaults". The resolution chain, the exact-literal rule, the opaque-value rule, and the lower-layer rules stay unchanged. -->
+<!-- Only the changed parts. The sync preserves existing content not mentioned. The placeholder rule changes: `default`, `inherit`, and `auto` coerce to omitted with a repair note instead of being rejected, superseding the Reserved override placeholders scenario. The guidance changes: the coercion statement replaces "placeholders do not select defaults", superseding the Schema, prompt, and README override guidance scenario. `reasoningEffort` gains the same trimming and placeholder coercion. The resolution chain, the exact-literal rule, the opaque-value rule, and the lower-layer rules stay unchanged. -->
 
 Call-level `provider`, `model`, and `reasoningEffort` fields SHALL be optional literal overrides. Callers SHALL omit them for normal dispatch and inheritance. Validation SHALL trim surrounding whitespace and SHALL reject a value that is empty after trimming. A case-insensitive `default`, `inherit`, or `auto` placeholder SHALL coerce to omitted with a repair note, and resolution SHALL continue at the next lower layer. A rejected value SHALL fail the call closed and explain that omitting the field selects inherited configuration. `reasoningEffort` SHALL use the same trimming and placeholder coercion as `provider` and `model`.
 
@@ -493,9 +493,9 @@ Details SHALL keep `schemaVersion: 2` and the one-element `results` array. A res
 - AND `planned` is 1
 
 #### Requirement: Progress, cancellation, timeout, and cleanup
-<!-- Only the changed parts. The sync preserves existing content not mentioned. The timeout cap changes from 3600 to 10800. The partial-update sentence is restated for the single child, so the item-count and input-order-slot language is superseded. The cancellation, hard-cancellation, and temporary-file cleanup rules stay unchanged. -->
+<!-- Only the changed parts. The sync preserves existing content not mentioned. The timeout cap changes from 3600 to 10800. The partial-update sentence is restated for the single child, so the input-order-slot language is superseded; the `<done>/<planned> done` progress-content form is retained with `planned` at 1. The cancellation, hard-cancellation, and temporary-file cleanup rules stay unchanged. -->
 
-Each child SHALL default to a 3600-second timeout. A call override SHALL be a number greater than 0 and at most 10800. The extension SHALL emit portable partial results after each accepted assistant or tool-result message of the child and after child completion. A partial result SHALL carry `planned` with the value 1.
+Each child SHALL default to a 3600-second timeout. A call override SHALL be a number greater than 0 and at most 10800. The extension SHALL emit portable partial results after each accepted assistant or tool-result message of the child and after child completion. A partial result SHALL carry `planned` with the value 1. A partial result's content SHALL carry the preserved progress form `<done>/<planned> done` with the single child: `<done>/1 done`.
 
 ##### Scenario: Timeout override at the cap
 - GIVEN a call passes `timeoutSeconds: 10800`
@@ -512,6 +512,7 @@ Each child SHALL default to a 3600-second timeout. A call override SHALL be a nu
 - WHEN the updates run
 - THEN partial results stream from that child
 - AND each partial result carries `planned` with the value 1
+- AND each partial result's content carries the `<done>/1 done` progress form
 
 #### Requirement: Portable rendering
 <!-- Only the changed parts. The sync preserves existing content not mentioned. The call label changes from the task-count form to the description-else-subagent_type form. The single-frame layout, the headline, the icons, the usage lines, and the live-update rules stay unchanged. -->
