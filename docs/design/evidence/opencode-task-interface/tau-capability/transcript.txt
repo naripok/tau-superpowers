@@ -614,3 +614,11 @@ Try 'tau --help' for help.
 │ Invalid value: Unknown session: oc-ev-smoke-missing                                                                                                                                                    │
 ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 
+
+# Resumed-run settings section, appended 2026-09-22T13:01Z.
+# Session oc-ev-smoke-c was created with --provider openrouter --model z-ai/glm-5.3-flash (see blocks above).
+# This run resumes it with a changed model (z-ai/glm-5.3, no -flash).
+$ tau --provider openrouter --model z-ai/glm-5.3 --session oc-ev-smoke-c --mode json "Reply: gamma"
+     90 "model":"z-ai/glm-5.3"
+      7 "text":"gamma"
+[exit=0]
