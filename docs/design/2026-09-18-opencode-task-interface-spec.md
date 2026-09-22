@@ -151,6 +151,8 @@ The accepted prevention for cross-account exposure is the single-user deployment
 
 Before resuming, the tool SHALL verify through the Tau session store that the session exists and that its recorded role is the subagent role. A call whose `task_id` matches no session SHALL start a fresh child with a new session id. Its result SHALL carry a repair note that states the id matched no session. A `task_id` that matches a session whose recorded role is not the subagent role SHALL also start a fresh child with a new session id. Its repair note SHALL state that the session is not a task child. A fallback fresh child SHALL follow the fresh-run rules. A fallback child that fails with no final message SHALL produce the OpenCode failure form with the fresh session id.
 
+A resumed child whose Tau invocation fails with a cleaned stderr excerpt matching `Unknown session:` case-insensitively SHALL retry once as a fresh child with a new session id. The retry SHALL run the call's prompt. The retry's result SHALL carry the repair note that states the id matched no session, and its envelope `id` SHALL name the fresh session id. Any other resumed-run failure SHALL surface through the existing error paths with no retry.
+
 ##### Scenario: Unknown session falls back
 - GIVEN a `task_id` that matches no session in the store
 - WHEN the call runs
@@ -168,6 +170,20 @@ Before resuming, the tool SHALL verify through the Tau session store that the se
 - GIVEN a fallback fresh child fails with no final message
 - WHEN the error envelope is built
 - THEN the OpenCode failure form names the fresh session id
+
+##### Scenario: Runtime unknown-session failure falls back
+- GIVEN a resume call whose session verification passed
+- WHEN the resumed child's Tau invocation fails with a stderr excerpt matching `Unknown session:`
+- THEN the runner retries once as a fresh child with a new session id
+- AND the fresh child runs the call's prompt
+- AND the result carries a `Note:` line that states the id matched no session
+- AND the envelope `id` names the fresh session id
+
+##### Scenario: Other resume failures follow the error paths
+- GIVEN a resumed child's Tau invocation fails with a stderr excerpt that does not match `Unknown session:`
+- WHEN the result is built
+- THEN the failure surfaces through the existing error paths
+- AND no fresh-child retry starts
 
 #### Requirement: Pinned child sessions
 
@@ -439,6 +455,7 @@ The task schema, always-visible prompt guidance, and README SHALL identify all t
 
 ##### Scenario: Reasoning-effort placeholder coerces
 - GIVEN a call passes `AUTO` as `reasoningEffort`
+- AND no config-file or agent-definition reasoning value resolves
 - WHEN validation runs
 - THEN the value is treated as omitted with a repair note
 - AND the effective level resolves down to the parent session's thinking level
