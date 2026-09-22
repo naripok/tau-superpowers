@@ -45,7 +45,7 @@ Tau initially places only the name, description, and path of each model-invocabl
 
 This package uses two tiers:
 
-- **Entrypoint skills** are model-invocable. Tau lists them in every skill index, including subagent prompts. They route work into the package: this skill, systematic-debugging, writing-unambiguous-text, and writing-skills.
+- **Entrypoint skills** are model-invocable. Tau lists them in every skill index, including subagent prompts. They route work into the package: this skill, systematic-debugging, writing-unambiguous-text, writing-skills, and writing-actionable-text.
 - **Chained skills** set `disable-model-invocation: true` in their frontmatter. Tau keeps them out of every skill index. A workflow step that requires a chained skill loads it on demand: read its `SKILL.md` by sibling path, then follow it. A chained skill without a reachable reference from a visible skill, a dispatch template, or a sibling skill is dead.
 
 The `task` tool handles subagent dispatch (see [`references/tau-tools.md`](references/tau-tools.md)). A child does not inherit this conversation, so every delegated task must be self-contained. Children cannot invoke skills; the dispatch templates carry the behavior children need.
@@ -60,6 +60,7 @@ Every skill in this package is one directory under the installed skills root, so
 | systematic-debugging | entrypoint | any bug, test failure, or unexpected behavior |
 | writing-unambiguous-text | entrypoint | writing or rewriting developer-facing text |
 | writing-skills | entrypoint | creating or editing skills |
+| writing-actionable-text | entrypoint | writing responses, instructions, docs, runbooks, or error messages |
 | brainstorming | chained | non-Direct work: proposal, feature spec |
 | using-git-worktrees | chained | workspace isolation before any artifact is persisted |
 | writing-plans | chained | approved feature spec, before implementation |
@@ -71,6 +72,13 @@ Every skill in this package is one directory under the installed skills root, so
 | verification-before-completion | chained | before any completion claim, in every branch of The Flow |
 | dispatching-parallel-agents | chained | 2+ independent substantive tasks with no shared state |
 | finishing-a-development-branch | chained | after the final review passes |
+| designing-frontend-interfaces | chained | frontend work: build or restyle |
+| enforcing-strict-design-direction | chained | strict motion and layout enforcement |
+| redesigning-existing-interfaces | chained | existing-project redesigns |
+| designing-premium-soft-interfaces | chained | a chosen soft-premium direction |
+| designing-minimalist-interfaces | chained | a chosen minimalist direction |
+| designing-brutalist-interfaces | chained | a chosen brutalist direction |
+| enforcing-complete-output | chained | truncation or placeholder shortcuts |
 
 ## Workflow Depth
 
@@ -179,5 +187,6 @@ When multiple skills can apply:
 
 "Let's build X" → brainstorming (`../brainstorming/SKILL.md`) first, then implementation skills.
 "Fix this bug" → systematic-debugging first, then domain-specific skills.
+"Build or restyle a frontend" → designing-frontend-interfaces (`../designing-frontend-interfaces/SKILL.md`) first, then the direction skill for the chosen direction: designing-premium-soft-interfaces, designing-minimalist-interfaces, or designing-brutalist-interfaces.
 
 **What counts as "already brainstormed":** brainstorming is complete when the exact current proposal version holds cold-review approval and operator approval, and the derived feature spec holds spec-review approval. Artifact paths do not prove state completion. Check the exact review and approval status of each artifact version. A conversation about the idea is not brainstorming. If the state is incomplete for a non-Direct change, invoke brainstorming. Do this even if you already discussed the idea at length.
