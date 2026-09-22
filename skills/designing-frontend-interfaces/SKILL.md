@@ -9,6 +9,7 @@ disable-model-invocation: true
 > Landing pages, portfolios, and redesigns. Not dashboards, not data tables, not multi-step product UI.
 > Every rule below is **contextual**. None of it fires automatically. First read the brief, then pull only what fits.
 
+---
 
 ## 0. BRIEF INFERENCE (Read the Room Before Anything Else)
 
@@ -38,6 +39,7 @@ If you can confidently infer from context, **do not ask**. Just declare the desi
 ### 0.D Anti-Default Discipline
 Do not default to: AI-purple gradients, centered hero over dark mesh, three equal feature cards, generic glassmorphism on everything, infinite-loop micro-animations everywhere, Inter + slate-900. These are the LLM defaults. Reach past them deliberately based on the design read.
 
+---
 
 ## 1. THE THREE DIALS (Core Configuration)
 
@@ -76,6 +78,7 @@ After the design read, set three dials. Every layout, motion, and density decisi
 ### 1.C How the Dials Drive Output
 Use these (or user-overridden values) as global variables. Cross-references throughout this document refer to these exact variable names - never invent aliases like `LAYOUT_VARIANCE` or `ANIM_LEVEL`.
 
+---
 
 ## 2. BRIEF → DESIGN SYSTEM MAP
 
@@ -115,6 +118,7 @@ For these directions, there is **no single official package**. Build with native
 | Kinetic typography | Native CSS animations, scroll-driven animations, GSAP for hijacks. No library. |
 | **Apple Liquid Glass** | Apple documents this for Apple platforms only. **There is no official `liquid-glass.css`.** Web implementations are approximations using `backdrop-filter` + layered borders + highlights. Label clearly as approximation. |
 
+---
 
 ## 3. DEFAULT ARCHITECTURE & CONVENTIONS
 
@@ -153,6 +157,7 @@ Discouraged by default in code, markup, and visible text. Replace symbols with i
 ### 3.F Dependency Verification (mandatory)
 Before importing ANY 3rd-party library, check `package.json`. If the package is missing, output the install command first. **Never** assume a library exists.
 
+---
 
 ## 4. DESIGN ENGINEERING DIRECTIVES (Bias Correction)
 
@@ -343,6 +348,7 @@ The page has ONE theme. Sections do not invert.
 * Default behaviour: pick light, dark, or auto (`prefers-color-scheme`) at the page level and lock it. Section-level background tints within the same theme family are fine (`bg-zinc-950` next to `bg-zinc-900`); flipping to `bg-amber-50` in the middle of a `bg-zinc-950` page is broken.
 * When using a design system with built-in theming (Radix Themes, shadcn/ui with `<Theme>`), set the theme ONCE in `layout.tsx` or the page root. Do not let individual sections override.
 
+---
 
 ## 5. CONTEXT-AWARE PROACTIVITY
 
@@ -509,6 +515,7 @@ Use this for: feature lists, testimonial grids, logo walls, anything that just n
 * **Layout Transitions:** Use Motion's `layout` and `layoutId` props for visible state changes (re-ordering lists, expanding modals, shared elements between routes). Do not wrap static content in `layout` props "for safety" - it costs measurement work.
 * **Staggered Orchestration:** Use `staggerChildren` (Motion) or CSS cascade (`animation-delay: calc(var(--index) * 100ms)`) for reveal moments where sequence matters. For `staggerChildren`, parent (`variants`) and children MUST share the same Client Component tree.
 
+---
 
 ## 6. PERFORMANCE & ACCESSIBILITY GUARDRAILS
 
@@ -541,6 +548,7 @@ Use this for: feature lists, testimonial grids, logo walls, anything that just n
 ### 6.F Z-Index Restraint
 NEVER spam arbitrary `z-50` or `z-10`. Use z-index strictly for systemic layer contexts (sticky navbars, modals, overlays, grain). Document the z-index scale in a project constants file.
 
+---
 
 ## 7. DIAL DEFINITIONS (Technical Reference)
 
@@ -560,6 +568,7 @@ NEVER spam arbitrary `z-50` or `z-10`. Use z-index strictly for systemic layer c
 * **4-7 (Daily App):** Standard web app spacing (`py-16` to `py-24`).
 * **8-10 (Cockpit):** Tight paddings. No card boxes; 1px lines separate data. Mandatory: `font-mono` for all numbers.
 
+---
 
 ## 8. DARK MODE PROTOCOL
 
@@ -582,6 +591,7 @@ Respect `prefers-color-scheme` unless the brand insists. Add a manual toggle if 
 ### 8.D Test in Both Modes Before Finishing
 Open the page in both modes during development. Do not ship a page you've only seen in one mode.
 
+---
 
 ## 9. AI TELLS (Forbidden Patterns)
 
@@ -691,6 +701,7 @@ If your output contains a single `—` or `–` anywhere visible to the user, th
 
 This rule is non-negotiable. The agent has historically ignored em-dash limits when phrased as "use sparingly." The phrasing here is binary: zero em-dashes.
 
+---
 
 ## 10. REFERENCE VOCABULARY (Pattern Names the Agent Should Know)
 
@@ -768,6 +779,7 @@ This is a vocabulary, not a library. The agent should KNOW these pattern names t
 * **Three.js / WebGL** - for canvas backgrounds and 3D scenes. Same isolation rule.
 * **NEVER mix GSAP / Three.js with Motion in the same component tree.** They fight over the same frames.
 
+---
 
 ## 11. REDESIGN PROTOCOL
 
@@ -819,6 +831,7 @@ Never modify without explicit user approval:
 * Brand logo or wordmark.
 * Existing legal / consent / cookie copy.
 
+---
 
 ## 12. THE BLOCK LIBRARY (Contract - Implementations Land Here Iteratively)
 
@@ -850,6 +863,7 @@ skills/taste-skill/blocks/
 
 ### 12.B Required Frontmatter
 ```yaml
+---
 name: asymmetric-split-hero
 category: hero
 dial_compatibility:
@@ -859,6 +873,7 @@ dial_compatibility:
 when_to_use: "Landing pages with one strong asset and one strong message. Default hero for SaaS, agency, premium consumer."
 not_for: "Editorial / manifesto launches where the message IS the design."
 stack: ["react", "next", "tailwind", "motion"]
+---
 ```
 
 ### 12.C Required Body Sections
@@ -877,6 +892,7 @@ stack: ["react", "next", "tailwind", "motion"]
 * Every block must pass the Pre-Flight Check (Section 14).
 * Blocks that depend on a design system from Section 2.A live under `blocks/<category>/<name>--<system>.md` (e.g. `feature/bento-grid--material.md`).
 
+---
 
 ## 13. OUT OF SCOPE
 
@@ -890,6 +906,7 @@ This skill is NOT for:
 
 If the brief is one of the above, **say so explicitly**, point to the right tool, and only apply this skill's marketing-page / about-page / landing-page parts to the surfaces where they apply.
 
+---
 
 ## 14. FINAL PRE-FLIGHT CHECK
 
@@ -962,6 +979,7 @@ Run this matrix before outputting code. This is the last filter.
 
 If a single checkbox cannot be honestly ticked, the page is not done. Fix it before delivering.
 
+---
 
 # APPENDICES - Real Source-Backed Reference Material
 
@@ -1091,6 +1109,7 @@ npm install bootstrap
 - https://developer.apple.com/documentation/TechnologyOverviews/adopting-liquid-glass
 - https://developer.apple.com/documentation/SwiftUI/Material
 
+---
 
 ## Appendix C - Apple Liquid Glass: Honest Web Approximation
 
@@ -1183,5 +1202,6 @@ But that is **web glassmorphism / frosted-glass approximation**, not official Ap
 
 **Important:** `prefers-reduced-transparency` has uneven browser support; test it. Always provide enough contrast even without blur.
 
+---
 
 **End of appendices.** Install commands above are reality anchors. The Apple Liquid Glass skeleton is a labeled approximation, not an Apple-issued package. For canonical docs per design system, consult the system's official docs (links in Section 2 plus Appendix B).
