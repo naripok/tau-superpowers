@@ -1,0 +1,12 @@
+# Baseline test-suite transcript for the OpenCode-aligned task interface proposal
+# Commit: b833ebd (main HEAD). Captured: 2026-09-22T06:40Z.
+# Command: PYTHONPATH=/opt/tau/lib/python3.14/site-packages /tmp/venv-baseline/bin/python -m pytest -q  (in extensions/superpowers-subagent)
+# Interpreter: Python 3.14.7, pytest 9.1.1
+
+$ python -m pytest -q
+........................................................................ [ 26%]
+........................................................................ [ 53%]
+........................................................................ [ 80%]
+...................................................                      [100%]
+267 passed in 3.06s
+[exit=0]

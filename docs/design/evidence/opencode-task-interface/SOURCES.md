@@ -30,3 +30,10 @@ Immutable snapshots of the upstream sources the proposal cites. Retrieved 2026-0
   - `zcode.cjs.sha256`: SHA-256 of the full bundle, `03441ffbcf12fc467fab0a3a3359255e7304695d11a7c20249a58806f5359002`
   - `zcode-agent-tool-excerpt.cjs`: bytes 9205500 to 9210499 (0-based offsets into the full bundle). The excerpt contains the `Agent` tool metadata block (`metadata:{name:"Agent"...}`) and the Claude Code-compatible `Task` alias block. Verify by re-downloading the tarball from `https://registry.npmjs.org/zcode-app-cli/-/zcode-app-cli-3.12.3-26.tgz`, checking the bundle SHA-256, and reading the recorded byte range.
 - SHA-256 of the excerpt: `dfa82f741ffe34d2db2b83a81c1e372aecbf3373d07743b6c53117ea5ab025be`
+
+## Recorded-machine transcripts
+
+Two directories under this manifest hold transcripts recorded on this machine rather than upstream snapshots. Each transcript self-documents its capture date, tool versions, working directory, commands, complete output, and exit codes:
+
+- `tau-capability/transcript.txt`: Tau CLI session capabilities (pinned session ids, `--session-role subagent` hiding, resume stream, `Unknown session:` failure)
+- `baseline-tests/transcript.txt`: the extension test suite run at baseline commit `b833ebd` (267 tests, all passing)
