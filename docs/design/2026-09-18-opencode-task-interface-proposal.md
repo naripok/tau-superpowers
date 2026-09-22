@@ -48,7 +48,7 @@ This change makes the flat single-object form the only form. Field names unify t
 
    - `prompt`: required non-empty string. The child's task. The prompt is preserved verbatim.
    - `subagent_type`: optional non-empty string naming an eligible agent. Validation trims surrounding whitespace, and the trimmed value is the effective name. Omission selects `general-purpose`. A name that no eligible agent provides fails closed with a teach-back.
-   - `description`: optional string. Display label only, with no behavioral effect.
+   - `description`: optional string. Display label only, with no behavioral effect. The call label is the description when it is non-empty after trimming, and the effective `subagent_type` otherwise.
    - `task_id`: optional. A present value must be a string and non-empty after trimming, or the call fails closed with a teach-back. No format check exists beyond that. The trimmed value is the effective `task_id` for session lookup, the lock, and repair notes. A well-formed value that matches no session falls back per Required Outcome 6.
    - `cwd`: optional string directory path. Omission resolves to the parent session cwd. A relative path resolves against the parent session cwd. Any path, absolute or relative, expands `~` and is then resolved canonically to an absolute path. On a resumed run, Required Outcome 5 governs instead.
    - `agentScope`: one of `user`, `project`, `both`. It selects the agent layers: the bundled layer always applies. `user` adds the user agents directory `~/.tau/agents`. `project` adds the nearest ancestor directory `.tau/agents` found walking up from the parent session cwd. `both` adds both. On a name collision, a later layer replaces an earlier one: project replaces user, and user replaces bundled. Omission selects `user`. Another value fails closed.
@@ -71,7 +71,7 @@ This change makes the flat single-object form the only form. Field names unify t
 
    The annotation values come from the bundled agent profiles. `general-purpose` and `implementation` use the `general-purpose` profile and render `Tools: all`. `read-only` uses the `read-only` profile and renders `Tools: read`. `code-review` and `document-review` use the `review` profile and render `Tools: read, bash`, where the review instructions govern `bash` use.
 
-   The description roster and the `subagent_type` description roster are static per session. They list the agents discovered at session start from the bundled and user layers only, anchored at the session cwd, with the collision precedence of Required Outcome 1. A discovery failure at session start falls back to the bundled agents. Teach-back rosters list the same bundled and user agents. Project agents stay out of every roster, because their descriptions enter the model surface only through the approval flow of Required Outcome 10. Per-call teach-backs use the call's resolved scope for eligibility, and a project agent that is eligible appears in a teach-back by name only.
+   The description roster and the `subagent_type` description roster are static per session. They list the agents discovered at session start from the bundled and user layers only, anchored at the session cwd, with the collision precedence of Required Outcome 1. A discovery failure at session start falls back to the bundled agents. Teach-back rosters list the same bundled and user agents. Project agents stay out of every roster and every teach-back, including by name. Their eligibility surfaces only through the approval flow of Required Outcome 10.
 
    Each roster line renders its annotation from that resolved definition's effective profile. The bundled mappings above are defaults for unshadowed bundled definitions.
 
@@ -104,7 +104,7 @@ This change makes the flat single-object form the only form. Field names unify t
 7. Several `task` calls in one assistant message run concurrently. Each call is validated, approved, and dispatched independently. Each result carries its own envelope. One call's failure does not stop the others. Two concurrent calls that carry the same `task_id` do not both run. Exactly one starts its child, and the other fails closed with a teach-back that names the same-id conflict. The exclusion is process-safe: a lock keyed by `task_id` coordinates parent processes on the machine that hosts the session store. The losing call's result carries the fail-closed contract of Required Outcome 2: teach-back content, no envelope, an empty `results` array, and no `planned` field.
 8. Per-call lifecycle: the default timeout is 3600 seconds, and a call override must be greater than 0 and at most 10800. Cancellation terminates the child process, waits no more than five seconds, and kills it if necessary. Cancellation preserves partial messages and stderr and removes every temporary prompt and policy file. Partial updates stream from the single child's accepted messages.
 9. Recursion stays closed. Children never register the `task` tool. The binary recursion guard environment variable and `--no-extensions` in the child argv stay in place. The subagent config file supports no keys beyond `provider`, `model`, and `reasoningEffort`.
-10. Requested definitions that resolve to the project layer require interactive approval or explicit `confirmProjectAgents: false`. Headless execution without explicit approval fails closed with a teach-back that names the project agents directory. The approval flow presents the project definition to the operator. Project definitions and their descriptions enter the model surface only through that approval or the explicit flag.
+10. Requested definitions that resolve to the project layer require interactive approval or explicit `confirmProjectAgents: false`. Headless execution without explicit approval fails closed with a teach-back that names the project agents directory. The approval flow keeps its baseline behavior and stays out of scope otherwise. A project definition enters execution only through that approval or the explicit flag.
 
 ## Acceptance Examples
 
@@ -177,7 +177,7 @@ Alternatives considered:
 - `dispatch.py` (validation, teach-backs, envelope content, single-child dispatch)
 - `runner.py` (session argv, resume, unknown-session fallback, resume-variant prompt)
 - `models.py` (`taskId` on the child result and details)
-- `rendering.py` (single-child frame, call label from `description` and `subagent_type`)
+- `rendering.py` (single-child frame, call label: the description when non-empty after trimming, else the effective `subagent_type`)
 - `utils.py` (`build_tau_argv`)
 - tests under `extensions/superpowers-subagent/tests/`
 - `config.py` and `sidebar.py` need no changes
@@ -204,7 +204,7 @@ Alternatives considered:
 
 **Recursion:** children never see the `task` tool. A child instructed to delegate cannot delegate and reports that in its final message. This is the operator's chosen trade-off.
 
-**Security:** project agents are repository-controlled. Their definitions and descriptions enter the model surface only through the approval flow or an explicit `confirmProjectAgents: false`, so the static and teach-back rosters exclude them. A repository that controls `.tau/agents` can still inject through an approved agent's prompt or description at the consent moment. The operator accepts that the approval prompt is the consent boundary.
+**Security:** project agents are repository-controlled. Their names, definitions, and descriptions stay out of every model-facing roster and teach-back. They enter execution only through the approval flow or an explicit `confirmProjectAgents: false`. A repository that controls `.tau/agents` can still inject through an approved agent's prompt at the consent moment. The operator accepts that the approval prompt is the consent boundary.
 
 **Rollout:** the extension version stays 0.1.0 in `pyproject.toml`. The installer reports updated paths. Behavior changes are observable only after a session restart.
 
