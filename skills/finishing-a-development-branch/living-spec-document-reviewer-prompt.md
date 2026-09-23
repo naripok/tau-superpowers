@@ -6,16 +6,12 @@ Use this template when dispatching the living-spec synchronization reviewer suba
 
 **Dispatch after:** The candidate synchronization is drafted and final acceptance has passed.
 
-This is a template for constructing the `task` string of the Tau `task` tool. Call it with this argument shape after replacing every placeholder:
+This is a template for constructing the `prompt` value of a Tau `task` tool call. Call it with this argument shape after replacing every placeholder:
 
 ```json
 {
-  "tasks": [
-    {
-      "agent": "document-review",
-      "task": "[FILLED PROMPT BELOW]"
-    }
-  ]
+  "subagent_type": "document-review",
+  "prompt": "[FILLED PROMPT BELOW]"
 }
 ```
 

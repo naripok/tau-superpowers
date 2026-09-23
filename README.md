@@ -50,8 +50,8 @@ The main flow is:
 ## What You Get
 
 - 15 Tau-discoverable Agent Skills covering the full design-to-delivery workflow.
-- A `task` tool that dispatches one or more isolated Tau subprocesses.
-- A self-describing call surface: discovered agents and their descriptions appear in the tool schema, placeholder overrides (`default`/`inherit`/`auto`) are tolerated as omitted with a repair note, and literal provider/model overrides are validated before any child starts against only the providers and models the harness can actually run (credentials, scoped models, pins, and the session's own pair — never a whole builtin catalog), with the valid options in the error.
+- A `task` tool that dispatches one isolated Tau subprocess per call into a pinned session that a later call can resume by `task_id`.
+- A self-describing call surface: discovered agents and their descriptions appear in the tool schema. Placeholder overrides (`default`/`inherit`/`auto`) are tolerated as omitted with a repair note. Literal provider and model overrides are validated before any child starts. Validation considers only the providers and models the harness can actually run: credentials, scoped models, pins, and the session's own pair. The error lists the valid options.
 - Bundled child agents: `general-purpose`, tool-enforced `read-only`, `implementation`, `code-review`, and `document-review` (`read` + read-only `bash`, strict `## Code Review`/`## Document Review` reports). Children inherit the parent session's active provider, model, and thinking effort by default, after call-level, config-file, and agent-definition values.
 - User and project agent definitions with deterministic precedence and explicit project-agent approval.
 - A per-subagent config file (`~/.tau/superpowers-subagent.toml` and `<project>/.tau/superpowers-subagent.toml`) that pins provider, model, and `reasoningEffort` globally or per agent; an example file ships as `superpowers-subagent.example.toml`.
@@ -136,41 +136,45 @@ If you intentionally create your own project extension link, Tau requires both p
 
 The extension launches child `tau --mode json` processes with isolated conversation context. Every delegated task must therefore include all requirements, file paths, relevant command output, and expected response format.
 
-Dispatch a subagent only for substantive multi-step work that benefits from an isolated context window, or for long-running work that must not block the parent session. Simple reads, searches, commands, and small edits are the parent's own tool calls, and a subagent replaces the parent's tool calls for its task — never duplicate that work.
+Dispatch a subagent only for substantive multi-step work that benefits from an isolated context window. Also dispatch one for long-running work that must not block the parent session. Simple reads, searches, commands, and small edits are the parent's own tool calls. A subagent replaces the parent's tool calls for its task. Never dispatch a task and then do the same work.
 
-Every call takes a `tasks` array. The snippets below are tool argument objects.
+### One task per call
 
-### Task list
-
-`tasks` is required: an array of 1–8 items, each `{agent, task, cwd?}`. One item runs a single child; two or more run in parallel (at most four active) and results keep input order. Conditional sequences — implement → review → fix if needed → re-review, or any loop where a later step depends on an earlier result — require separate calls so the controller can inspect each result.
+A `task` call carries exactly one task as one flat object. The snippets below are tool argument objects. `prompt` is required. `subagent_type` is optional, and omission selects `general-purpose`. `cwd` is optional and resolves relative to the parent session's working directory:
 
 ```json
 {
-  "tasks": [
-    {
-      "agent": "general-purpose",
-      "task": "Implement the cache behavior described below, run the named tests, and report changed files.\n\n[COMPLETE REQUIREMENTS]",
-      "cwd": "/path/to/worktree"
-    }
-  ]
+  "prompt": "Implement the cache behavior described below, run the named tests, and report changed files.\n\n[COMPLETE REQUIREMENTS]",
+  "subagent_type": "general-purpose",
+  "cwd": "/path/to/worktree"
 }
 ```
 
-Two or more items dispatch in parallel — independent work only:
+Dispatch independent work with several `task` calls in one message. The calls run concurrently, and each call carries its own task:
 
 ```json
 {
-  "description": "Investigate independent failures",
-  "tasks": [
-    {
-      "agent": "general-purpose",
-      "task": "Investigate the authentication failures. Do not modify the batch module."
-    },
-    {
-      "agent": "general-purpose",
-      "task": "Investigate the batch failures. Do not modify the authentication module."
-    }
-  ]
+  "description": "Investigate authentication failures",
+  "prompt": "Investigate the authentication failures. Do not modify the batch module."
+}
+```
+
+```json
+{
+  "description": "Investigate batch failures",
+  "prompt": "Investigate the batch failures. Do not modify the authentication module."
+}
+```
+
+Conditional sequences require separate calls so the controller can inspect each result. This applies to implement → review → fix if needed → re-review, and to any loop where a later step depends on an earlier result.
+
+A call can continue a previous child session instead of starting a fresh one. Pass the earlier result's `task_id` with `subagent_type`. The child keeps its earlier context, and a resumed run ignores the call's `cwd`:
+
+```json
+{
+  "description": "Re-check authz paths",
+  "subagent_type": "code-review",
+  "task_id": "<task_id from the earlier result>"
 }
 ```
 
@@ -178,21 +182,36 @@ Two or more items dispatch in parallel — independent work only:
 
 | Field | Meaning |
 | --- | --- |
-| `description` | Short orchestration label |
+| `subagent_type` | Optional agent name. Omission selects `general-purpose`. An unknown name fails closed and lists the available agents. |
+| `description` | Short orchestration label for display. No behavioral effect. |
+| `task_id` | Resume a previous child session. Pass the `task_id` from an earlier task result. It requires `subagent_type`. |
+| `cwd` | Working directory for a fresh child, resolved relative to the parent session's working directory. Ignored on a resumed run. |
 | `agentScope` | `user` (default), `project`, or `both` |
-| `confirmProjectAgents` | Require project-agent confirmation (default `true`); `false` is explicit per-call approval |
-| `provider` | Optional literal provider override. Omit it to inherit configuration; otherwise pass an exact configured provider name from `tau providers`. Invalid names fail before any child starts, listing the configured providers. |
-| `model` | Optional literal model override. Omit it to inherit configuration; otherwise pass an exact supported model ID. Invalid IDs fail before any child starts, listing the provider's models. |
-| `reasoningEffort` | Optional literal reasoningEffort override. Omit it to inherit configuration; otherwise pass exactly `off`, `minimal`, `low`, `medium`, `high`, or `xhigh`. It overrides the config file and agent definition; otherwise the level falls back to the config file, then the agent definition, then the parent session's thinking level. |
-| `timeoutSeconds` | Per-child timeout, greater than 0 and at most 3600; default 3600 |
+| `confirmProjectAgents` | Require project-agent confirmation (default `true`). `false` is explicit per-call approval. |
+| `provider` | Optional literal provider override. Omit it to inherit configuration. Otherwise pass an exact configured provider name from `tau providers`. Invalid names fail before any child starts, listing the configured providers. |
+| `model` | Optional literal model override. Omit it to inherit configuration. Otherwise pass an exact model ID supported by the selected provider. Invalid IDs fail before any child starts, listing the provider's models. |
+| `reasoningEffort` | Optional literal reasoningEffort override. Omit it to inherit configuration. Otherwise pass exactly `off`, `minimal`, `low`, `medium`, `high`, or `xhigh`. A call value overrides the config file and agent definition. Otherwise the level falls back to the config file, then the agent definition, then the parent session's thinking level. |
+| `timeoutSeconds` | Per-child timeout in seconds, greater than 0 and at most 10800. Omission selects 3600. |
 
-`cwd` is per item, resolved relative to the parent session's working directory.
+### Result content
+
+The model-facing result content is one task envelope: `<task id="<taskId>" state="completed|error">` wrapping `<task_result>` or `<task_error>`. The envelope `id` is the child's Tau session id. `completed` means the child finished and delivered a final assistant message. `error` means the child failed, was cancelled, timed out, or ended with no final assistant message. Child status markers (`DONE`, `DONE_WITH_CONCERNS`, `BLOCKED`, `NEEDS_CONTEXT`) stay inside the message text. Repair notes appear as `Note:` lines before the envelope.
+
+Structured details keep schemaVersion 2 with a one-element `results` array and `planned: 1`. Each result carries the child's `taskId`, and the array holds the complete wire messages.
 
 ### Live TUI visibility
 
-While children run, the tool row refreshes after every child message so you can watch the work happen: status icons (`✓` DONE, `⚠` DONE_WITH_CONCERNS, `✗` BLOCKED, `?` NEEDS_CONTEXT, `…` in flight), each child's streamed tool calls (`→ $ command`, `read path:lines`, `write path (N lines)`, `edit path`) and assistant text, plus usage counters (`turns`, `↑`/`↓` tokens, cache reads/writes, cost, context, model). Collapsed rows show compact per-child previews with accurate live counts (`2/4 succeeded · 1 running · 1 pending`); press `Ctrl+O` to expand the full per-child work stream, delegated task, status hints, and aggregate usage.
+While children run, the tool row refreshes after every child message so you can watch the work happen: status icons (`✓` DONE, `⚠` DONE_WITH_CONCERNS, `✗` BLOCKED, `?` NEEDS_CONTEXT, `…` in flight), each child's streamed tool calls (`→ $ command`, `read path:lines`, `write path (N lines)`, `edit path`) and assistant text, plus usage counters (`turns`, `↑`/`↓` tokens, cache reads/writes, cost, context, model). Collapsed rows show compact per-child previews with accurate live counts (`0/1 succeeded · 1 running`). Press `Ctrl+O` to expand the full per-child work stream, delegated task, status hints, and aggregate usage.
 
-Parent-model content is each child's complete final assistant message — one child produces the bare message (or a concise failure), several produce a `<succeeded>/<total> succeeded` header plus one `[<agent>] (completed|failed)` section per child; the complete wire messages stay in `details.results`.
+### Operator notes
+
+- Update an installation after an extension change: run `./install.sh` again and restart each Tau session. The change loads only after a restart, and the Tau session store needs no migration.
+- Every fresh child runs in a pinned Tau session that `tau sessions --all` lists and the default `tau sessions` listing omits. Child sessions accumulate in the Tau session store with no retention. Cleanup is the quiescent store-maintenance procedure in the [feature spec](docs/design/2026-09-18-opencode-task-interface-spec.md). Stop the tau processes that use the store. Delete the child's transcript file. Delete the child's line from the project `index.jsonl`.
+- One message can carry any number of `task` calls. The tool sets no cap, and an extreme burst can exhaust machine processes, memory, or provider quota. The operator accepts this residual risk.
+- Usage in details covers the resumed run only. Totals computed across resumed children undercount the earlier turns. This undercount is documented behavior, not a bug.
+- To roll back, revert the branch commits, re-install the prior extension and skills, and restart the session. The rolled-back surface never reads the pinned child sessions, and they need no cleanup.
+- The same-id lock coordinates `task` calls only. A direct `tau --session <id>` resume by another process bypasses that lock. The operator accepts that overlap.
+- Repository-controlled project agents enter execution only through the approval prompt or `confirmProjectAgents: false`. The approval prompt is the consent boundary: a repository that controls `.tau/agents` can inject through an approved agent's prompt at that moment.
 
 The complete argument, status, progress, and schema-v2 result contract is in [the Tau `task` tool reference](skills/using-superpowers/references/tau-tools.md).
 
@@ -259,12 +278,8 @@ Per-call overrides are separate and map directly to Tau's separate CLI settings:
 
 ```json
 {
-  "tasks": [
-    {
-      "agent": "general-purpose",
-      "task": "Complete the delegated task."
-    }
-  ],
+  "prompt": "Complete the delegated task.",
+  "subagent_type": "general-purpose",
   "provider": "openai-codex",
   "model": "gpt-5.3-codex"
 }

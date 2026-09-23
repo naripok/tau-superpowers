@@ -4,16 +4,12 @@ Use this template when dispatching the implementation reviewer subagent — for 
 
 **Purpose:** Check, in one pass, that the implementation matches its specification (spec compliance) and is well-built (code quality). The report has one section per dimension.
 
-This is a template for constructing the `task` string of the Tau `task` tool. Call it with this argument shape after replacing every placeholder:
+This is a template for constructing the `prompt` value of a Tau `task` tool call. Call it with this argument shape after replacing every placeholder:
 
 ```json
 {
-  "tasks": [
-    {
-      "agent": "code-review",
-      "task": "[FILLED PROMPT BELOW]"
-    }
-  ]
+  "subagent_type": "code-review",
+  "prompt": "[FILLED PROMPT BELOW]"
 }
 ```
 

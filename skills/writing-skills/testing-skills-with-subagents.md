@@ -20,18 +20,14 @@ This harness requires the `superpowers-subagent` Tau extension. See the [Tau `ta
 
 Use separate calls to the `task` tool so that every trial has isolated context. The bundled `read-only` agent is sufficient for choice-and-explanation scenarios and prevents state-changing Tau tool calls. This tool policy is not an OS, network, credential, or provider sandbox, so keep scenarios non-destructive.
 
-A `task` child does not inherit this conversation. Tau disables discovered child resources as far as its public CLI permits. It also instructs the child not to invoke ambient skills. Use that isolation for the RED baseline. For GREEN, include the complete candidate `SKILL.md` text in the task itself. Do **not** tell the child to use `/skill:<name>`. That is a user-facing Tau invocation, not a child test harness.
+A `task` child does not inherit this conversation. Tau disables discovered child resources as far as its public CLI permits. It also instructs the child not to invoke ambient skills. Use that isolation for the RED baseline. For GREEN, include the complete candidate `SKILL.md` text in the prompt itself. Do **not** tell the child to use `/skill:<name>`. That is a user-facing Tau invocation, not a child test harness.
 
 **RED call:**
 
 ```json
 {
-  "tasks": [
-    {
-      "agent": "read-only",
-      "task": "This is an isolated behavior test. Do not use any skill. Read the pressure scenario below, choose one offered action, and explain the choice. Do not perform the action.\n\n[PASTE SCENARIO]"
-    }
-  ]
+  "subagent_type": "read-only",
+  "prompt": "This is an isolated behavior test. Do not use any skill. Read the pressure scenario below, choose one offered action, and explain the choice. Do not perform the action.\n\n[PASTE SCENARIO]"
 }
 ```
 
@@ -39,16 +35,12 @@ A `task` child does not inherit this conversation. Tau disables discovered child
 
 ```json
 {
-  "tasks": [
-    {
-      "agent": "read-only",
-      "task": "This is an isolated behavior test. Follow the candidate skill exactly, then read the pressure scenario, choose one offered action, and explain the choice. Do not perform the action.\n\n## Candidate Skill\n[PASTE COMPLETE SKILL.md]\n\n## Scenario\n[PASTE THE SAME SCENARIO]"
-    }
-  ]
+  "subagent_type": "read-only",
+  "prompt": "This is an isolated behavior test. Follow the candidate skill exactly, then read the pressure scenario, choose one offered action, and explain the choice. Do not perform the action.\n\n## Candidate Skill\n[PASTE COMPLETE SKILL.md]\n\n## Scenario\n[PASTE THE SAME SCENARIO]"
 }
 ```
 
-Use the same provider/model settings and the exact scenario in both calls. Give baseline and skill-present trials separate `task` calls so that they stay independent. The `task` content is the child's complete final message. Inspect `details.results[0].messages` when you need tool calls or earlier messages. Check the process fields plus the semantic `status` before you count a trial. If the result is `NEEDS_CONTEXT`, re-dispatch a complete prompt. Do not continue an old child conversation.
+Use the same provider/model settings and the exact scenario in both calls. Give baseline and skill-present trials separate `task` calls so that they stay independent. The result content is a `task` envelope around the child's complete final message. Inspect `details.results[0].messages` when you need tool calls or earlier messages. Check the process fields plus the semantic `status` before you count a trial. If the result is `NEEDS_CONTEXT`, re-dispatch a complete prompt. Do not continue an old child conversation.
 
 Before deployment, also check real Tau discovery in the parent TUI. Put the skill in one of Tau's discovery directories. Run `/reload`. Check that its metadata appears. Invoke `/skill:<name>` explicitly. This discovery smoke test complements behavior trials. It does not replace them.
 

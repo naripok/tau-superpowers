@@ -14,7 +14,7 @@ Execute the plan by dispatching a fresh implementer subagent per task. Then disp
 
 - Subagents do not inherit this conversation. Every dispatch must be self-contained: full task text, file paths, context, expected report format
 - There is no mid-task conversation. A subagent reports DONE, DONE_WITH_CONCERNS, BLOCKED, or NEEDS_CONTEXT. You re-dispatch with a new complete prompt
-- Dispatch with the `task` tool: the `implementation` agent for implementers, the `code-review` agent for reviewers. Unless the user requests an override, omit `provider`, `model`, and `reasoningEffort`
+- Dispatch with the `task` tool: `subagent_type: "implementation"` for implementers, `subagent_type: "code-review"` for reviewers. Each call carries one flat task object. Unless the user requests an override, omit `provider`, `model`, and `reasoningEffort`
 - Call schema and result contract: [`../using-superpowers/references/tau-tools.md`](../using-superpowers/references/tau-tools.md)
 
 ## When to Use
@@ -99,10 +99,10 @@ If the mismatch involves a controlled decision (behavior, constraint, architectu
 ## Example Task Cycle
 
 ```
-[Dispatch task with agent: 'implementation' and the filled implementer prompt]
+[Dispatch task with subagent_type "implementation" and the filled implementer prompt]
 Implementer: DONE — implemented X, 5/5 tests passing, committed
 
-[Dispatch task with agent: 'code-review' and the filled implementation reviewer prompt]
+[Dispatch task with subagent_type "code-review" and the filled implementation reviewer prompt]
 Reviewer:
   ## Code Review
   Verdict: Needs fixes
