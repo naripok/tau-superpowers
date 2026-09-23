@@ -9,9 +9,25 @@ from typing import Any
 import pytest
 from tau_agent.tools import AgentToolResult
 
+import superpowers_subagent.extension as extension_module
 from superpowers_subagent.extension import setup
 from superpowers_subagent.models import AgentConfig, DiscoveryResult
 from superpowers_subagent.runner import RECURSION_GUARD
+
+#: The five bundled roster lines in sorted-name order with their profile
+#: annotations, shared by the layout, fallback, and drift tests.
+BUNDLED_ROSTER_LINES = (
+    "- code-review: Adversarial read-only code reviewer. Use for code quality review, "
+    "spec compliance review, and inspection of named files. (Tools: read, bash)",
+    "- document-review: Adversarial read-only document reviewer for the design workflow "
+    "gates. Use for proposal review, feature-spec review, pl… (Tools: read, bash)",
+    "- general-purpose: General-purpose subagent with full tool access. Use for non-trivial "
+    "tasks that requires reading and writing files or ru… (Tools: all)",
+    "- implementation: Implementation subagent for writing code, tests, and running "
+    "verification. Use for one well-scoped implementation task… (Tools: all)",
+    "- read-only: Read-only subagent for multi-file investigation of named files. Cannot "
+    "modify files or run commands. Use for non-trivia… (Tools: read)",
+)
 
 
 class FakeContext:
@@ -54,96 +70,159 @@ class FakeTau:
         return handler
 
 
-def test_setup_registers_exactly_one_task(monkeypatch: Any) -> None:
+def _installed_tool(monkeypatch: Any, tau: FakeTau) -> Any:
+    """Set up the extension without the sidebar and return the registered task tool."""
     monkeypatch.delenv(RECURSION_GUARD, raising=False)
-    import superpowers_subagent.extension as extension_module
-
     monkeypatch.setattr(extension_module, "install_sidebar_section", lambda _tracker: None)
-    tau = FakeTau()
-
     setup(tau)  # type: ignore[arg-type]
+    assert len(tau.tools) == 1
+    return tau.tools[0]
 
-    assert [tool.name for tool in tau.tools] == ["task"]
-    tool = tau.tools[0]
+
+def _pin_discovery_to_user_dir(monkeypatch: Any, user_dir: Path) -> None:
+    """Point the extension's discovery at an isolated user agents directory.
+
+    The bundled layer keeps its real definitions, so roster assertions stay
+    deterministic even when the running machine has its own user agents.
+    """
+
+    from superpowers_subagent import discovery as discovery_module
+
+    def discover(cwd: Path, scope: Any) -> DiscoveryResult:
+        return discovery_module.discover_agents(cwd, scope, user_dir=user_dir)
+
+    monkeypatch.setattr(extension_module, "discover_agents", discover)
+
+
+def _agent_definition(name: str, description: str, profile: str) -> str:
+    """Return one agent definition file's content with the given frontmatter."""
+    return f"---\nname: {name}\ndescription: {description}\nprofile: {profile}\n---\n\nBody.\n"
+
+
+def test_setup_registers_exactly_one_task(monkeypatch: Any) -> None:
+    """Prove the task tool registers once with the flat single-object schema:
+    exactly the spec's field list, one required `prompt`, no `tasks` property,
+    the 10800-second timeout cap, and unknown fields rejected by declaration."""
+
+    tau = FakeTau()
+    tool = _installed_tool(monkeypatch, tau)
+
+    assert [registered.name for registered in tau.tools] == ["task"]
     assert tool.label == "task"
-    assert tool.parameters["required"] == ["tasks"]
-    properties = tool.parameters["properties"]
-    assert properties["tasks"]["minItems"] == 1
-    assert properties["tasks"]["maxItems"] == 8
-    # The removed mode fields no longer exist anywhere in the schema.
-    for removed in ("agent", "task", "cwd", "chain"):
-        assert removed not in properties
+    assert tool.prompt_snippet == "Dispatch substantive work to an isolated Tau subagent."
     assert tool.execution_mode == "parallel"
     assert tool.render_call is not None
     assert tool.render_result is not None
-
-
-def test_task_tool_prompt_states_threshold_and_homogeneous_tasks(monkeypatch: Any) -> None:
-    """Pin the always-visible tool prompt: dispatch exists only for substantive
-    isolated-context or long-running work, never for trivial tool calls the
-    parent can perform itself and never as duplicate work, and every call takes
-    a homogeneous `tasks` array. Agents see only this prompt at call time, so
-    the threshold must live here rather than in the runtime validation."""
-
-    monkeypatch.delenv(RECURSION_GUARD, raising=False)
-    import superpowers_subagent.extension as extension_module
-
-    monkeypatch.setattr(extension_module, "install_sidebar_section", lambda _tracker: None)
-    tau = FakeTau()
-
-    setup(tau)  # type: ignore[arg-type]
-
-    tool = tau.tools[0]
-    # Threshold: substantive work with an isolated context window, or
-    # long-running work that must not block the session.
-    assert "isolated context" in tool.description
-    assert "long-running" in tool.description
-    # Prohibitions: no trivial tool-call dispatches, no duplicated work.
-    assert "simple reads, searches, commands, and small edits" in tool.description.lower()
-    assert "never dispatch work" in tool.description
-    # Homogeneous contract: every call takes a tasks array.
-    assert "tasks" in tool.description
-    assert "one item runs a single child" in tool.description
-    assert "two or more run in parallel" in tool.description
-    assert tool.prompt_snippet == "Dispatch substantive work to an isolated Tau subagent."
-    guidelines = tool.prompt_guidelines
-    assert any(
-        "isolated context window" in guideline and "long-running" in guideline
-        for guideline in guidelines
+    parameters = tool.parameters
+    assert parameters["type"] == "object"
+    assert parameters["additionalProperties"] is False
+    assert parameters["required"] == ["prompt"]
+    properties = parameters["properties"]
+    assert set(properties) == {
+        "prompt",
+        "subagent_type",
+        "description",
+        "task_id",
+        "cwd",
+        "agentScope",
+        "confirmProjectAgents",
+        "provider",
+        "model",
+        "reasoningEffort",
+        "timeoutSeconds",
+    }
+    assert "tasks" not in properties
+    assert properties["prompt"]["minLength"] == 1
+    assert (
+        properties["prompt"]["description"] == "The child's task. The prompt is preserved verbatim."
     )
-    assert any("replaces your own tool calls" in guideline for guideline in guidelines)
-    assert any("Always pass the `tasks` array" in guideline for guideline in guidelines)
-    # The always-visible prompt must carry its own context: agent names are
-    # quoted, and the BLOCKED/NEEDS_CONTEXT statuses are defined, not jargon.
-    assert any(
-        "`implementation`" in guideline and "`code-review`" in guideline for guideline in guidelines
+    assert properties["subagent_type"]["minLength"] == 1
+    assert properties["description"]["description"] == (
+        "Short orchestration label for display. No behavioral effect."
     )
-    assert any(
-        "BLOCKED means" in guideline and "NEEDS_CONTEXT means" in guideline
-        for guideline in guidelines
+    assert properties["task_id"]["minLength"] == 1
+    assert properties["task_id"]["description"] == (
+        "Resume a previous child session: pass the task_id from an earlier task result to "
+        "continue the same subagent session instead of starting a fresh one. Requires "
+        "subagent_type."
     )
-    blob = tool.description + " " + " ".join(guidelines)
-    assert "chain" not in blob
-    assert "single mode" not in blob
-    assert "mutually exclusive" not in blob
+    assert properties["cwd"]["description"] == (
+        "Working directory for a fresh child. Omission uses this session's cwd. Ignored on "
+        "a resumed run."
+    )
+    assert properties["agentScope"] == {
+        "type": "string",
+        "enum": ["user", "project", "both"],
+        "default": "user",
+    }
+    assert properties["confirmProjectAgents"] == {
+        "type": "boolean",
+        "default": True,
+        "description": "Require interactive approval for resolved project agents.",
+    }
+    assert properties["timeoutSeconds"] == {
+        "type": "number",
+        "exclusiveMinimum": 0,
+        "maximum": 10800,
+        "default": 3600,
+        "description": "Per-child timeout in seconds.",
+    }
+
+
+def test_task_description_carries_opencode_layout(monkeypatch: Any, tmp_path: Path) -> None:
+    """Prove the description renders the OpenCode layout in order: one-liner, the
+    annotated bundled roster, the default rule, when-not-to-use, and usage notes
+    for multi-call parallelism, task_id reuse, and verification."""
+
+    _pin_discovery_to_user_dir(monkeypatch, tmp_path / "absent-user-agents")
+    description = _installed_tool(monkeypatch, FakeTau()).description
+
+    one_liner = (
+        "Dispatch work to an isolated Tau subagent. Delegate substantive multi-step work "
+        "that benefits from an isolated context window, or long-running work that must not "
+        "block this session."
+    )
+    default_rule = "Omit subagent_type to select general-purpose."
+    when_not_to_use = (
+        "When not to use: Simple reads, searches, commands, and small edits are your own "
+        "tool calls, and you never dispatch work you are about to perform yourself. Never "
+        "dispatch a task and then do the same work."
+    )
+    usage_notes = (
+        "Several tasks are several task calls in one message. Use separate calls for "
+        "conditional sequences where a later step depends on an earlier result.",
+        "Delegated work is not duplicated.",
+        "Make each prompt self-contained: children run in isolated sessions with no access "
+        "to this conversation.",
+        "The result names the task_id that a later call can reuse to continue the same "
+        "subagent session.",
+        "State whether the child writes code or does research and how to verify the result.",
+        "Project-controlled agent prompts require explicit approval.",
+    )
+    assert description.startswith(one_liner)
+    for line in BUNDLED_ROSTER_LINES:
+        assert line in description
+    for note in usage_notes:
+        assert note in description
+
+    markers = (one_liner, *BUNDLED_ROSTER_LINES, default_rule, when_not_to_use, "Usage notes:")
+    positions = [description.find(marker) for marker in markers]
+    assert all(position >= 0 for position in positions)
+    assert positions == sorted(positions)
 
 
 def test_task_schema_defines_literal_override_contract(monkeypatch: Any) -> None:
-    """Prove override fields state session inheritance, exact values, and fail-fast."""
+    """Prove override fields state session inheritance, exact values, fail-fast,
+    and placeholder coercion to omitted with a repair note."""
 
-    monkeypatch.delenv(RECURSION_GUARD, raising=False)
-    import superpowers_subagent.extension as extension_module
-
-    monkeypatch.setattr(extension_module, "install_sidebar_section", lambda _tracker: None)
-    tau = FakeTau()
-    setup(tau)  # type: ignore[arg-type]
-
-    properties = tau.tools[0].parameters["properties"]
+    properties = _installed_tool(monkeypatch, FakeTau()).parameters["properties"]
+    coercion = "A default, inherit, or auto placeholder is coerced to omitted with a repair note."
     for field in ("provider", "model", "reasoningEffort"):
         description = properties[field]["description"].lower()
         assert "optional literal" in description
         assert "omit it to give every child this session's" in description
         assert "exact" in description
+        assert coercion in properties[field]["description"]
     provider = properties["provider"]["description"].lower()
     assert "tau providers" in provider
     assert "configured provider" in provider
@@ -158,13 +237,10 @@ def test_task_schema_defines_literal_override_contract(monkeypatch: Any) -> None
         assert f"`{level}`" in reasoning["description"]
 
 
-def test_task_schema_embeds_discovered_agent_roster(monkeypatch: Any) -> None:
-    """The agent property teaches the full roster, so no skill file is needed."""
+def test_subagent_type_description_carries_discovered_roster(monkeypatch: Any) -> None:
+    """Prove the subagent_type description embeds the discovered roster, so the
+    parameter alone teaches which agents exist and what each is for."""
 
-    monkeypatch.delenv(RECURSION_GUARD, raising=False)
-    import superpowers_subagent.extension as extension_module
-
-    monkeypatch.setattr(extension_module, "install_sidebar_section", lambda _tracker: None)
     agents = (
         AgentConfig(
             name="alpha",
@@ -181,60 +257,139 @@ def test_task_schema_embeds_discovered_agent_roster(monkeypatch: Any) -> None:
             agents=agents, project_agents_dir=None, diagnostics=()
         ),
     )
-    tau = FakeTau()
-    setup(tau)  # type: ignore[arg-type]
+    subagent_type = _installed_tool(monkeypatch, FakeTau()).parameters["properties"][
+        "subagent_type"
+    ]
 
-    tool = tau.tools[0]
-    assert "`alpha`:" in tool.description
-    assert "Alpha investigates named files." in tool.description
-    agent_property = tool.parameters["properties"]["tasks"]["items"]["properties"]["agent"]
-    assert agent_property["description"].startswith("Agent name. Available: `alpha`:")
+    assert "Omit subagent_type to select general-purpose." in subagent_type["description"]
+    assert "- alpha: Alpha investigates named files." in subagent_type["description"]
+    assert "(Tools: all)" in subagent_type["description"]
+
+
+def test_roster_annotation_follows_shadowing_user_definition(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    """Prove a roster line renders the resolved definition's profile annotation:
+    a user definition shadowing a bundled name replaces that line's annotation."""
+
+    user_agents = tmp_path / "user-agents"
+    user_agents.mkdir()
+    (user_agents / "read-only.md").write_text(
+        _agent_definition(
+            "read-only", "User read-write investigator for named files.", "general-purpose"
+        ),
+        encoding="utf-8",
+    )
+    _pin_discovery_to_user_dir(monkeypatch, user_agents)
+    description = _installed_tool(monkeypatch, FakeTau()).description
+
+    assert "- read-only: User read-write investigator for named files. (Tools: all)" in description
+    assert (
+        "- read-only: Read-only subagent for multi-file investigation of named files."
+        not in description
+    )
+    assert "- general-purpose: General-purpose subagent with full tool access." in description
+
+
+def test_roster_scope_excludes_project_agents(monkeypatch: Any, tmp_path: Path) -> None:
+    """Prove project agents stay out of the description and the subagent_type
+    description even when planted at the session cwd: the roster discovers the
+    bundled and user layers only."""
+
+    project_agents = tmp_path / ".tau" / "agents"
+    project_agents.mkdir(parents=True)
+    (project_agents / "project-watchdog.md").write_text(
+        _agent_definition("project-watchdog", "Project watchdog for repo hygiene.", "review"),
+        encoding="utf-8",
+    )
+    _pin_discovery_to_user_dir(monkeypatch, tmp_path / "absent-user-agents")
+    tau = FakeTau()
+    tau.context.cwd = tmp_path
+    tool = _installed_tool(monkeypatch, tau)
+
+    assert "project-watchdog" not in tool.description
+    subagent_type = tool.parameters["properties"]["subagent_type"]["description"]
+    assert "project-watchdog" not in subagent_type
+    assert "- general-purpose: General-purpose subagent with full tool access." in tool.description
 
 
 def test_setup_falls_back_to_bundled_roster_when_discovery_fails(monkeypatch: Any) -> None:
-    """Discovery problems degrade to the static bundled roster, never to no tool."""
-
-    monkeypatch.delenv(RECURSION_GUARD, raising=False)
-    import superpowers_subagent.extension as extension_module
-
-    monkeypatch.setattr(extension_module, "install_sidebar_section", lambda _tracker: None)
+    """Discovery problems degrade to the static annotated bundled roster, never
+    to no tool."""
 
     def broken_discovery(_cwd: Any, _scope: Any) -> DiscoveryResult:
         raise RuntimeError("agents unavailable")
 
     monkeypatch.setattr(extension_module, "discover_agents", broken_discovery)
-    tau = FakeTau()
-    setup(tau)  # type: ignore[arg-type]
+    tool = _installed_tool(monkeypatch, FakeTau())
 
-    description = tau.tools[0].description
-    assert "`general-purpose`" in description
-    assert "`code-review`" in description
-    assert "`read-only`" in description
+    for line in BUNDLED_ROSTER_LINES:
+        assert line in tool.description
+    subagent_type = tool.parameters["properties"]["subagent_type"]["description"]
+    assert BUNDLED_ROSTER_LINES[0] in subagent_type
+
+
+def test_fallback_roster_matches_bundled_definitions(monkeypatch: Any, tmp_path: Path) -> None:
+    """Prove the pinned fallback roster equals the real bundled definitions
+    rendered in roster format, so the static text cannot drift from the agents."""
+
+    _pin_discovery_to_user_dir(monkeypatch, tmp_path / "absent-user-agents")
+
+    assert extension_module._agent_roster(tmp_path) == extension_module._BUNDLED_ROSTER
+
+
+def test_prompt_guidelines_carry_flat_surface_rules(monkeypatch: Any) -> None:
+    """Prove the guidelines teach one task per call, task_id reuse, verification,
+    and placeholder coercion with a repair note, and never mention the tasks array."""
+
+    guidelines = _installed_tool(monkeypatch, FakeTau()).prompt_guidelines
+    joined = "\n".join(guidelines)
+
+    assert "Pass exactly one task per call" in joined
+    assert "The result carries the child's task_id" in joined
+    assert "State whether the child writes code or does research" in joined
+    assert "treats them as omitted with a repair note" in joined
+    assert any(
+        "isolated context window" in guideline and "long-running" in guideline
+        for guideline in guidelines
+    )
+    assert any("replaces your own tool calls" in guideline for guideline in guidelines)
+    assert any("self-contained" in guideline for guideline in guidelines)
+    assert any(
+        "`implementation`" in guideline and "`code-review`" in guideline for guideline in guidelines
+    )
+    assert any(
+        "BLOCKED means" in guideline and "NEEDS_CONTEXT means" in guideline
+        for guideline in guidelines
+    )
+    assert "`tasks`" not in joined
+    assert "tasks array" not in joined
 
 
 def test_task_prompt_requires_omitted_or_exact_literal_overrides(monkeypatch: Any) -> None:
     """Prove always-visible guidance prefers omission and teaches exact overrides."""
 
-    monkeypatch.delenv(RECURSION_GUARD, raising=False)
-    import superpowers_subagent.extension as extension_module
-
-    monkeypatch.setattr(extension_module, "install_sidebar_section", lambda _tracker: None)
-    tau = FakeTau()
-    setup(tau)  # type: ignore[arg-type]
-
-    guidance = " ".join(tau.tools[0].prompt_guidelines).lower()
+    guidance = " ".join(_installed_tool(monkeypatch, FakeTau()).prompt_guidelines).lower()
     assert "omit all three on normal calls" in guidance
     assert "this session's provider, model, and thinking level" in guidance
     assert "placeholder values" in guidance
     for placeholder in ("`default`", "`inherit`", "`auto`"):
         assert placeholder in guidance
-    assert "treats them as omitted" in guidance
+    assert "treats them as omitted with a repair note" in guidance
     assert "exact configured provider name" in guidance
     assert "tau providers" in guidance
     assert "exact model id supported by that provider" in guidance
     for level in ("`off`", "`minimal`", "`low`", "`medium`", "`high`", "`xhigh`"):
         assert level in guidance
     assert "superpowers-subagent.toml" in guidance
+
+
+def test_extension_version_stays_0_1_0() -> None:
+    """Prove the extension version stays 0.1.0: the surface change rolls out by
+    re-install and session restart, not by a version bump."""
+
+    pyproject = (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text()
+    assert 'version = "0.1.0"' in pyproject
 
 
 def test_readme_documents_literal_override_contract() -> None:
@@ -272,8 +427,6 @@ def test_readme_documents_literal_override_contract() -> None:
 
 def test_setup_refuses_recursive_registration(monkeypatch: Any) -> None:
     monkeypatch.setenv(RECURSION_GUARD, "1")
-    import superpowers_subagent.extension as extension_module
-
     monkeypatch.setattr(extension_module, "install_sidebar_section", lambda _tracker: None)
     tau = FakeTau()
 
@@ -287,9 +440,6 @@ async def test_execute_task_loads_config_per_call(monkeypatch: Any) -> None:
     """Prove each task call rescans the config file so edits apply without a
     Tau reload, mirroring how discovery rescans agent definitions."""
 
-    import superpowers_subagent.extension as extension_module
-
-    monkeypatch.setattr(extension_module, "install_sidebar_section", lambda _tracker: None)
     captured: dict[str, Any] = {}
     loads = []
 
@@ -316,12 +466,13 @@ async def test_execute_task_loads_config_per_call(monkeypatch: Any) -> None:
     monkeypatch.setattr(extension_module, "TaskDispatcher", FakeDispatcher)
     monkeypatch.setattr(extension_module, "load_subagent_config", fake_load)
     monkeypatch.delenv(RECURSION_GUARD, raising=False)
+    monkeypatch.setattr(extension_module, "install_sidebar_section", lambda _tracker: None)
     tau = FakeTau()
 
     setup(tau)  # type: ignore[arg-type]
     for _ in range(2):
         await tau.tools[0].execute_fn(  # type: ignore[attr-defined]
-            "call", {"tasks": [{"agent": "read-only", "task": "work"}]}, None, None
+            "call", {"prompt": "work", "subagent_type": "read-only"}, None, None
         )
 
     assert loads == [Path.cwd(), Path.cwd()]
@@ -335,9 +486,6 @@ async def test_execute_task_passes_parent_session_provider_and_model(
     """Prove the task tool binds the parent session's active provider and model to
     dispatch, so unpinned children inherit them unless the call or agent pins them."""
 
-    import superpowers_subagent.extension as extension_module
-
-    monkeypatch.setattr(extension_module, "install_sidebar_section", lambda _tracker: None)
     captured: dict[str, Any] = {}
 
     class FakeDispatcher:
@@ -355,11 +503,12 @@ async def test_execute_task_passes_parent_session_provider_and_model(
 
     monkeypatch.setattr(extension_module, "TaskDispatcher", FakeDispatcher)
     monkeypatch.delenv(RECURSION_GUARD, raising=False)
+    monkeypatch.setattr(extension_module, "install_sidebar_section", lambda _tracker: None)
     tau = FakeTau()
 
     setup(tau)  # type: ignore[arg-type]
     await tau.tools[0].execute_fn(  # type: ignore[attr-defined]
-        "call-1", {"tasks": [{"agent": "general-purpose", "task": "work"}]}, None, None
+        "call-1", {"prompt": "work", "subagent_type": "general-purpose"}, None, None
     )
 
     assert captured["parent_provider"] == "openai"
@@ -370,7 +519,7 @@ async def test_execute_task_passes_parent_session_provider_and_model(
     tau.context.provider_name = ""
     tau.context.model = ""
     await tau.tools[0].execute_fn(  # type: ignore[attr-defined]
-        "call-2", {"tasks": [{"agent": "general-purpose", "task": "work"}]}, None, None
+        "call-2", {"prompt": "work", "subagent_type": "general-purpose"}, None, None
     )
 
     assert captured["parent_provider"] is None
@@ -382,9 +531,6 @@ async def test_execute_task_reads_parent_session_thinking_level(monkeypatch: Any
     """Prove the task tool forwards the parent session's active thinking level
     through the extension runtime view so unpinned children inherit it."""
 
-    import superpowers_subagent.extension as extension_module
-
-    monkeypatch.setattr(extension_module, "install_sidebar_section", lambda _tracker: None)
     captured: dict[str, Any] = {}
 
     class FakeDispatcher:
@@ -402,11 +548,12 @@ async def test_execute_task_reads_parent_session_thinking_level(monkeypatch: Any
 
     monkeypatch.setattr(extension_module, "TaskDispatcher", FakeDispatcher)
     monkeypatch.delenv(RECURSION_GUARD, raising=False)
+    monkeypatch.setattr(extension_module, "install_sidebar_section", lambda _tracker: None)
     tau = FakeTau(thinking_level="medium")
 
     setup(tau)  # type: ignore[arg-type]
     await tau.tools[0].execute_fn(  # type: ignore[attr-defined]
-        "call-1", {"tasks": [{"agent": "read-only", "task": "work"}]}, None, None
+        "call-1", {"prompt": "work", "subagent_type": "read-only"}, None, None
     )
 
     assert captured["parent_reasoning_effort"] == "medium"
@@ -414,7 +561,7 @@ async def test_execute_task_reads_parent_session_thinking_level(monkeypatch: Any
     # A Tau version without the runtime seam yields None instead of crashing.
     del tau._runtime
     await tau.tools[0].execute_fn(  # type: ignore[attr-defined]
-        "call-2", {"tasks": [{"agent": "read-only", "task": "work"}]}, None, None
+        "call-2", {"prompt": "work", "subagent_type": "read-only"}, None, None
     )
     assert captured["parent_reasoning_effort"] is None
 
@@ -424,7 +571,6 @@ async def test_execute_task_wires_tracker_as_usage_observer(monkeypatch: Any) ->
     """Prove the dispatcher's usage observer feeds the sidebar tracker and the
     registered session_start handler resets it on rebinds but not otherwise."""
 
-    import superpowers_subagent.extension as extension_module
     from superpowers_subagent.models import ChildResult, UsageStats
 
     captured: dict[str, Any] = {}
@@ -456,7 +602,7 @@ async def test_execute_task_wires_tracker_as_usage_observer(monkeypatch: Any) ->
     # The dispatcher is constructed per call, so a call must run before the
     # captured kwargs exist.
     await tau.tools[0].execute_fn(  # type: ignore[attr-defined]
-        "call", {"tasks": [{"agent": "general-purpose", "task": "work"}]}, None, None
+        "call", {"prompt": "work", "subagent_type": "general-purpose"}, None, None
     )
 
     assert callable(captured["usage_observer"])
@@ -524,7 +670,6 @@ async def test_execute_task_discards_pending_on_hard_cancellation(monkeypatch: A
     """Prove a hard cancellation of the dispatch propagates and drops the
     in-flight snapshot, so stale partial usage cannot stay displayed."""
 
-    import superpowers_subagent.extension as extension_module
     from superpowers_subagent.models import ChildResult, UsageStats
 
     captured: dict[str, Any] = {}
@@ -562,7 +707,7 @@ async def test_execute_task_discards_pending_on_hard_cancellation(monkeypatch: A
     # snapshot; its hard-cancelled twin must be the same call so the finally
     # drops exactly that call's snapshot.
     await tau.tools[0].execute_fn(  # type: ignore[attr-defined]
-        "call", {"tasks": [{"agent": "read-only", "task": "work"}]}, None, None
+        "call", {"prompt": "work", "subagent_type": "read-only"}, None, None
     )
     captured["usage_observer"](
         [
@@ -581,7 +726,7 @@ async def test_execute_task_discards_pending_on_hard_cancellation(monkeypatch: A
 
     with pytest.raises(asyncio.CancelledError):
         await tau.tools[0].execute_fn(  # type: ignore[attr-defined]
-            "call", {"tasks": [{"agent": "read-only", "task": "work"}]}, None, None
+            "call", {"prompt": "work", "subagent_type": "read-only"}, None, None
         )
 
     assert tracker.totals.runs == 0
