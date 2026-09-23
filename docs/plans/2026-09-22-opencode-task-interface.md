@@ -224,7 +224,8 @@ Existing tests that assert the superseded tasks-array surface are replaced insid
 **Files:**
 - Modify: `extensions/superpowers-subagent/superpowers_subagent/dispatch.py` — flat validation, teach-backs, envelope, single-child dispatch
 - Modify: `extensions/superpowers-subagent/superpowers_subagent/models.py` — remove the superseded `TaskItem`
-- Test: `extensions/superpowers-subagent/tests/test_dispatch.py`
+- Modify: `extensions/superpowers-subagent/tests/test_dispatch.py`
+- Modify: `extensions/superpowers-subagent/tests/test_runtime_integration.py` — convert every tasks-array dispatch payload to the flat single-object form
 
 **Spec or proposal source:** Spec MODIFIED "task interface and validation", "Agent definition discovery", "Content envelope and complete details", "Provider, model, and reasoning-effort overrides", "Progress, cancellation, timeout, and cleanup". Spec ADDED "Task result envelope", "Concurrent task calls", "Same-task_id exclusion". Spec REMOVED: none.
 
@@ -295,6 +296,7 @@ Existing tests that assert the superseded tasks-array surface are replaced insid
 - Same-id exclusion: two concurrent `execute` calls with the same `task_id` produce one child result and one fail-closed teach-back with no envelope, empty results, and no `planned`.
 - Catalog: an unsupported override fails closed with the catalog message and no `tasks[` prefix.
 - Partial updates: content `<done>/1 done` while running and after completion, `planned` 1, envelope only on the final result.
+- Integration payloads: every `tests/test_runtime_integration.py` call site that dispatched a `tasks` array now dispatches the flat single-object form, and the integration tests pass against the real dispatcher.
 
 **Check:** the five commands in the Commands section. Expected: all pass.
 
@@ -373,6 +375,7 @@ Existing tests that assert the superseded tasks-array surface are replaced insid
 - Discovery failure falls back to the static annotated bundled roster.
 - `prompt_guidelines` carries the four changed guidelines and no longer mentions the tasks array.
 - `pyproject.toml` still reads `version = "0.1.0"`.
+- The inert `FakeDispatcher` payloads in `tests/test_extension.py` use the flat single-object form, so the test code models the shipped surface.
 
 **Check:** the five commands in the Commands section. Expected: all pass.
 
