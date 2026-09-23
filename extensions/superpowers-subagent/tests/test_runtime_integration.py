@@ -611,9 +611,9 @@ async def run_resumed(
     resume_session_id: str,
     timeout_seconds: float = 2,
 ) -> Any:
-    """Drive one resumed child through the extension-shaped runner (default
-    executable and default store paths), the same construction the extension
-    uses, until the flat task_id surface lands in a later task."""
+    """Drive one resumed child through the extension-constructed runner against
+    the redirected store. The dispatch wiring (tool.execute → lock → runner)
+    is covered by the dispatch tests with a fake runner."""
 
     return await TauChildRunner().run(
         default_cwd=tmp_path,

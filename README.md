@@ -172,7 +172,7 @@ A call can continue a previous child session instead of starting a fresh one. Pa
 
 ```json
 {
-  "description": "Re-check authz paths",
+  "prompt": "Now re-check the authz paths.",
   "subagent_type": "code-review",
   "task_id": "<task_id from the earlier result>"
 }
