@@ -69,23 +69,41 @@ def task_result(
 # ---------------------------------------------------------------------------
 
 
-def test_call_renderer_prefers_escaped_one_line_description() -> None:
-    rendered = render_task_call(
-        {
-            "description": "Review [unsafe]\nmarkup",
-            "tasks": [{"agent": "a", "task": "x"}],
-        }
-    )
+def test_call_renderer_labels_from_description() -> None:
+    rendered = render_task_call({"description": "Review [unsafe]\nmarkup"})
 
     # The TUI renders tool invocations as plain text (no Rich markup), so the
     # call line must not contain markup tags.
     assert rendered == "▸ Task · Review \\[unsafe] markup"
 
 
-def test_call_renderer_labels_from_task_count() -> None:
-    assert render_task_call({"tasks": [{}]}) == "▸ Task · 1 child"
-    assert render_task_call({"tasks": [{}, {}, {}]}) == "▸ Task · 3 children"
-    assert render_task_call({}) == "▸ Task · dispatch"
+def test_call_renderer_labels_from_effective_subagent_type_without_description() -> None:
+    # Without a display label the line must name the agent that will run, so
+    # the controller sees who it dispatched to.
+    assert render_task_call({"subagent_type": " code-review "}) == "▸ Task · code-review"
+
+
+def test_call_renderer_falls_back_to_subagent_type_for_blank_description() -> None:
+    # A whitespace-only description carries nothing displayable, so the label
+    # falls back to the effective agent name.
+    assert render_task_call({"description": " \n\t", "subagent_type": "reviewer"}) == (
+        "▸ Task · reviewer"
+    )
+
+
+def test_call_renderer_defaults_to_general_purpose_without_label_fields() -> None:
+    # An omitted subagent_type resolves to general-purpose at dispatch, so the
+    # label must show the same name.
+    assert render_task_call({}) == "▸ Task · general-purpose"
+
+
+def test_call_label_never_derives_from_task_count() -> None:
+    # The superseded task-count label must stay gone: even a legacy ``tasks``
+    # payload in the arguments must not surface a child-count label.
+    rendered = render_task_call({"tasks": [{}, {}, {}], "subagent_type": "reviewer"})
+
+    assert rendered == "▸ Task · reviewer"
+    assert "child" not in rendered
 
 
 # ---------------------------------------------------------------------------
