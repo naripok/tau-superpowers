@@ -34,7 +34,7 @@ $V -m ruff format --check .
 
 The tool venv `/home/tau/venvs/superpowers` holds pytest, pytest-asyncio, mypy, and ruff. Recreate it with `uv venv /home/tau/venvs/superpowers --python 3.14` and `uv pip install --python /home/tau/venvs/superpowers/bin/python pytest pytest-asyncio mypy ruff` when missing.
 
-Every task ends with all five checks passing. Expected suite count after all tasks: 267 baseline tests adjusted by each task's stated test changes, all passing.
+Every task ends with all five checks passing. Gate rule for the suite count: a task's gate may replace superseded tests only where this plan authorizes the replacement (Tasks 4 and 5), and the gate count must equal the previous gate count minus the tests that task states it replaces, plus the task's new tests. Any unexplained drop fails the task's gate. Baseline before Task 1: 267 passing at commit `b833ebd`.
 
 ## High-risk obligation mapping
 
@@ -163,6 +163,7 @@ Existing tests that assert the superseded tasks-array surface are replaced insid
 - Cross-project resume: a store record whose project directory differs from the runner's cwd still verifies and resumes.
 - No retry on other failures: a fake tau that exits 2 printing a different message produces no second invocation.
 - Pre-session failure: a pre-spawn cancelled signal and a spawn `OSError` produce a result with `task_id is None`.
+- Failed post-spawn attempt keeps the id: a fake tau that spawns and then exits nonzero, or times out, produces a result whose `task_id` equals the generated 32-hex id.
 - Resume prompt variant: `compose_child_prompt(agent, resumed=True)` contains the pinned resume sentence and not the baseline isolation sentence. `resumed=False` reproduces the baseline text.
 - Resumed-run settings: with `resumed=True` the runner still writes the profile policy extension and the thinking policy extension, and still appends the system prompt file, proving the regenerated settings ride the resumed run.
 - Integration tests: update the fake-tau fixture to accept and log the new session flags, and update assertions that inspect child argv. Add one integration test that pins a session and resumes it through the full extension path.
@@ -191,7 +192,7 @@ Existing tests that assert the superseded tasks-array surface are replaced insid
   - `task_id` is the trimmed effective id. The lock file name is `hashlib.sha256(task_id.encode("utf-8")).hexdigest() + ".lock"`, so arbitrary user text maps to one portable file name.
   - `locks_dir` defaults to `TauPaths().sessions_dir / "locks"`. Create the directory on demand with `parents=True`.
   - Acquisition uses `fcntl.flock` with `LOCK_EX | LOCK_NB` on a freshly opened file descriptor. It never blocks the event loop.
-  - Acquisition failure (`BlockingIOError`) returns `None`. The fd stays open and locked until the context manager exits, which unlocks and closes it. A dead process releases the lock through the kernel.
+  - On acquisition failure (`BlockingIOError`) the fd is closed before returning `None`. On success the returned context manager holds the fd open and locked until the `with` block exits, which unlocks and closes it. A dead process releases the lock through the kernel.
   - Use the non-blocking acquire inside the synchronous context-manager `__enter__`. The dispatcher calls it directly from async code; because the acquire never blocks, no async wrapper is needed.
 
 **Behavior:**
@@ -320,7 +321,7 @@ Existing tests that assert the superseded tasks-array surface are replaced insid
     - `- read-only: Read-only subagent for named-file investigation. (Tools: read)`
     - `- code-review: Adversarial read-only code reviewer. (Tools: read, bash)`
     - `- document-review: Adversarial read-only document reviewer. (Tools: read, bash)`
-- `_task_parameters()` returns the flat schema:
+- `_task_parameters(roster_text: str)` keeps its current parameter and returns the flat schema:
   - `type` object, `additionalProperties` false, `required` `["prompt"]`.
   - `prompt`: string, `minLength` 1, description `The child's task. The prompt is preserved verbatim.`
   - `subagent_type`: string, `minLength` 1, description names the agent selection rule and carries the roster text.
@@ -354,7 +355,7 @@ Existing tests that assert the superseded tasks-array surface are replaced insid
 
 **Behavior:**
 
-- The schema rejects unknown properties before the tool runs. The description teaches the flat form, the roster, the default, the exclusions, and resume.
+- The schema declares `additionalProperties` false. Runtime validation rejects unknown fields: Task 4's `validate_arguments` is the enforcing path, not the schema declaration. The description teaches the flat form, the roster, the default, the exclusions, and resume.
 - The roster is computed once at setup and stays static for the session, including its annotations.
 
 **Tests must prove:**
@@ -363,6 +364,7 @@ Existing tests that assert the superseded tasks-array surface are replaced insid
 - The `provider`, `model`, and `reasoningEffort` schema descriptions each state that a `default`, `inherit`, or `auto` placeholder is coerced to omitted with a repair note.
 - The description contains the five roster lines with annotations in the pinned format, the default-rule sentence, the when-not-to-use text, and the usage-note statements for multi-call parallelism, `task_id` reuse, and verification.
 - A user definition that shadows a bundled name changes that line's annotation to the resolved definition's profile.
+- Roster scope: with a project agent definition planted in the fixture, the rendered description and the `subagent_type` description contain no project agent name and no project roster line.
 - Discovery failure falls back to the static annotated bundled roster.
 - `prompt_guidelines` carries the four changed guidelines and no longer mentions the tasks array.
 - `pyproject.toml` still reads `version = "0.1.0"`.
@@ -428,6 +430,7 @@ Existing tests that assert the superseded tasks-array surface are replaced insid
 - Modify: `skills/brainstorming/spec-document-reviewer-prompt.md`
 - Modify: `skills/writing-plans/plan-document-reviewer-prompt.md`
 - Modify: `skills/finishing-a-development-branch/living-spec-document-reviewer-prompt.md`
+- Modify: `extensions/superpowers-subagent/tests/test_extension.py` — update the README-documentation test when this rewrite changes section structure
 
 **Spec or proposal source:** Proposal Scope "In scope" (consumer updates) and Impact (file list). Spec ADDED "Tool description roster" and "task_id resume" (consumer-facing statements). Spec MODIFIED "task interface and validation".
 
@@ -446,7 +449,7 @@ Existing tests that assert the superseded tasks-array surface are replaced insid
 
 README additions in the task tool section: the re-install and restart migration step, the statement that child sessions accumulate in the Tau session store and that cleanup is the quiescent store-maintenance procedure from the feature spec, the no-call-cap risk acceptance, the resumed-run usage undercount, the rollback note that a branch revert never reads pinned child sessions and needs no cleanup, the statement that a direct `tau --session` resume bypasses the task-tool lock and the operator accepts that overlap, and the statement that the approval prompt is the consent boundary for repository-controlled project agents.
 
-**Tests must prove:** No runtime behavior changes. The check is a reference scan.
+**Tests must prove:** No runtime behavior changes. `tests/test_extension.py` contains a README-documentation test that parses the README by exact section headings and asserts exact override-guidance phrases (literal-override identification, omission guidance, placeholder coercion, fail-fast). When the rewrite changes a heading or row those assertions target, update that test in the same task so it keeps asserting the same semantics against the new structure. Never delete an assertion whose meaning the spec requires. The check is a reference scan plus the suite.
 
 **Check:**
 
