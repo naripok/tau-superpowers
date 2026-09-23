@@ -1,0 +1,14 @@
+# Baseline test-suite transcript for the task-tool-robustness proposal
+# Commit: 93d87e3 (branch task-tool-robustness, tree identical to master HEAD 93d87e3)
+# Captured: 2026-09-23T20:50Z
+# Command: PYTHONPATH=<tau site-packages> uv run pytest -q  (in extensions/superpowers-subagent)
+# Interpreter: Python 3.14.7, pytest 9.1.1
+
+........................................................................ [ 20%]
+........................................................................ [ 40%]
+........................................................................ [ 61%]
+........................................................................ [ 81%]
+................................................................         [100%]
+352 passed in 4.81s
+
+[exit=0]
