@@ -470,9 +470,9 @@ cd extensions/superpowers-subagent && export PYTHONPATH=/opt/tau/lib/python3.14/
 
 Expected: the greps find no tasks-array call examples in consumers, and the suite still passes. Eyeball each edited file for current-state-only wording.
 
-- [ ] Apply the flat-form rewrite to every listed file
-- [ ] Run the check commands
-- [ ] Commit: `git add README.md skills extensions/superpowers-subagent/tests/test_extension.py && git commit -m "docs: flat task surface across consumers"`
+- [x] Apply the flat-form rewrite to every listed file
+- [x] Run the check commands
+- [x] Commit: `git add README.md skills extensions/superpowers-subagent/tests/test_extension.py && git commit -m "docs: flat task surface across consumers"`
 
 ---
 
