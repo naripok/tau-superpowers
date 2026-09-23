@@ -7,6 +7,7 @@ import json
 import os
 import re
 import tempfile
+import uuid
 from collections.abc import Callable
 from contextlib import suppress
 from pathlib import Path
@@ -15,10 +16,12 @@ from typing import cast
 from pydantic import TypeAdapter, ValidationError
 from tau_agent.messages import AgentMessage, AssistantMessage, ToolResultMessage
 from tau_agent.tools import ToolCancellationToken
+from tau_coding.paths import TauPaths
+from tau_coding.session_manager import SUBAGENT_SESSION_ROLE, SessionManager
 
 from .config import AgentOverrides
 from .costing import estimated_message_cost
-from .models import AgentConfig, ChildResult
+from .models import AgentConfig, ChildResult, SessionSelection
 from .utils import (
     build_tau_argv,
     effective_provider_model,
@@ -31,12 +34,26 @@ from .utils import (
 RECURSION_GUARD = "TAU_SUPERPOWERS_SUBAGENT"
 _CSI_SEQUENCE: re.Pattern[str] = re.compile(r"\x1b\[[\x30-\x3f]*[\x20-\x2f]*[\x40-\x7e]")
 _MAX_STDERR_EXCERPT_CODEPOINTS = 2_000
+#: Tau's own clean-failure diagnostic for a resume of a missing session; the
+#: runner reuses stderr-excerpt matching, so the retry matches whatever tau
+#: prints regardless of surrounding formatting.
+_UNKNOWN_SESSION_DIAGNOSTIC: re.Pattern[str] = re.compile(r"unknown session:", re.IGNORECASE)
 
-_SHARED_INSTRUCTIONS = """## Delegated Task Rules
+_FRESH_ISOLATION = (
+    "This is an isolated delegated task. Rely only on this prompt and the task input;\n"
+    "you do not have the controller's conversation history. Do not invoke ambient user\n"
+    "skills. That instruction is behavioral guidance, not a security boundary."
+)
+_RESUMED_ISOLATION = (
+    "This session continues an earlier delegated task: the session's own prior turns are "
+    "your earlier work on this task. Rely on them, this prompt, and the task input; you "
+    "do not have the controller's conversation history. Do not invoke ambient user "
+    "skills. That instruction is behavioral guidance, not a security boundary."
+)
 
-This is an isolated delegated task. Rely only on this prompt and the task input;
-you do not have the controller's conversation history. Do not invoke ambient user
-skills. That instruction is behavioral guidance, not a security boundary.
+_SHARED_INSTRUCTIONS_TEMPLATE = """## Delegated Task Rules
+
+{isolation}
 
 ## Response Format
 
@@ -53,6 +70,20 @@ End your final message with exactly one supported status marker:
 - **Status: BLOCKED**
 - **Status: NEEDS_CONTEXT**
 """
+
+_SHARED_INSTRUCTIONS = _SHARED_INSTRUCTIONS_TEMPLATE.format(isolation=_FRESH_ISOLATION)
+_RESUMED_SHARED_INSTRUCTIONS = _SHARED_INSTRUCTIONS_TEMPLATE.format(isolation=_RESUMED_ISOLATION)
+
+_RECORDED_CWD_NOTE = "The resumed run uses the session's recorded cwd."
+
+
+def _unknown_session_note(task_id: str) -> str:
+    return f"task_id {task_id} matched no session, so a fresh child started."
+
+
+def _not_a_task_child_note(task_id: str) -> str:
+    return f"task_id {task_id} is not a task child session, so a fresh child started."
+
 
 _READ_ONLY_INSTRUCTIONS = """## Enforced Read-Only Profile
 
@@ -181,10 +212,12 @@ def _child_exit_error(result: ChildResult) -> str:
 
 
 class TauChildRunner:
-    """Run one agent in an isolated Tau subprocess."""
+    """Run one agent in an isolated Tau subprocess pinned to its own session."""
 
-    def __init__(self, executable: str = "tau") -> None:
+    def __init__(self, executable: str = "tau", *, paths: TauPaths | None = None) -> None:
         self.executable = executable
+        #: Session store consulted for resume verification; redirected in tests.
+        self.paths = paths if paths is not None else TauPaths()
 
     async def run(
         self,
@@ -204,10 +237,21 @@ class TauChildRunner:
         timeout_seconds: float,
         signal: ToolCancellationToken | None,
         on_message: ChildUpdate | None = None,
+        resume_session_id: str | None = None,
     ) -> ChildResult:
-        """Launch and collect one child, retaining partial state on every exit path."""
+        """Launch and collect one child, retaining partial state on every exit path.
 
-        cwd = resolve_child_cwd(default_cwd, cwd_override)
+        Without ``resume_session_id`` the child runs in a new session pinned by a
+        generated id, which ``task_id`` records for every attempt that spawned a
+        process; only a pre-spawn failure leaves it unset, because then no Tau
+        session exists. With ``resume_session_id`` the session store is verified
+        first: a missing record or a non-subagent role falls back to a fresh
+        child with the matching repair note, and a verified resume runs in the
+        session's recorded cwd, retrying once as a fresh child when tau reports
+        the session unknown.
+        """
+
+        resolved_cwd = resolve_child_cwd(default_cwd, cwd_override)
         provider, model = effective_provider_model(
             agent,
             provider_override,
@@ -224,6 +268,80 @@ class TauChildRunner:
             config_defaults=config_defaults,
             parent_reasoning_effort=parent_reasoning_effort,
         )
+        fresh_id = uuid.uuid4().hex
+
+        async def fresh_child() -> ChildResult:
+            return await self._run_child(
+                cwd=resolved_cwd,
+                session=SessionSelection(id=fresh_id),
+                agent=agent,
+                task=task,
+                provider=provider,
+                model=model,
+                reasoning_effort=reasoning_effort,
+                timeout_seconds=timeout_seconds,
+                signal=signal,
+                on_message=on_message,
+            )
+
+        if resume_session_id is None:
+            return await fresh_child()
+        record = SessionManager(self.paths).get_session(resume_session_id)
+        if record is None or record.role != SUBAGENT_SESSION_ROLE:
+            note = (
+                _unknown_session_note(resume_session_id)
+                if record is None
+                else _not_a_task_child_note(resume_session_id)
+            )
+            fallback = await fresh_child()
+            fallback.notes = (note,)
+            return fallback
+
+        resumed = await self._run_child(
+            cwd=record.cwd,
+            session=SessionSelection(id=record.id, resume=True),
+            agent=agent,
+            task=task,
+            provider=provider,
+            model=model,
+            reasoning_effort=reasoning_effort,
+            timeout_seconds=timeout_seconds,
+            signal=signal,
+            on_message=on_message,
+        )
+        if cwd_override is not None:
+            resumed.notes = (*resumed.notes, _RECORDED_CWD_NOTE)
+        if resumed.succeeded or not _UNKNOWN_SESSION_DIAGNOSTIC.search(
+            _stderr_excerpt(resumed.stderr)
+        ):
+            return resumed
+        retry = await fresh_child()
+        retry.notes = (_unknown_session_note(resume_session_id),)
+        return retry
+
+    async def _run_child(
+        self,
+        *,
+        cwd: Path,
+        session: SessionSelection,
+        agent: AgentConfig,
+        task: str,
+        provider: str | None,
+        model: str | None,
+        reasoning_effort: str | None,
+        timeout_seconds: float,
+        signal: ToolCancellationToken | None,
+        on_message: ChildUpdate | None,
+    ) -> ChildResult:
+        """Run one child invocation in ``session`` and collect its output.
+
+        The child spawns in ``cwd``: the resolved call cwd for a fresh run, the
+        verified record's cwd for a resumed run. ``task_id`` records the selected
+        session id once the process exists, so every post-spawn failure keeps
+        the id; a pre-spawn failure leaves the id the session semantics dictate:
+        unset for a fresh run and the verified id for a resumed run.
+        """
+
         result = ChildResult(
             agent=agent.name,
             agent_source=agent.source,
@@ -232,6 +350,7 @@ class TauChildRunner:
             provider=provider,
             model=model,
             reasoning_effort=reasoning_effort,
+            task_id=session.id if session.resume else None,
         )
         if _is_cancelled(signal):
             result.cancelled = True
@@ -239,7 +358,7 @@ class TauChildRunner:
             result.error_message = "Dispatch cancelled before child process started."
             return result
 
-        prompt = compose_child_prompt(agent)
+        prompt = compose_child_prompt(agent, resumed=session.resume)
         with tempfile.TemporaryDirectory(prefix="tau-subagent-") as temp_dir_name:
             temp_dir = Path(temp_dir_name)
             prompt_path = temp_dir / "prompt.md"
@@ -271,6 +390,7 @@ class TauChildRunner:
                 model=model,
                 policy_path=policy_path,
                 thinking_policy_path=thinking_policy_path,
+                session=session,
             )
             environment = os.environ.copy()
             environment[RECURSION_GUARD] = "1"
@@ -287,6 +407,7 @@ class TauChildRunner:
             except (OSError, ValueError) as exc:
                 result.error_message = f"Could not start Tau child: {exc}"
                 return result
+            result.task_id = session.id
 
             assert process.stdout is not None
             assert process.stderr is not None
@@ -358,10 +479,14 @@ class TauChildRunner:
         return result
 
 
-def compose_child_prompt(agent: AgentConfig) -> str:
-    """Preserve the agent body, then append fixed isolation/profile instructions."""
+def compose_child_prompt(agent: AgentConfig, *, resumed: bool = False) -> str:
+    """Preserve the agent body, then append fixed isolation/profile instructions.
 
-    sections = [_SHARED_INSTRUCTIONS]
+    ``resumed`` swaps the isolation paragraph for the continuation sentence that
+    tells the child its own prior turns are its earlier work on this task.
+    """
+
+    sections = [_RESUMED_SHARED_INSTRUCTIONS if resumed else _SHARED_INSTRUCTIONS]
     if agent.profile == "review":
         sections.insert(0, _REVIEW_INSTRUCTIONS)
     elif agent.profile == "read-only":

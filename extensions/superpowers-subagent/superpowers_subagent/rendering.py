@@ -51,16 +51,29 @@ _STATUS_HINTS: dict[str, str] = {
 def render_task_call(arguments: Mapping[str, JSONValue]) -> str:
     """Render one concise Task invocation line for Tau frontends.
 
-    Tau frontends render tool invocations as plain text (Rich markup is only
-    parsed for ``render_result`` output), so this line must not contain tags.
+    The label is the caller's ``description`` when it is non-empty after
+    trimming, and the effective ``subagent_type`` otherwise; it never derives
+    from the task count. Tau frontends render tool invocations as plain text
+    (Rich markup is only parsed for ``render_result`` output), so this line
+    must not contain tags.
     """
 
     description = arguments.get("description")
     if isinstance(description, str) and description.strip():
         label = _one_line(description)
     else:
-        label = _call_label(arguments)
+        label = _effective_subagent_type(arguments)
     return f"▸ Task · {escape(label)}"
+
+
+def _effective_subagent_type(arguments: Mapping[str, JSONValue]) -> str:
+    """Resolve the label's agent name the way dispatch does: trimmed
+    ``subagent_type`` when the caller supplied one, else ``general-purpose``."""
+
+    subagent_type = arguments.get("subagent_type")
+    if isinstance(subagent_type, str) and subagent_type.strip():
+        return subagent_type.strip()
+    return "general-purpose"
 
 
 def render_task_result(result: AgentToolResult, *, expanded: bool) -> str | None:
@@ -486,15 +499,9 @@ def _format_tokens(count: float) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _call_label(arguments: Mapping[str, JSONValue]) -> str:
-    tasks = arguments.get("tasks")
-    if isinstance(tasks, list):
-        count = len(tasks)
-        return "1 child" if count == 1 else f"{count} children"
-    return "dispatch"
-
-
 def _one_line(value: str, *, limit: int = 120) -> str:
+    """Collapse ``value`` to one display line, ellipsized past ``limit``."""
+
     collapsed = " ".join(value.split())
     if len(collapsed) <= limit:
         return collapsed

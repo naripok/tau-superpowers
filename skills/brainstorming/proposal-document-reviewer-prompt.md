@@ -6,20 +6,16 @@ Use this template when dispatching a proposal document reviewer subagent.
 
 **Dispatch after:** The proposal is written to `docs/design/`. This cold review must complete before operator review.
 
-This is a template for constructing the `task` string of the Tau `task` tool. Call it with this argument shape after replacing every placeholder:
+This is a template for constructing the `prompt` value of a Tau `task` tool call. Call it with this argument shape after replacing every placeholder:
 
 ```json
 {
-  "tasks": [
-    {
-      "agent": "document-review",
-      "task": "[FILLED PROMPT BELOW]"
-    }
-  ]
+  "subagent_type": "document-review",
+  "prompt": "[FILLED PROMPT BELOW]"
 }
 ```
 
-The child has no controller conversation history and receives no brainstorm history. Include the proposal path and its complete text, the selected depth, the candidate content identity, the named evidence paths, the baseline branch, and the review contract. The result content is the reviewer's complete final message: the `## Document Review` report (verdict + findings) ending in the status line.
+The child has no controller conversation history and receives no brainstorm history. Include the proposal path and its complete text, the selected depth, the candidate content identity, the named evidence paths, the baseline branch, and the review contract. The result content is one `task` envelope around the reviewer's complete final message: the `## Document Review` report (verdict + findings) ending in the status line. The envelope names the child session's `taskId`, so a follow-up call can resume that session with `task_id` and `subagent_type`.
 
 ```markdown
     You are the cold proposal reviewer. You review the proposal before any operator review.

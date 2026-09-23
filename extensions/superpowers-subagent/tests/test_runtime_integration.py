@@ -3,8 +3,10 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import shutil
 import subprocess
+import uuid
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
@@ -18,10 +20,13 @@ from tau_agent.tools import AgentTool, AgentToolResult
 from tau_agent.types import JSONValue
 from tau_ai import FakeProvider
 from tau_coding.extensions import ExtensionRuntime
+from tau_coding.paths import TauPaths
 from tau_coding.resources import TauResourcePaths
 from tau_coding.session import CodingSession, CodingSessionConfig
+from tau_coding.session_manager import SUBAGENT_SESSION_ROLE, SessionManager
 
-from superpowers_subagent.runner import RECURSION_GUARD
+from superpowers_subagent.models import AgentConfig
+from superpowers_subagent.runner import RECURSION_GUARD, TauChildRunner
 
 EXTENSION_DIR = Path(__file__).resolve().parents[1]
 FAKE_TAU_SOURCE = Path(__file__).parent / "fixtures" / "fake_tau.py"
@@ -219,33 +224,32 @@ async def test_real_runtime_executes_single_and_parallel_with_ordered_updates(
 ) -> None:
     _executable, log_path = fake_tau_environment
     runtime, tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
-    assert runtime.render_tool_call(
-        "task", {"tasks": [{"agent": "general-purpose", "task": "alpha"}]}
-    )
+    runtime.render_tool_call("task", {"prompt": "alpha", "subagent_type": "general-purpose"})
 
     single_updates: list[AgentToolResult] = []
     single = await tool.execute(
         "single",
-        {"tasks": [{"agent": "general-purpose", "task": "alpha"}]},
+        {"prompt": "alpha", "subagent_type": "general-purpose"},
         on_update=single_updates.append,
     )
-    # A one-item call relays the child's complete final assistant message
-    # verbatim: both text blocks, no tool-call output, no extraction.
-    assert single.text == "full output for alpha\n## Summary\nsummary for alpha\n**Status: DONE**"
+    # The envelope relays the child's complete final assistant message verbatim:
+    # both text blocks, no tool-call output, no extraction.
+    assert single.text.startswith('<task id="')
+    assert 'state="completed"' in single.text
+    assert single.text.endswith("</task>")
+    assert (
+        "<task_result>full output for alpha\n## Summary\nsummary for alpha\n**Status: DONE**"
+        "</task_result>" in single.text
+    )
     assert "tool output" not in single.text
     single_child = child_results(single)[0]
     assert single_child["malformedJsonLines"] == 2
     assert len(single_child["messages"]) == 2
-    # Updates: the toolResult and final assistant messages, the worker
-    # completion, and the final backfill — the slot-based path any count takes.
-    assert len(single_updates) == 4
+    # Updates: one per accepted child message plus the completion emit; the
+    # envelope appears only on the final result.
+    assert len(single_updates) == 3
     assert all(update.details["schemaVersion"] == 2 for update in single_updates)
-    assert [update.text for update in single_updates] == [
-        "0/1 done",
-        "0/1 done",
-        "1/1 done",
-        "1/1 done",
-    ]
+    assert [update.text for update in single_updates] == ["0/1 done", "0/1 done", "1/1 done"]
     collapsed = runtime.render_tool_result("task", single, expanded=False)
     expanded = runtime.render_tool_result("task", single, expanded=True)
     # The frame shows one self-contained child component: header, streamed
@@ -256,30 +260,43 @@ async def test_real_runtime_executes_single_and_parallel_with_ordered_updates(
     assert expanded is not None and "full output for alpha" in expanded
     assert "[dim]Task:[/dim] alpha" in expanded
 
-    parallel_updates: list[AgentToolResult] = []
-    parallel = await tool.execute(
-        "parallel",
-        {
-            "tasks": [
-                {"agent": "general-purpose", "task": "one"},
-                {"agent": "read-only", "task": "two"},
-                {"agent": "general-purpose", "task": "three"},
-            ]
-        },
-        on_update=parallel_updates.append,
+    concurrent_updates: list[list[AgentToolResult]] = [[], [], []]
+    concurrent_calls = (
+        ("one", "general-purpose"),
+        ("two", "read-only"),
+        ("three", "general-purpose"),
     )
-    assert parallel.text.startswith("3/3 succeeded")
-    assert [child["task"] for child in child_results(parallel)] == ["one", "two", "three"]
-    assert "tool output" not in parallel.text
-    assert parallel_updates
-    assert [child["task"] for child in child_results(parallel_updates[-1])] == [
-        "one",
-        "two",
-        "three",
-    ]
+    # Several task calls in one assistant message run concurrently through
+    # Tau's parallel tool scheduling; the tool sets no cap on the count.
+    concurrent = await asyncio.gather(
+        *[
+            tool.execute(
+                f"parallel-{index}",
+                {"prompt": prompt, "subagent_type": agent},
+                on_update=concurrent_updates[index].append,
+            )
+            for index, (prompt, agent) in enumerate(concurrent_calls)
+        ]
+    )
+    for index, result in enumerate(concurrent):
+        prompt = concurrent_calls[index][0]
+        assert f"full output for {prompt}" in result.text
+        assert result.text.startswith('<task id="')
+        assert "tool output" not in result.text
+        assert [update.text for update in concurrent_updates[index]] == [
+            "0/1 done",
+            "0/1 done",
+            "1/1 done",
+        ]
 
     starts = [item for item in read_log(log_path) if item["event"] == "start"]
     assert len(starts) == 4
+    # Every fresh child is pinned to a new subagent-role session and keeps the
+    # fresh-run cwd flag.
+    assert all(item["sessionRole"] == "subagent" for item in starts)
+    assert all(re.fullmatch(r"[0-9a-f]{32}", item["sessionId"]) for item in starts)
+    assert all("--cwd" in item["argv"] and "--session" not in item["argv"] for item in starts)
+    assert single_child["taskId"] == starts[0]["sessionId"]
     read_only = [item for item in starts if item["policyPath"] is not None]
     assert {item["task"].splitlines()[0] for item in read_only} == {"two"}
     assert all(item["guard"] == "1" for item in starts)
@@ -299,7 +316,7 @@ async def test_coding_session_propagates_task_partial_updates_and_final_message_
     monkeypatch.delenv(RECURSION_GUARD, raising=False)
     provider = FakeProvider(
         [
-            tool_call_stream({"tasks": [{"agent": "general-purpose", "task": "session-child"}]}),
+            tool_call_stream({"prompt": "session-child", "subagent_type": "general-purpose"}),
             final_stream(),
         ]
     )
@@ -327,12 +344,14 @@ async def test_coding_session_propagates_task_partial_updates_and_final_message_
 
     updates = [event for event in events if isinstance(event, ToolExecutionUpdateEvent)]
     ended = next(event for event in events if isinstance(event, ToolExecutionEndEvent))
-    assert len(updates) == 4
+    assert len(updates) == 3
     assert all(update.partial_result.details["schemaVersion"] == 2 for update in updates)
     assert ended.tool_name == "task"
-    # The controller sees the child's complete final message as result content.
-    assert ended.result.text == (
-        "full output for session-child\n## Summary\nsummary for session-child\n**Status: DONE**"
+    # The controller sees the envelope wrapping the child's complete final message.
+    assert ended.result.text.startswith('<task id="')
+    assert (
+        "<task_result>full output for session-child\n## Summary\n"
+        "summary for session-child\n**Status: DONE**</task_result>" in ended.result.text
     )
     assert "tool output" not in ended.result.text
     assert "full output for session-child" in json.dumps(ended.result.details)
@@ -352,11 +371,12 @@ async def test_runtime_exposes_actionable_unknown_provider_failure_and_retains_s
     _runtime, tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
 
     result = await tool.execute(
-        "unknown-provider", {"tasks": [{"agent": "general-purpose", "task": "unknown-provider"}]}
+        "unknown-provider",
+        {"prompt": "unknown-provider", "subagent_type": "general-purpose"},
     )
 
     child = child_results(result)[0]
-    assert "Agent general-purpose failed" in result.text
+    assert "Subagent failed (task_id: " in result.text
     assert "UnKnOwN PrOvIdEr: made-up-provider" in result.text
     assert "omit provider, model, and reasoningEffort" in result.text
     assert "tau providers" in result.text
@@ -372,9 +392,12 @@ async def test_runtime_retains_partial_data_for_nonzero_and_protocol_failures(
     del fake_tau_environment
     _runtime, tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
 
-    failed = await tool.execute("failed", {"tasks": [{"agent": "general-purpose", "task": "fail"}]})
+    failed = await tool.execute("failed", {"prompt": "fail", "subagent_type": "general-purpose"})
     failed_child = child_results(failed)[0]
-    assert "Agent general-purpose failed" in failed.text
+    # The child delivered a final assistant message, so task_error wraps it.
+    assert failed.text.startswith('<task id="')
+    assert 'state="error"' in failed.text
+    assert "<task_error>full output for fail" in failed.text
     assert failed_child["exitCode"] == 7
     assert failed_child["status"] == "BLOCKED"
     assert len(failed_child["messages"]) == 2
@@ -382,9 +405,10 @@ async def test_runtime_retains_partial_data_for_nonzero_and_protocol_failures(
     assert "stderr for fail" in failed_child["stderr"]
 
     protocol = await tool.execute(
-        "protocol", {"tasks": [{"agent": "general-purpose", "task": "no-message"}]}
+        "protocol", {"prompt": "no-message", "subagent_type": "general-purpose"}
     )
     protocol_child = child_results(protocol)[0]
+    assert "Subagent failed (task_id: " in protocol.text
     assert "without a valid assistant message" in protocol_child["errorMessage"]
     assert protocol_child["status"] == "BLOCKED"
 
@@ -401,7 +425,8 @@ async def test_runtime_terminates_child_on_timeout_or_cancellation_and_retains_p
     _runtime, tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
     token = CancellationToken()
     arguments: dict[str, JSONValue] = {
-        "tasks": [{"agent": "general-purpose", "task": "sleep"}],
+        "prompt": "sleep",
+        "subagent_type": "general-purpose",
         "timeoutSeconds": 2 if cancel else 0.1,
     }
 
@@ -412,6 +437,9 @@ async def test_runtime_terminates_child_on_timeout_or_cancellation_and_retains_p
     result = await execution
 
     child = child_results(result)[0]
+    assert result.text.startswith('<task id="')
+    assert 'state="error"' in result.text
+    assert "partial before wait" in result.text
     assert child["cancelled"] is cancel
     assert child["timedOut"] is (not cancel)
     assert child["status"] == "BLOCKED"
@@ -434,20 +462,26 @@ async def test_project_agent_approval_uses_headless_fail_closed_and_public_ui_co
         encoding="utf-8",
     )
     arguments: dict[str, JSONValue] = {
-        "tasks": [{"agent": "project-worker", "task": "approved"}],
+        "prompt": "approved",
+        "subagent_type": "project-worker",
         "agentScope": "project",
     }
 
     _headless_runtime, headless_tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
     headless = await headless_tool.execute("headless", arguments)
     assert "approval required in headless mode" in headless.text
+    assert headless.details["results"] == []
     assert read_log(log_path) == []
 
     denied_ui = InteractiveUi(answer=False)
     _denied_runtime, denied_tool = load_task_tool(tmp_path, monkeypatch=monkeypatch, ui=denied_ui)
     denied = await denied_tool.execute("denied", arguments)
-    assert denied.text.startswith("Canceled")
+    # The denial is a pre-session failure: an error envelope with no id
+    # attribute and a details entry without a taskId.
+    assert '<task state="error">' in denied.text
+    assert "Canceled: project-local agents were not approved." in denied.text
     assert "project-worker" in denied_ui.confirmations[0][1]
+    assert "taskId" not in child_results(denied)[0]
     assert read_log(log_path) == []
 
     approved_ui = InteractiveUi(answer=True)
@@ -455,7 +489,8 @@ async def test_project_agent_approval_uses_headless_fail_closed_and_public_ui_co
         tmp_path, monkeypatch=monkeypatch, ui=approved_ui
     )
     approved = await approved_tool.execute("approved", arguments)
-    assert approved.text.startswith("full output for approved")
+    assert approved.text.startswith('<task id="')
+    assert 'state="completed"' in approved.text
     assert child_results(approved)[0]["agentSource"] == "project"
     assert len([item for item in read_log(log_path) if item["event"] == "start"]) == 1
 
@@ -494,7 +529,7 @@ async def test_real_runtime_inherits_parent_thinking_level_and_config_overrides(
     tool = runtime.extension_tools[0]
 
     inherited = await tool.execute(
-        "inherited", {"tasks": [{"agent": "general-purpose", "task": "inherit-thinking"}]}
+        "inherited", {"prompt": "inherit-thinking", "subagent_type": "general-purpose"}
     )
     child = child_results(inherited)[0]
     assert child["reasoningEffort"] == "medium"
@@ -516,7 +551,7 @@ async def test_real_runtime_inherits_parent_thinking_level_and_config_overrides(
     monkeypatch.setattr(Path, "home", classmethod(lambda _cls: config_home))
 
     pinned = await tool.execute(
-        "pinned", {"tasks": [{"agent": "general-purpose", "task": "config-pinned"}]}
+        "pinned", {"prompt": "config-pinned", "subagent_type": "general-purpose"}
     )
     pinned_child = child_results(pinned)[0]
     assert pinned_child["model"] == "cfg/model"
@@ -535,8 +570,170 @@ async def test_real_runtime_inherits_parent_thinking_level_and_config_overrides(
     # falls through to parent model and thinking level.
     config_path.write_text("", encoding="utf-8")
     unpinned = await tool.execute(
-        "unpinned", {"tasks": [{"agent": "read-only", "task": "unpinned-work"}]}
+        "unpinned", {"prompt": "unpinned-work", "subagent_type": "read-only"}
     )
     unpinned_child = child_results(unpinned)[0]
     assert unpinned_child["model"] == "outer-model"
     assert unpinned_child["reasoningEffort"] == "medium"
+
+
+def resume_agent(tmp_path: Path) -> AgentConfig:
+    """A read-only agent distinct from the fresh call's agent, so a resume test
+    can prove the resumed run regenerates the call agent's prompt and policy."""
+
+    return AgentConfig(
+        name="resume-worker",
+        description="Resume worker",
+        system_prompt="Resumed integration body",
+        source="user",
+        file_path=tmp_path / "resume-worker.md",
+        profile="read-only",
+    )
+
+
+def create_store_record(session_id: str, cwd: Path) -> None:
+    """Pre-create one subagent-role record in the default (HOME-redirected)
+    session store, so a resume call's verification finds it."""
+
+    SessionManager(TauPaths()).create_session(
+        cwd=cwd,
+        model="fixture-model",
+        session_id=session_id,
+        role=SUBAGENT_SESSION_ROLE,
+    )
+
+
+async def run_resumed(
+    tmp_path: Path,
+    *,
+    agent: AgentConfig,
+    task: str,
+    resume_session_id: str,
+    timeout_seconds: float = 2,
+) -> Any:
+    """Drive one resumed child through the extension-constructed runner against
+    the redirected store. The dispatch wiring (tool.execute → lock → runner)
+    is covered by the dispatch tests with a fake runner."""
+
+    return await TauChildRunner().run(
+        default_cwd=tmp_path,
+        agent=agent,
+        task=task,
+        cwd_override=None,
+        provider_override=None,
+        model_override=None,
+        reasoning_effort_override=None,
+        timeout_seconds=timeout_seconds,
+        signal=None,
+        resume_session_id=resume_session_id,
+    )
+
+
+@pytest.mark.asyncio
+async def test_runtime_pins_a_session_and_resumes_it(
+    tmp_path: Path,
+    fake_tau_environment: tuple[Path, Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Prove the full extension path pins every fresh child to a persisted
+    session id, and that the same id resumes through the real session store in
+    the recorded cwd with the call agent's regenerated settings."""
+
+    _executable, log_path = fake_tau_environment
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    _runtime, tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
+
+    pinned = await tool.execute(
+        "pinned", {"prompt": "pinned work", "subagent_type": "general-purpose"}
+    )
+    pinned_child = child_results(pinned)[0]
+    starts = [item for item in read_log(log_path) if item["event"] == "start"]
+    assert len(starts) == 1
+    pinned_start = starts[0]
+    task_id = pinned_child["taskId"]
+    assert pinned_start["sessionId"] == task_id
+    assert pinned_start["sessionRole"] == "subagent"
+    assert pinned_start["argv"][pinned_start["argv"].index("--session-id") + 1] == task_id
+    assert "--session" not in pinned_start["argv"]
+    assert "This is an isolated delegated task" in pinned_start["prompt"]
+
+    recorded_cwd = tmp_path / "recorded-cwd"
+    recorded_cwd.mkdir()
+    create_store_record(task_id, recorded_cwd)
+
+    result = await run_resumed(
+        tmp_path,
+        agent=resume_agent(tmp_path),
+        task="continue the pinned work",
+        resume_session_id=task_id,
+    )
+
+    assert result.succeeded
+    assert result.task_id == task_id
+    assert result.cwd == str(recorded_cwd.resolve())
+    assert result.notes == ()
+    assert result.usage.turns == 1
+    assert result.usage.input == 2
+    assert result.usage.output == 3
+    starts = [item for item in read_log(log_path) if item["event"] == "start"]
+    assert len(starts) == 2
+    resumed_start = starts[1]
+    argv = resumed_start["argv"]
+    assert argv[argv.index("--session") + 1] == task_id
+    assert "--session-id" not in argv
+    assert "--session-role" not in argv
+    assert "--cwd" not in argv
+    assert "--no-extensions" in argv
+    assert "--no-approve" in argv
+    assert resumed_start["resumeSession"] == task_id
+    assert resumed_start["cwd"] == str(recorded_cwd.resolve())
+    assert resumed_start["prompt"].startswith("Resumed integration body")
+    assert "This session continues an earlier delegated task" in resumed_start["prompt"]
+    assert "Enforced Read-Only Profile" in resumed_start["prompt"]
+    assert resumed_start["policyPath"] is not None
+    assert not Path(resumed_start["promptPath"]).exists()
+    assert not Path(resumed_start["policyPath"]).exists()
+    assert SessionManager(TauPaths()).get_session(task_id).cwd == recorded_cwd.resolve()
+
+
+@pytest.mark.asyncio
+async def test_runtime_resumed_unknown_session_falls_back_to_a_fresh_child(
+    tmp_path: Path,
+    fake_tau_environment: tuple[Path, Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Prove a verified resume whose child reports tau's clean ``Unknown
+    session:`` failure retries once as a fresh child running the call's prompt."""
+
+    _executable, log_path = fake_tau_environment
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    _runtime, _tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
+
+    orphan_id = uuid.uuid4().hex
+    create_store_record(orphan_id, tmp_path)
+
+    result = await run_resumed(
+        tmp_path,
+        agent=resume_agent(tmp_path),
+        task="unknown-session",
+        resume_session_id=orphan_id,
+    )
+
+    starts = [item for item in read_log(log_path) if item["event"] == "start"]
+    assert len(starts) == 2
+    assert starts[0]["resumeSession"] == orphan_id
+    retry_argv = starts[1]["argv"]
+    fresh_id = retry_argv[retry_argv.index("--session-id") + 1]
+    assert re.fullmatch(r"[0-9a-f]{32}", fresh_id)
+    assert fresh_id != orphan_id
+    assert "--session" not in retry_argv
+    assert "--cwd" in retry_argv
+    assert starts[1]["task"] == "unknown-session"
+    assert result.succeeded
+    assert result.task_id == fresh_id
+    assert result.cwd == str(tmp_path.resolve())
+    assert result.notes == (f"task_id {orphan_id} matched no session, so a fresh child started.",)

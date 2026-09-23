@@ -46,32 +46,33 @@ Each agent gets one focused, self-contained prompt: specific scope, clear goal, 
 
 ### 3. Dispatch in Parallel
 
-Call the Tau `task` tool once, with all tasks in one `tasks` array (call schema: `../using-superpowers/references/tau-tools.md`). Children run concurrently, at most four at a time. Results keep the input order:
+Send several `task` calls in one message, one call per domain (call schema: `../using-superpowers/references/tau-tools.md`). The calls run concurrently, and each call carries one flat task object:
 
 ```json
 {
-  "tasks": [
-    {
-      "agent": "general-purpose",
-      "task": "Fix agent-tool-abort.test.ts failures. Stay within this test domain and return a summary of the root cause, files changed, and tests run."
-    },
-    {
-      "agent": "general-purpose",
-      "task": "Fix batch-completion-behavior.test.ts failures. Stay within this test domain and return a summary of the root cause, files changed, and tests run."
-    },
-    {
-      "agent": "general-purpose",
-      "task": "Fix tool-approval-race-conditions.test.ts failures. Stay within this test domain and return a summary of the root cause, files changed, and tests run."
-    }
-  ]
+  "prompt": "Fix agent-tool-abort.test.ts failures. Stay within this test domain and return a summary of the root cause, files changed, and tests run."
 }
 ```
+
+```json
+{
+  "prompt": "Fix batch-completion-behavior.test.ts failures. Stay within this test domain and return a summary of the root cause, files changed, and tests run."
+}
+```
+
+```json
+{
+  "prompt": "Fix tool-approval-race-conditions.test.ts failures. Stay within this test domain and return a summary of the root cause, files changed, and tests run."
+}
+```
+
+Omit `subagent_type` to select `general-purpose`, or name the agent the domain needs.
 
 ### 4. Review and Integrate
 
 When agents return:
-- Read each input-ordered summary and inspect `details.results` for status or process failures
-- Resolve `DONE_WITH_CONCERNS`, `BLOCKED`, and `NEEDS_CONTEXT` explicitly. If an agent needs more context, re-dispatch it with a complete prompt
+- Read each result. The content is one `task` envelope that names the child's `taskId`, and `details.results` holds the status and process fields
+- Resolve `DONE_WITH_CONCERNS`, `BLOCKED`, and `NEEDS_CONTEXT` explicitly. If an agent needs more context, re-dispatch it with a complete prompt. To continue the same child session, pass its result's `task_id` with `subagent_type`
 - Check that fixes do not conflict
 - Run the full test suite
 - Spot check the changes because agents can make systematic errors

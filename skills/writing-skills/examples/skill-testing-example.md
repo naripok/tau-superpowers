@@ -138,10 +138,10 @@ A variant fails when the agent:
 
 ## Body-Test Protocol With `task`
 
-Metadata trigger testing uses fresh parent Tau sessions because the candidate must participate in real skill discovery. Test the body itself with isolated `task` calls (a one-item `tasks` array). Follow the procedure in [Testing Skills With Subagents](../testing-skills-with-subagents.md):
+Metadata trigger testing uses fresh parent Tau sessions because the candidate must participate in real skill discovery. Test the body itself with isolated `task` calls, one call per trial. Follow the procedure in [Testing Skills With Subagents](../testing-skills-with-subagents.md):
 
 1. RED: send the scenario to `read-only` without the candidate body.
-2. GREEN: send the identical scenario with the complete candidate `SKILL.md` embedded in the task.
+2. GREEN: send the identical scenario with the complete candidate `SKILL.md` embedded in the prompt.
 3. Keep provider/model settings identical.
 4. Inspect `details.results[0].messages` for exact wording and check the process state plus the semantic status.
 5. Give every trial its own independent call.

@@ -1,6 +1,6 @@
 # Tau `task` Tool Reference
 
-The `superpowers-subagent` Tau extension registers one tool named `task`. It launches isolated `tau` subprocesses for one or more delegated tasks. You must install the extension under `~/.tau/extensions/superpowers-subagent` or load it explicitly with:
+The `superpowers-subagent` Tau extension registers one tool named `task`. It launches one isolated `tau` subprocess per call for the delegated task. You must install the extension under `~/.tau/extensions/superpowers-subagent` or load it explicitly with:
 
 ```bash
 tau -e extensions/superpowers-subagent
@@ -8,42 +8,51 @@ tau -e extensions/superpowers-subagent
 
 ## task Tool API
 
-Every `task` call takes a `tasks` array. The examples below are the JSON argument objects for the tool call.
+Every `task` call carries exactly one task as one flat object. The examples below are the JSON argument objects for the tool call.
 
-### Task list
+### One task per call
 
-`tasks` is required: an array of 1–8 items, each `{agent, task, cwd?}`. One item runs a single child. Two or more items run in parallel, with at most four active. The results keep the input order. Each item can carry its own `cwd`.
-
-```json
-{
-  "tasks": [
-    {
-      "agent": "general-purpose",
-      "task": "Implement the caching layer as described in the supplied requirements.",
-      "cwd": "/path/to/worktree"
-    }
-  ]
-}
-```
-
-Two or more items dispatch in parallel — independent work only:
+`prompt` is required: the child's task, preserved verbatim. `subagent_type` is optional, and omission selects `general-purpose`. `cwd` is optional and resolves relative to the parent Tau session's working directory:
 
 ```json
 {
-  "tasks": [
-    {
-      "agent": "general-purpose",
-      "task": "Fix the supplied authentication test failures. Do not modify the batch module."
-    },
-    {
-      "agent": "general-purpose",
-      "task": "Fix the supplied batch test failures. Do not modify the authentication module."
-    }
-  ]
+  "prompt": "Implement the caching layer as described in the supplied requirements.",
+  "subagent_type": "general-purpose",
+  "cwd": "/path/to/worktree"
 }
 ```
 
-Every task in one call must be independent: items share no state and cannot see each other's progress. Conditional sequences require separate `task` calls. This applies to implement → review → fix if needed → re-review, and to any loop where a later step depends on an earlier result. The separate calls let the controller inspect each result.
+### Parallel dispatch
+
+Dispatch independent work with several `task` calls in one message. The calls run concurrently, and each result carries its own envelope:
+
+```json
+{
+  "prompt": "Fix the supplied authentication test failures. Do not modify the batch module."
+}
+```
+
+```json
+{
+  "prompt": "Fix the supplied batch test failures. Do not modify the authentication module."
+}
+```
+
+Every task in one message must be independent: the tasks share no state and cannot see each other's progress. Conditional sequences require separate `task` calls across turns. This applies to implement → review → fix if needed → re-review, and to any loop where a later step depends on an earlier result. The separate calls let the controller inspect each result.
+
+### Resume with task_id
+
+A call with `task_id` continues that child session instead of starting a fresh one. Pass the earlier result's `task_id` with `subagent_type`. The child keeps its earlier messages and tool outputs, and the call's `prompt` is the new turn:
+
+```json
+{
+  "prompt": "Now re-check the authz paths.",
+  "subagent_type": "code-review",
+  "task_id": "<task_id from the earlier result>"
+}
+```
+
+`task_id` requires `subagent_type`. A resumed run uses the session's recorded creation cwd and ignores the call's `cwd`. Usage in details covers the resumed run only.
 
 ### When to dispatch
 
@@ -51,19 +60,24 @@ Dispatch a subagent only for substantive multi-step work that benefits from an i
 
 ## Common Options
 
-These optional top-level fields work with every call:
+These optional fields work with every call:
 
 | Field | Meaning |
 |---|---|
-| `description` | Short display description. |
+| `subagent_type` | Optional agent name. Omission selects `general-purpose`. An unknown name fails closed and lists the roster. |
+| `description` | Short display description. No behavioral effect. |
+| `task_id` | Resume a previous child session. Pass the `task_id` from an earlier task result. It requires `subagent_type`. |
+| `cwd` | Working directory for a fresh child. Omission uses the parent session cwd. A resumed run ignores it. |
 | `agentScope` | `user` (default), `project`, or `both`. |
 | `confirmProjectAgents` | Require TUI approval for selected project agents (default `true`). Setting it to `false` explicitly approves them for this call. |
-| `provider` | Opaque Tau provider override. |
-| `model` | Opaque Tau model override. |
-| `reasoningEffort` | Thinking level for every child: `off`, `minimal`, `low`, `medium`, `high`, or `xhigh`. A call-level value overrides the config file and the selected agent definition. Otherwise the level falls back to the config file, then the agent definition, then the parent session's thinking level. The extension applies the level as the child's Tau thinking level at session start. If the level is unsupported for the effective provider/model, the child logs a `[superpowers-subagent] could not apply reasoning effort ...` diagnostic on its `stderr`. You can see this diagnostic in `details.results[].stderr`. The child then runs at its ambient level. |
-| `timeoutSeconds` | Per-child timeout. The value must be greater than 0 and at most 3600. The default is 3600. |
+| `provider` | Optional literal provider override. Omit it to inherit configuration. Otherwise pass an exact configured provider name from `tau providers`. Invalid names fail before any child starts, listing the configured providers. |
+| `model` | Optional literal model override. Omit it to inherit configuration. Otherwise pass an exact model ID supported by the selected provider. Invalid IDs fail before any child starts, listing the provider's models. |
+| `reasoningEffort` | Optional literal reasoningEffort override: `off`, `minimal`, `low`, `medium`, `high`, or `xhigh`. Omit it to inherit configuration. A call-level value overrides the config file and the selected agent definition. Otherwise the level falls back to the config file, then the agent definition, then the parent session's thinking level. The extension applies the level as the child's Tau thinking level at session start. If the level is unsupported for the effective provider/model, the child logs a `[superpowers-subagent] could not apply reasoning effort ...` diagnostic on its `stderr`. You can see this diagnostic in `details.results[].stderr`. The child then runs at its ambient level. |
+| `timeoutSeconds` | Per-child timeout in seconds. The value must be greater than 0 and at most 10800. The default is 3600. |
 
-Tau resolves a relative `cwd` from the parent Tau session's working directory. `cwd` lives on each item.
+Tau resolves a relative `cwd` from the parent Tau session's working directory. `cwd` applies to a fresh child. A resumed run uses the session's recorded creation cwd and ignores the call's `cwd`.
+
+The values `default`, `inherit`, and `auto` are placeholders for the override fields. The call treats them as omitted and reports a repair note. Omit the field instead.
 
 ## Bundled Agent Profiles
 
@@ -83,7 +97,7 @@ They still cannot call `write`, `edit`, or other state-changing Tau tools. A pub
 
 The plain `read-only` agent remains stricter: it can call only `read`, no `bash` at all. Its controller must provide command and search output in the task prompt. The controller must also identify every file that the agent must read.
 
-`code-review` returns a strict `## Code Review` report that ends in the status line. `document-review` returns a strict `## Document Review` report that ends in the status line. The child's complete final assistant message is the result content. Tau relays the full report verbatim, with no heading extraction.
+`code-review` returns a strict `## Code Review` report that ends in the status line. `document-review` returns a strict `## Document Review` report that ends in the status line. The result content wraps the child's complete final assistant message in the task envelope. Tau relays the full report verbatim, with no heading extraction.
 
 Agent definitions can pin `provider`, `model`, and `reasoningEffort` in their frontmatter. Unless a skill, the config file, or the user explicitly prescribes the override, **do not override pinned values**.
 
@@ -133,12 +147,8 @@ The fields are independent and map directly to Tau's separate provider and model
 
 ```json
 {
-  "tasks": [
-    {
-      "agent": "implementation",
-      "task": "Complete the delegated task."
-    }
-  ],
+  "prompt": "Complete the delegated task.",
+  "subagent_type": "implementation",
   "reasoningEffort": "high"
 }
 ```
@@ -153,10 +163,15 @@ Children run with discovered extensions and project resources disabled. Tau cann
 
 ## Results and Status
 
-Parent-model `content` is the child's complete final assistant message. It contains only the concatenated text blocks of the last accepted assistant message, never tool calls, thinking, or earlier messages. Tau applies no heading extraction anywhere:
+Parent-model `content` is one task envelope for every result that starts a child:
 
-- one result: success returns the complete final message, or `(no output)` when the message is empty. Failure returns `Agent <name> failed: <error>`.
-- several results: a `<succeeded>/<total> succeeded` header plus one `[<agent>] (completed|failed)` section per child in input order. A section body is that child's complete final message, else its error message, else `(no output)`.
+```text
+<task id="<taskId>" state="completed|error"><task_result>COMPLETE FINAL MESSAGE</task_result></task>
+```
+
+The envelope `id` is the child's Tau session id, and details carry the same id as `taskId`. `completed` means the child finished and delivered a final assistant message. `error` means the child failed, was cancelled, timed out, or ended with no final assistant message. Child status markers (`DONE`, `DONE_WITH_CONCERNS`, `BLOCKED`, `NEEDS_CONTEXT`) stay inside the message text and do not change the envelope state.
+
+A successful child wraps its complete final assistant message in `task_result`. A final message without text wraps the placeholder `(no output)`. An error child wraps its final assistant message in `task_error`. When no final message exists, the tag wraps the failure form `Subagent failed (task_id: <id>): <error>`. Repair notes appear as `Note:` lines before the envelope. The inner content is the child message verbatim.
 
 Structured `details` uses this versioned shape (fields marked `?` are optional):
 
@@ -166,17 +181,19 @@ Structured `details` uses this versioned shape (fields marked `?` are optional):
   agentScope: "user" | "project" | "both",
   projectAgentsDir: string | null,
   discoveryDiagnostics: string[],
-  planned?: number,
+  planned?: 1,
   configPaths?: string[],
   configDiagnostics?: string[],
   results: [{
-    agent, agentSource, task, cwd, exitCode, messages, stderr,
-    usage: { input, output, cacheRead, cacheWrite, cost, contextTokens, turns },
+    agent, agentSource, taskId, task, cwd, exitCode, messages, stderr,
+    usage: { input, output, cacheRead, cacheWrite, cost, estimatedCost, contextTokens, turns },
     provider?, model?, reasoningEffort?, stopReason?, errorMessage?, status,
     timedOut, cancelled, malformedJsonLines
   }]
 }
 ```
+
+For every result that starts a child, `results` holds exactly one entry and `planned` is 1. The entry carries no `taskId` after a failure before Tau creates the session.
 
 Inspect `details.results` for semantic status and process state. It also holds each child's complete accepted Tau wire messages, including tool calls and earlier turns. Content and details both represent failures. Tau tool results do not have an `isError` field.
 
@@ -197,12 +214,8 @@ A typical review call embeds the controller-provided diff while letting the revi
 
 ```json
 {
-  "tasks": [
-    {
-      "agent": "code-review",
-      "task": "Review the named modified files for code quality. The controller-provided git diff follows; you can run read-only bash (git diff/log/status, grep/rg/find) to check claims, but never change the repository state.\n\n## Git Diff\n[PASTE COMPLETE DIFF HERE]\n\n## Requirements\n[PASTE REQUIREMENTS HERE]\n\nReturn the strict report format: exact `## Code Review` heading (verdict, Critical/Important/Minor points — review adversarially, no praise), ending with the status line."
-    }
-  ]
+  "subagent_type": "code-review",
+  "prompt": "Review the named modified files for code quality. The controller-provided git diff follows; you can run read-only bash (git diff/log/status, grep/rg/find) to check claims, but never change the repository state.\n\n## Git Diff\n[PASTE COMPLETE DIFF HERE]\n\n## Requirements\n[PASTE REQUIREMENTS HERE]\n\nReturn the strict report format: exact `## Code Review` heading (verdict, Critical/Important/Minor points — review adversarially, no praise), ending with the status line."
 }
 ```
 

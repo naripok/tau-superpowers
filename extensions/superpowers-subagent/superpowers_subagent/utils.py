@@ -9,7 +9,7 @@ from typing import cast
 from tau_agent.messages import AgentMessage, AssistantMessage, TextContent
 
 from .config import AgentOverrides
-from .models import AgentConfig, SubagentStatus
+from .models import AgentConfig, SessionSelection, SubagentStatus
 
 _STATUS_MARKER = re.compile(
     r"(?:\*\*)?Status:\s*"
@@ -116,20 +116,23 @@ def build_tau_argv(
     model: str | None,
     policy_path: Path | None = None,
     thinking_policy_path: Path | None = None,
+    session: SessionSelection | None = None,
 ) -> list[str]:
-    """Build safe Tau child argv with every option before positional prompt input."""
+    """Build safe Tau child argv with every option before positional prompt input.
 
-    argv = [
-        executable,
-        "--mode",
-        "json",
-        "--no-extensions",
-        "--no-approve",
-        "--cwd",
-        str(cwd),
-        "--append-system-prompt",
-        str(prompt_path),
-    ]
+    A fresh ``session`` pins the child to a new session id with the subagent
+    role. A resumed ``session`` reconnects by id and omits ``--cwd`` because
+    tau runs the child in the session's recorded cwd.
+    """
+
+    argv = [executable, "--mode", "json", "--no-extensions", "--no-approve"]
+    if session is None:
+        argv.extend(["--cwd", str(cwd)])
+    elif session.resume:
+        argv.extend(["--session", session.id])
+    else:
+        argv.extend(["--session-id", session.id, "--session-role", "subagent", "--cwd", str(cwd)])
+    argv.extend(["--append-system-prompt", str(prompt_path)])
     if policy_path is not None:
         argv.extend(["-e", str(policy_path)])
     if thinking_policy_path is not None:

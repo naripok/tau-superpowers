@@ -6,12 +6,8 @@ Fill every placeholder, then dispatch with:
 
 ```json
 {
-  "tasks": [
-    {
-      "agent": "code-review",
-      "task": "[FILLED PROMPT BELOW]"
-    }
-  ]
+  "subagent_type": "code-review",
+  "prompt": "[FILLED PROMPT BELOW]"
 }
 ```
 

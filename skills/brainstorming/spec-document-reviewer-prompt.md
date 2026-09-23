@@ -6,20 +6,16 @@ Use this template when dispatching a spec document reviewer subagent.
 
 **Dispatch after:** The feature spec is written to `docs/design/`. The proposal must already hold cold-review approval and operator approval.
 
-This is a template for constructing the `task` string of the Tau `task` tool. Call it with this argument shape after replacing every placeholder:
+This is a template for constructing the `prompt` value of a Tau `task` tool call. Call it with this argument shape after replacing every placeholder:
 
 ```json
 {
-  "tasks": [
-    {
-      "agent": "document-review",
-      "task": "[FILLED PROMPT BELOW]"
-    }
-  ]
+  "subagent_type": "document-review",
+  "prompt": "[FILLED PROMPT BELOW]"
 }
 ```
 
-The child has no controller conversation history. Name the spec, proposal, and living-spec paths explicitly and include any required command or search output. Include the complete approved proposal text with its immutable identity, the baseline evidence, and every relevant living-spec path. When a living spec exists for the affected domain, name its path. When no living spec exists, state that in the dispatch. The result content is the reviewer's complete final message: the `## Document Review` report (verdict + findings) ending in the status line.
+The child has no controller conversation history. Name the spec, proposal, and living-spec paths explicitly and include any required command or search output. Include the complete approved proposal text with its immutable identity, the baseline evidence, and every relevant living-spec path. When a living spec exists for the affected domain, name its path. When no living spec exists, state that in the dispatch. The result content is one `task` envelope around the reviewer's complete final message: the `## Document Review` report (verdict + findings) ending in the status line. The envelope names the child session's `taskId`, so a follow-up call can resume that session with `task_id` and `subagent_type`.
 
 ```markdown
     You are reviewing whether a feature spec faithfully derives the approved proposal, is complete, truly behavioral, and ready for implementation planning.

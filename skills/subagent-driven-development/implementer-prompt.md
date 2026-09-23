@@ -2,16 +2,12 @@
 
 Use this template when dispatching an implementer subagent.
 
-This is a template for constructing the `task` string of the Tau `task` tool. Call it with this argument shape after replacing every placeholder:
+This is a template for constructing the `prompt` value of a Tau `task` tool call. Call it with this argument shape after replacing every placeholder:
 
 ```json
 {
-  "tasks": [
-    {
-      "agent": "implementation",
-      "task": "[FILLED PROMPT BELOW]"
-    }
-  ]
+  "subagent_type": "implementation",
+  "prompt": "[FILLED PROMPT BELOW]"
 }
 ```
 

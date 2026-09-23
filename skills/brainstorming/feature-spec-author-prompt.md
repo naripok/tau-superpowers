@@ -6,16 +6,12 @@ Use this template when dispatching the feature-spec author subagent.
 
 **Dispatch after:** The operator approved the exact cold-reviewed proposal version. Record that approval identity before this dispatch.
 
-This is a template for constructing the `task` string of the Tau `task` tool. Call it with this argument shape after replacing every placeholder:
+This is a template for constructing the `prompt` value of a Tau `task` tool call. Call it with this argument shape after replacing every placeholder:
 
 ```json
 {
-  "tasks": [
-    {
-      "agent": "general-purpose",
-      "task": "[FILLED PROMPT BELOW]"
-    }
-  ]
+  "subagent_type": "general-purpose",
+  "prompt": "[FILLED PROMPT BELOW]"
 }
 ```
 

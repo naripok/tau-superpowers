@@ -1,9 +1,13 @@
-"""Model tests for the additive estimatedCost usage field.
+"""Model tests for additive details serialization.
 
-These tests pin the "Additive details field" scenario of the catalog-based
-subagent cost estimation requirement: UsageStats serialization gains exactly
-one key placed after cost, every existing key and value is unchanged, and the
-internal catalog_priced provenance flag never serializes.
+The estimatedCost tests pin the "Additive details field" scenario of the
+catalog-based subagent cost estimation requirement: UsageStats serialization
+gains exactly one key placed after cost, every existing key and value is
+unchanged, and the internal catalog_priced provenance flag never serializes.
+
+The taskId tests pin the "Pinned child sessions" requirement: ChildResult
+serialization gains exactly one key placed after agentSource only when a Tau
+session exists, and the internal notes repair channel never serializes.
 """
 
 from __future__ import annotations
@@ -93,3 +97,52 @@ def test_child_result_to_dict_carries_estimated_cost() -> None:
     assert usage["estimatedCost"] == 0.42
     assert usage["input"] == 10
     assert usage["output"] == 5
+
+
+def test_child_result_to_dict_adds_task_id_after_agent_source() -> None:
+    """Prove a child with a Tau session serializes taskId carrying the session
+    id, placed directly after agentSource."""
+    result = ChildResult(
+        agent="implementation",
+        agent_source="bundled",
+        task="work",
+        cwd="/workspace",
+        task_id="a" * 32,
+    )
+
+    details = result.to_dict()
+
+    assert details["taskId"] == "a" * 32
+    assert list(details).index("taskId") == list(details).index("agentSource") + 1
+
+
+def test_child_result_to_dict_omits_task_id_without_session() -> None:
+    """Prove the pre-session failure case serializes no taskId key at all."""
+    result = ChildResult(
+        agent="implementation",
+        agent_source="bundled",
+        task="work",
+        cwd="/workspace",
+    )
+
+    details = result.to_dict()
+
+    assert "taskId" not in details
+
+
+def test_child_result_to_dict_never_serializes_notes() -> None:
+    """Prove repair notes stay model-facing content: no notes key reaches the
+    details dict even when notes are recorded."""
+    result = ChildResult(
+        agent="implementation",
+        agent_source="bundled",
+        task="work",
+        cwd="/workspace",
+        task_id="b" * 32,
+        notes=("Session id matched no session.",),
+    )
+
+    details = result.to_dict()
+
+    assert "notes" not in details
+    assert "task_id" not in details

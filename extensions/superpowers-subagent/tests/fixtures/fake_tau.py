@@ -38,6 +38,15 @@ def main() -> int:
     task = arguments[-1]
     prompt_path = Path(arguments[arguments.index("--append-system-prompt") + 1])
     policy_path = Path(arguments[arguments.index("-e") + 1]) if "-e" in arguments else None
+    session_id = (
+        arguments[arguments.index("--session-id") + 1] if "--session-id" in arguments else None
+    )
+    session_role = (
+        arguments[arguments.index("--session-role") + 1] if "--session-role" in arguments else None
+    )
+    resume_session = (
+        arguments[arguments.index("--session") + 1] if "--session" in arguments else None
+    )
     record(
         "start",
         task=task,
@@ -48,6 +57,9 @@ def main() -> int:
         prompt=prompt_path.read_text(encoding="utf-8"),
         policyPath=str(policy_path) if policy_path else None,
         policy=policy_path.read_text(encoding="utf-8") if policy_path else None,
+        sessionId=session_id,
+        sessionRole=session_role,
+        resumeSession=resume_session,
     )
 
     if task == "no-message":
@@ -56,6 +68,12 @@ def main() -> int:
 
     if task == "unknown-provider":
         print("\x1b[31mUnKnOwN PrOvIdEr: made-up-provider\x1b[0m", file=sys.stderr, flush=True)
+        return 2
+
+    if task == "unknown-session" and resume_session is not None:
+        # Simulate tau's clean failure when a resumed session is missing. The
+        # fresh retry of the same task runs the success path below.
+        print(f"Unknown session: {resume_session}", file=sys.stderr, flush=True)
         return 2
 
     emit(

@@ -40,9 +40,9 @@ git diff "$BASE_SHA".."$HEAD_SHA"
 - Plan-driven work (a feature spec exists): use `../subagent-driven-development/implementation-reviewer-prompt.md` for one pass that covers spec compliance and code quality
 - Ad-hoc work (no feature spec): use `code-reviewer.md` in this directory to check code quality against the stated requirements
 
-**3. Fill the template and dispatch** with the `task` tool: `agent: "code-review"`, `task: <filled prompt>` (call schema: `../using-superpowers/references/tau-tools.md`).
+**3. Fill the template and dispatch** with the `task` tool: `subagent_type: "code-review"`, `prompt: <filled prompt>` (call schema: `../using-superpowers/references/tau-tools.md`).
 
-Embed the complete diff, verification output, and every relevant file path. The result content is the complete final message of the reviewer: the strict `## Code Review` report (verdict + findings) that ends in the status line.
+Embed the complete diff, verification output, and every relevant file path. The result content is one `task` envelope around the reviewer's complete final message: the strict `## Code Review` report (verdict + findings) that ends in the status line. The envelope names the child session's `taskId`, so a follow-up call can resume that session with `task_id` and `subagent_type`.
 
 **4. Act on feedback:**
 
