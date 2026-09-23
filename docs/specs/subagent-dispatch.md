@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The `task` tool delegates complete units of work to isolated Tau subprocesses through one homogeneous interface: every call takes a `tasks` array, one item runs a single child, and two or more items run in parallel with bounded concurrency and input-ordered results. Parent-model content is each child's complete final assistant message — never tool calls, thinking, or earlier messages, and with no heading extraction — while structured details retain the complete accepted wire messages. Per-subagent provider, model, and thinking-effort values resolve at call, then a `superpowers-subagent.toml` config file (`[agents.<name>]` and `[defaults]` sections), then agent definitions, then the parent session's active provider, model, and thinking level.
+The `task` tool delegates complete units of work to isolated Tau subprocesses through one flat interface: every call carries exactly one task as one flat object, and parallel work uses several `task` calls in one message, which Tau schedules concurrently. Every fresh child runs in a pinned Tau session, and a later call can resume that session with `task_id`. Parent-model content is one task envelope wrapping the child's complete final assistant message, never tool calls, thinking, or earlier messages, and with no heading extraction, while structured details retain the complete accepted wire messages. Per-subagent provider, model, and thinking-effort values resolve at call, then a `superpowers-subagent.toml` config file (`[agents.<name>]` and `[defaults]` sections), then agent definitions, then the parent session's active provider, model, and thinking level.
 
 This is the canonical description of current behavior. See the [Tau `task` tool reference](../../skills/using-superpowers/references/tau-tools.md) for copyable calls and the [README](../../README.md) for installation.
 
@@ -264,30 +264,109 @@ The repository SHALL provide a pre-commit hook that scans the Markdown files of 
 
 ### Requirement: task interface and validation
 
-A `task` call SHALL provide a required non-empty `tasks` array of 1–8 items, each `{agent, task, cwd?}` with non-empty `agent` and `task` strings and an optional string `cwd` resolved relative to the parent session working directory, plus the optional common fields (`description`, `agentScope`, `confirmProjectAgents`, `provider`, `model`, `reasoningEffort`, `timeoutSeconds`). Call-level provider and model fields SHALL be trimmed literal overrides: whitespace-only values and case-insensitive `default`, `inherit`, or `auto` placeholders SHALL be rejected, and omission SHALL select lower-precedence configuration. One item SHALL run a single child; two or more items SHALL run no more than four child processes concurrently and SHALL preserve input order in results. The removed top-level `agent`, `task`, `cwd`, and `chain` fields SHALL be rejected as unknown fields, as SHALL any other unknown field or item field. `description` SHALL be a display label only.
+A `task` call SHALL carry exactly one task as one flat object. The fields SHALL be exactly `prompt`, `subagent_type`, `description`, `task_id`, `cwd`, `agentScope`, `confirmProjectAgents`, `provider`, `model`, `reasoningEffort`, and `timeoutSeconds`. The tool SHALL run exactly one child per call.
 
-An absent or empty `tasks` array, more than eight items, an invalid item (empty agent/task, non-string `cwd`, unknown item field), or an invalid common option SHALL prevent child startup and produce a normal Tau tool result describing the validation error and eligible agents.
+- `prompt` SHALL be a required non-empty string. It is the child's task. The tool SHALL preserve it verbatim.
+- `subagent_type` SHALL be optional. When present, it SHALL be a string whose trimmed value is non-empty and names an eligible agent. Validation SHALL trim surrounding whitespace, and the trimmed value SHALL be the effective name. Omission SHALL select `general-purpose`. A name that no eligible agent provides SHALL fail closed with a teach-back that lists the roster. A value that is empty after trimming SHALL fail closed with a teach-back that states `subagent_type` requires a non-empty string when present.
+- `description` SHALL be an optional string. It is a display label with no behavioral effect.
+- `task_id` SHALL be optional. A present value SHALL be a string that is non-empty after trimming, or the call SHALL fail closed with a teach-back. No format check SHALL exist beyond that. The trimmed value SHALL be the effective `task_id` for session lookup, for the same-id lock, and for repair notes. A well-formed value that matches no session SHALL fall back per the Unknown task_id fallback requirement. `task_id` requires `subagent_type`: a call with `task_id` and no `subagent_type` SHALL fail closed with a teach-back that names both fields.
+- `cwd` SHALL be an optional string directory path. Omission SHALL resolve to the parent session cwd. A relative path SHALL resolve against the parent session cwd. Any path SHALL expand `~` and SHALL then resolve canonically to an absolute path. On a resumed run, the Resume working directory requirement SHALL govern instead.
+- `agentScope` SHALL be one of `user`, `project`, `both`. It selects the agent layers. The bundled layer always applies. `user` adds the user agents directory `~/.tau/agents`. `project` adds the nearest ancestor directory `.tau/agents` found by walking up from the parent session cwd. `both` adds both. On a name collision, a later layer replaces an earlier one: project replaces user, and user replaces bundled. Omission SHALL select `user`. Another value SHALL fail closed.
+- `confirmProjectAgents` SHALL be a boolean. Omission SHALL select `true`.
+- `provider` and `model` SHALL be optional literal string overrides. They SHALL use the trimming, placeholder coercion, and resolution chain of the Provider, model, and reasoning-effort overrides requirement.
+- `reasoningEffort` SHALL be one of `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, with the same trimming, placeholder coercion, and resolution chain. The chain ends at the parent session's thinking level.
+- `timeoutSeconds` SHALL be a number greater than 0 and at most 10800. Omission SHALL select 3600.
 
-#### Scenario: Single-item dispatch
+An unknown field SHALL fail closed. The teach-back SHALL name the unknown fields, the roster, and one valid flat example. A call that carries `background` SHALL fail closed with the dedicated background teach-back, because background dispatch is not supported in this harness. A value that violates a field's type or range rule SHALL fail closed. The result of a `task` call SHALL arrive when the child finishes. A fail-closed result SHALL carry the teach-back as its content, no envelope, an empty `results` array, and no `planned` field, because no child starts. A headless project-approval failure SHALL fail closed with the teach-back that names the project agents directory. An interactive project-approval denial SHALL cancel the call before any child starts and SHALL carry the pre-session failure contract of the Task result envelope requirement.
 
-- GIVEN exactly one valid task item with an item-level `cwd`
+#### Scenario: Single-task dispatch
+
+- GIVEN one valid flat call with `prompt` and `subagent_type`
 - WHEN `task` executes
-- THEN one child runs with the requested agent and the effective working directory
+- THEN exactly one child runs with the effective agent and the prompt preserved verbatim
 
-#### Scenario: Ordered parallel dispatch
+#### Scenario: Omitted subagent_type selects the default
 
-- GIVEN two to eight valid task items
-- WHEN dispatch completes
-- THEN at most four children were active concurrently
-- AND final results have the same order as the input items
+- GIVEN a valid call with only `prompt`
+- WHEN `task` executes
+- THEN one `general-purpose` child runs
 
-#### Scenario: Invalid request
+#### Scenario: Unknown-field teach-back
 
-- GIVEN a missing or empty `tasks` array, more than eight items, an invalid item, a removed mode field (top-level `agent`/`task`/`cwd`/`chain`), or an invalid common option
-- WHEN request validation runs
+- GIVEN a call carries a field outside the allowed field list
+- WHEN validation runs
 - THEN no child starts
-- AND content explains the error
-- AND details contain no child results
+- AND the teach-back names the unknown fields
+- AND the teach-back lists the roster
+- AND the teach-back shows one valid flat example
+
+#### Scenario: Background teach-back
+
+- GIVEN a call carries `background`
+- WHEN validation runs
+- THEN no child starts
+- AND the dedicated background teach-back states that background dispatch is not supported
+
+#### Scenario: Whitespace subagent_type teach-back
+
+- GIVEN a call passes `" "` as `subagent_type`
+- WHEN validation runs
+- THEN no child starts
+- AND the teach-back states that `subagent_type` requires a non-empty string when present
+
+#### Scenario: Whitespace task_id fails closed
+
+- GIVEN a call passes `" "` as `task_id`
+- WHEN validation runs
+- THEN no child starts
+- AND the teach-back states that `task_id` requires a non-empty string when present
+
+#### Scenario: Missing prompt fails closed
+
+- GIVEN a call omits `prompt` or passes an empty string
+- WHEN validation runs
+- THEN no child starts
+- AND the teach-back states that `prompt` requires a non-empty string
+
+#### Scenario: Non-positive timeout fails closed
+
+- GIVEN a call passes `timeoutSeconds` with the value 0 or a negative number
+- WHEN validation runs
+- THEN no child starts
+
+#### Scenario: Type-violating common option fails closed
+
+- GIVEN a call passes a non-boolean value as `confirmProjectAgents`
+- WHEN validation runs
+- THEN no child starts
+
+#### Scenario: Invalid agentScope fails closed
+
+- GIVEN a call passes a value outside `user`, `project`, and `both` as `agentScope`
+- WHEN validation runs
+- THEN no child starts
+- AND the teach-back names the valid `agentScope` values
+
+#### Scenario: Headless project-approval teach-back
+
+- GIVEN a requested name resolves to a project definition
+- AND the session runs headless with no explicit `confirmProjectAgents: false`
+- WHEN `task` executes
+- THEN no child starts
+- AND the teach-back names the project agents directory
+- AND the result carries no envelope, an empty `results` array, and no `planned` field
+
+#### Scenario: Fresh cwd resolution
+
+- GIVEN a fresh call carries a relative `cwd`
+- WHEN the child starts
+- THEN the effective directory is the canonically resolved absolute path from the parent session cwd
+
+#### Scenario: Tilde cwd expands
+
+- GIVEN a fresh call carries a `cwd` that starts with `~`
+- WHEN the child starts
+- THEN the effective directory is the absolute path after `~` expansion and canonical resolution
 
 ### Requirement: Agent definition discovery
 
@@ -302,6 +381,8 @@ The extension SHALL discover Markdown agent definitions in three increasing-prec
 Definitions SHALL contain scalar YAML frontmatter with non-empty string `name` and `description` values. They MAY contain `profile` (`general-purpose`, `read-only`, or `review`), `provider`, `model`, and `reasoningEffort` (one of `off`, `minimal`, `low`, `medium`, `high`, `xhigh`); profile SHALL default to `general-purpose`. Unknown metadata SHALL be ignored. Malformed, unreadable, incomplete, empty optional, unknown-profile, or unknown-reasoning-effort definitions SHALL be skipped with diagnostics that do not expose the body.
 
 The bundled definitions are `general-purpose`, `read-only`, `implementation` (general-purpose profile), `code-review` (review profile, strict `## Code Review` report format ending in the status line), and `document-review` (review profile, strict `## Document Review` report format ending in the status line). They set no frontmatter provider, model, or reasoning-effort values, so they fall through to the configuration file and parent-session values described under the overrides requirement.
+
+A requested name that no eligible agent provides SHALL fail closed with a teach-back that lists the roster. The teach-back SHALL NOT name project agents, and no child SHALL start.
 
 #### Scenario: Same-name override
 
@@ -329,12 +410,13 @@ The bundled definitions are `general-purpose`, `read-only`, `implementation` (ge
 - THEN that definition is skipped
 - AND a discovery diagnostic identifies the file and reason
 
-#### Scenario: Unknown requested agent
+#### Scenario: Unknown requested agent teach-back
 
 - GIVEN a requested name is not eligible in the selected scope
-- WHEN that item is dispatched
-- THEN no process starts for the item
-- AND its failed result lists eligible names and sources
+- WHEN validation runs
+- THEN no child starts
+- AND the teach-back lists the roster
+- AND the teach-back names no project agent
 
 ### Requirement: Explicit project-agent approval
 
@@ -358,7 +440,8 @@ Requested definitions that resolve to the project layer SHALL require separate a
 - GIVEN a requested name resolves to a project definition, confirmation is enabled, and no UI is available
 - WHEN `task` executes
 - THEN no child starts
-- AND content explains how to inspect and explicitly approve the definition
+- AND the teach-back names the project agents directory
+- AND the result carries no envelope, an empty `results` array, and no `planned` field
 
 #### Scenario: Scope without project selection
 
@@ -368,7 +451,7 @@ Requested definitions that resolve to the project layer SHALL require separate a
 
 ### Requirement: Isolated Tau child invocation
 
-Each child SHALL run as a separate Tau JSON-mode process with safe argv and no shell. The process SHALL use its effective working directory and receive `--no-extensions`, `--no-approve`, `--cwd`, and a temporary `--append-system-prompt` file before the positional delegated task. Discovered child extensions and protected project resources SHALL be disabled, and a recursion guard SHALL prevent `task` registration if the extension is explicitly loaded in a child. Read-only and review children SHALL additionally load a temporary profile policy extension permitting exactly their profile's tools (`read` only, or `read` plus `bash` for read-only use), and children with an effective reasoning effort SHALL additionally load a temporary extension that applies that level to the child session before its first turn.
+Each child SHALL run as a separate Tau JSON-mode process with safe argv and no shell. Every fresh child SHALL receive a generated session id with `--session-id` and the subagent role with `--session-role`, alongside `--no-extensions`, `--no-approve`, `--cwd`, and a temporary `--append-system-prompt` file before the positional delegated task. A resumed child SHALL omit `--cwd` and SHALL otherwise use the fresh-run argv and prompt construction, because the resumed run uses the session's recorded cwd. A resumed child SHALL reconnect by the existing session id through `--session` instead of pinning a new session id. Discovered child extensions and protected project resources SHALL be disabled, and a recursion guard SHALL prevent `task` registration if the extension is explicitly loaded in a child. Read-only and review children SHALL additionally load a temporary profile policy extension permitting exactly their profile's tools (`read` only, or `read` plus `bash` for read-only use), and children with an effective reasoning effort SHALL additionally load a temporary extension that applies that level to the child session before its first turn.
 
 Tau 0.3 exposes no CLI flag or extension-hook seam for a child's startup thinking level, so the generated extension calls the child session's own `set_thinking_level` API at `session_start`, reaching the bound session through the extension runtime view. The level is validated against the effective provider/model catalog; when it is unavailable, the child SHALL print a `[superpowers-subagent] could not apply reasoning effort ...` diagnostic to `stderr` and continue at its ambient level.
 
@@ -384,7 +467,7 @@ The appended prompt SHALL preserve the selected agent body and state that the ch
 
 #### Scenario: Working directory
 
-- GIVEN an item-specific relative or absolute `cwd`
+- GIVEN a call-specific relative or absolute `cwd`
 - WHEN the child starts
 - THEN the process working directory and Tau `--cwd` both use the resolved directory
 - AND a relative value is resolved from the parent session working directory
@@ -395,23 +478,38 @@ The appended prompt SHALL preserve the selected agent body and state that the ch
 - WHEN the subagent extension is explicitly loaded despite disabled discovery
 - THEN its setup does not register `task`
 
+#### Scenario: Resumed child argv omits the cwd flag
+
+- GIVEN a call with `task_id` that passes session verification
+- WHEN child argv is built
+- THEN the argv carries no `--cwd` flag
+- AND the argv keeps the fresh-run flags and extensions
+
 ### Requirement: Provider, model, and reasoning-effort overrides
 
-`provider` and `model` SHALL be independent opaque strings at call, config-file, and agent-definition levels. Call-level `provider`, `model`, and `reasoningEffort` fields are optional literal overrides. Callers SHALL omit them for normal dispatch and inheritance. `default`, `inherit`, and `auto` SHALL NOT select defaults and are invalid placeholders. For call-level provider and model values, validation SHALL trim surrounding whitespace, reject values empty after trimming, and reject the reserved placeholders after case-insensitive normalization. It SHALL preserve all other internal content. A rejected override SHALL prevent every child from starting and explain that omitting the field selects inherited configuration.
+`provider` and `model` SHALL be independent opaque strings at call, config-file, and agent-definition levels. Call-level `provider`, `model`, and `reasoningEffort` fields SHALL be optional literal overrides. Callers SHALL omit them for normal dispatch and inheritance. For call-level provider and model values, validation SHALL trim surrounding whitespace and SHALL reject a value that is empty after trimming. A case-insensitive `default`, `inherit`, or `auto` placeholder SHALL coerce to omitted with a repair note, and resolution SHALL continue at the next lower layer. Validation SHALL preserve all other internal content. A rejected override SHALL prevent every child from starting and explain that omitting the field selects inherited configuration.
 
 Per field, provider and model resolution SHALL fall through call-level value, then the config file's `[agents.<name>]` section, then the agent definition, then the config file's `[defaults]` section, then the parent session's active provider and model, when the parent exposes them. A value at a higher layer SHALL override only the corresponding lower-layer value. Effective values SHALL map directly to Tau's separate `--provider` and `--model` flags; values absent at every level SHALL omit their flags. The extension SHALL NOT split combined values or infer a provider from a slash-containing model identifier.
 
-`reasoningEffort` SHALL resolve at call, then config-file `[agents.<name>]`, then agent-definition, then config-file `[defaults]` precedence, then SHALL fall back to the parent session's active thinking level by default, so unpinned children inherit it. The effective level SHALL be mapped to the generated child extension described under child invocation and recorded as `reasoningEffort` on the child result. Invalid or empty call values SHALL be rejected before child startup; invalid agent-definition values SHALL skip that definition with a diagnostic; invalid config-file values SHALL be dropped with a config diagnostic. When no level resolves, the child runs at its ambient level and no thinking extension is generated.
+`reasoningEffort` SHALL resolve at call, then config-file `[agents.<name>]`, then agent-definition, then config-file `[defaults]` precedence, then SHALL fall back to the parent session's active thinking level by default, so unpinned children inherit it. `reasoningEffort` SHALL use the same trimming and placeholder coercion as `provider` and `model`. The effective level SHALL be mapped to the generated child extension described under child invocation and recorded as `reasoningEffort` on the child result. Invalid call values SHALL be rejected before child startup; invalid agent-definition values SHALL skip that definition with a diagnostic; invalid config-file values SHALL be dropped with a config diagnostic. When no level resolves, the child runs at its ambient level and no thinking extension is generated.
 
-The task schema, always-visible prompt guidance, and README SHALL identify all three fields as optional literal overrides. They SHALL tell callers to omit the fields during normal calls and for inheritance, and state that placeholders do not select defaults. Provider guidance SHALL require an exact configured provider name from `tau providers`. Model guidance SHALL require an exact model ID supported by the selected provider. Reasoning guidance SHALL list `off`, `minimal`, `low`, `medium`, `high`, and `xhigh`.
+The task schema, always-visible prompt guidance, and README SHALL identify all three fields as optional literal overrides. They SHALL tell callers to omit the fields during normal calls and for inheritance, and state that a `default`, `inherit`, or `auto` placeholder is coerced to omitted with a repair note. Provider guidance SHALL require an exact configured provider name from `tau providers`. Model guidance SHALL require an exact model ID supported by the selected provider. Reasoning guidance SHALL list `off`, `minimal`, `low`, `medium`, `high`, and `xhigh`.
 
-#### Scenario: Reserved override placeholders
+#### Scenario: Placeholder coerces to omitted
 
-- GIVEN a task call passes `default`, `inherit`, or `auto` as provider or model with surrounding whitespace or mixed-case letters
-- WHEN request validation runs
-- THEN no child starts
-- AND content identifies the field as a literal override
-- AND content tells the caller to omit the field for inherited configuration
+- GIVEN a call passes `Default` with surrounding whitespace as `provider`
+- WHEN validation runs
+- THEN the value is treated as omitted
+- AND a repair note states the coercion
+- AND resolution continues at the next lower layer
+
+#### Scenario: Reasoning-effort placeholder coerces
+
+- GIVEN a call passes `AUTO` as `reasoningEffort`
+- AND no config-file or agent-definition reasoning value resolves
+- WHEN validation runs
+- THEN the value is treated as omitted with a repair note
+- AND the effective level resolves down to the parent session's thinking level
 
 #### Scenario: Exact literal override
 
@@ -420,20 +518,21 @@ The task schema, always-visible prompt guidance, and README SHALL identify all t
 - THEN `openai` and `vendor/model name` reach child configuration
 - AND validation changes no other content
 
-#### Scenario: Whitespace-only override
+#### Scenario: Whitespace-only override fails closed
 
-- GIVEN a task call passes only whitespace as provider or model
-- WHEN request validation runs
+- GIVEN a call passes only whitespace as provider or model
+- WHEN validation runs
 - THEN no child starts
+- AND content explains that omitting the field selects inherited configuration
 - AND content states that the field requires a non-empty string
 
-#### Scenario: Schema, prompt, and README override guidance
+#### Scenario: Override guidance states coercion
 
 - GIVEN a caller reads the task schema, always-visible prompt guidance, and README override documentation
 - WHEN the caller selects an override
 - THEN each source identifies provider, model, and reasoningEffort as optional literal overrides
 - AND each source tells the caller to omit the fields during normal calls and for inheritance
-- AND each source states that placeholders do not select defaults
+- AND each source states that a `default`, `inherit`, or `auto` placeholder is coerced to omitted with a repair note
 - AND provider guidance refers to an exact configured provider name from `tau providers`
 - AND model guidance refers to an exact model ID supported by the selected provider
 - AND reasoning guidance lists `off`, `minimal`, `low`, `medium`, `high`, and `xhigh`
@@ -676,30 +775,32 @@ Status parsing SHALL use the last recognized case-insensitive bold or plain supp
 
 ### Requirement: Content envelope and complete details
 
-Final `content` SHALL follow the envelope contract built from child results only. With exactly one result, a successful child SHALL produce its complete final assistant message, or `(no output)` when that message has no text; a failed child SHALL produce `Agent <name> failed: <error>`, or `see details` when no error text exists. With two or more results, content SHALL begin with a `<succeeded>/<total> succeeded` line and contain one `[<agent>] (completed|failed)` section per child in input order; a section body SHALL be that child's complete final assistant message, else its error message, else `(no output)`. A failed child with no final assistant text SHALL expose the runner's actionable startup-configuration error in model-visible content, so the controller can retry with corrected arguments. Structured details SHALL retain complete stderr independently from the bounded error excerpt.
+For every result that starts a child, final `content` SHALL be the task result envelope of the Task result envelope requirement. The tool SHALL NOT produce the previous single-child message form or the multi-child section form. A fail-closed result SHALL carry the teach-back as its content, no envelope, an empty `results` array, and no `planned` field, because no child starts.
 
-Details SHALL be JSON with `schemaVersion: 2`, scope, project agent directory, discovery diagnostics, and ordered child results, and SHALL contain no `mode` or `step` fields; non-empty subagent-config file paths and diagnostics SHALL be included as `configPaths` and `configDiagnostics`; partial results SHALL include `planned`, the intended child count, so live viewers can show accurate counts before every child has produced a message, and renderers SHALL fall back to the result count when `planned` is absent. Each child result SHALL contain `agent`, `agentSource`, effective `task` and `cwd`, `exitCode`, complete accepted wire `messages`, `stderr`, usage fields, `status`, `timedOut`, `cancelled`, and `malformedJsonLines`; applicable `provider`, `model`, `reasoningEffort`, `stopReason`, and `errorMessage` fields SHALL also be included. Failure SHALL be represented through content and these fields because Tau tool results have no portable `isError` property.
+Details SHALL be JSON with `schemaVersion: 2`, scope, project agent directory, discovery diagnostics, and ordered child results, and SHALL contain no `mode` or `step` fields; non-empty subagent-config file paths and diagnostics SHALL be included as `configPaths` and `configDiagnostics`; a result that starts or attempts a child SHALL carry `planned` with the value 1, and renderers SHALL fall back to the result count when `planned` is absent. Details SHALL keep the one-element `results` array: a child-starting result's `results` holds exactly one entry whose `taskId` equals the envelope `id`. Each child result SHALL contain `agent`, `agentSource`, the additive `taskId` (the child's Tau session id; a pre-session failure entry SHALL carry no `taskId`), effective `task` and `cwd`, `exitCode`, complete accepted wire `messages`, `stderr`, usage fields, `status`, `timedOut`, `cancelled`, and `malformedJsonLines`; applicable `provider`, `model`, `reasoningEffort`, `stopReason`, and `errorMessage` fields SHALL also be included. Failure SHALL be represented through content and these fields because Tau tool results have no portable `isError` property.
 
-#### Scenario: Single success
+#### Scenario: Envelope replaces the prior content forms
 
-- GIVEN a successful child returns a final message after earlier output and tool calls
+- GIVEN a successful fresh child with a final assistant message
 - WHEN `task` returns
-- THEN parent-model content is the complete final assistant message
+- THEN content is the envelope with the child session id and state `completed`
+- AND no counts line or per-child section appears
 - AND details retain every accepted child message
 
-#### Scenario: Parallel mixed outcome
+#### Scenario: Fail-closed result shape
 
-- GIVEN successful and failed children in one call
-- WHEN final content and details are built
-- THEN the success count and per-child sections match input order
-- AND a failed child's section body is its error message when it has no final text
-- AND every child retains complete partial and final messages in details
+- GIVEN a call fails validation
+- WHEN the result is built
+- THEN content is the teach-back
+- AND content carries no envelope
+- AND `results` is empty
+- AND `planned` is absent
 
-#### Scenario: Single failure
+#### Scenario: Failed child without final text
 
 - GIVEN exactly one child fails without final text
 - WHEN `task` returns
-- THEN content is the concise `Agent <name> failed: <error>` form
+- THEN the `task_error` tag wraps the OpenCode failure form with the child session id
 - AND details retain the child's partial messages and error fields
 
 #### Scenario: Recoverable startup failure
@@ -707,7 +808,7 @@ Details SHALL be JSON with `schemaVersion: 2`, scope, project agent directory, d
 - GIVEN one child fails before it emits a valid assistant message
 - AND the bounded cleaned stderr excerpt identifies an invalid provider or model
 - WHEN `task` returns
-- THEN content includes the agent name, Tau diagnostic, and matching recovery instruction
+- THEN the `task_error` body includes the Tau diagnostic and matching recovery instruction
 - AND structured details retain complete stderr
 
 #### Scenario: Semantic status versus process outcome
@@ -717,17 +818,44 @@ Details SHALL be JSON with `schemaVersion: 2`, scope, project agent directory, d
 - THEN its semantic status is `BLOCKED`
 - AND its process outcome can still be successful
 
+#### Scenario: Details carry planned and taskId
+
+- GIVEN a completed fresh child
+- WHEN the details are inspected
+- THEN `schemaVersion` is 2
+- AND `results` holds one entry whose `taskId` equals the envelope `id`
+- AND `planned` is 1
+
+#### Scenario: Pre-session failure details
+
+- GIVEN a child fails before Tau creates its session
+- WHEN the details are inspected
+- THEN the entry carries no `taskId`
+- AND `planned` is 1
+
 ### Requirement: Progress, cancellation, timeout, and cleanup
 
-The extension SHALL emit portable partial results after each accepted assistant or tool-result message and after child completion, for any item count. Updates SHALL carry `<done>/<planned> done` progress content and SHALL use deterministic input-order slots.
+The extension SHALL emit portable partial results after each accepted assistant or tool-result message of the child and after child completion. A partial result SHALL carry `planned` with the value 1. A partial result's content SHALL carry the `<done>/<planned> done` progress form with the single child: `<done>/1 done`.
 
-Each child SHALL default to a 3600-second timeout and accept a positive call override no greater than 3600. Cancellation or timeout SHALL terminate the process, wait no more than five seconds, kill it if necessary, preserve partial messages and stderr, and prevent queued work from starting. A hard cancellation of the task executing the dispatch (for example a print-mode SIGINT) SHALL kill any running child process so no child outlives the dispatch. Every temporary prompt, profile policy file, and thinking-policy file SHALL be removed on success and all failure paths.
+Each child SHALL default to a 3600-second timeout and accept a positive call override no greater than 10800. Cancellation or timeout SHALL terminate the process, wait no more than five seconds, kill it if necessary, preserve partial messages and stderr, and prevent queued work from starting. A hard cancellation of the task executing the dispatch (for example a print-mode SIGINT) SHALL kill any running child process so no child outlives the dispatch. Every temporary prompt, profile policy file, and thinking-policy file SHALL be removed on success and all failure paths.
 
-#### Scenario: Partial message update
+#### Scenario: Partial updates for one child
 
 - GIVEN a child emits an accepted assistant or tool-result message
 - WHEN the update callback runs
-- THEN it receives `<done>/<planned> done` content and schema-versioned partial details
+- THEN it receives `<done>/1 done` content and schema-versioned partial details with `planned` 1
+
+#### Scenario: Timeout override at the cap
+
+- GIVEN a call passes `timeoutSeconds: 10800`
+- WHEN the child runs
+- THEN the override is accepted and bounds the child
+
+#### Scenario: Timeout override above the cap
+
+- GIVEN a call passes `timeoutSeconds: 10801`
+- WHEN validation runs
+- THEN no child starts
 
 #### Scenario: Cancellation before spawn
 
@@ -766,7 +894,19 @@ Each child SHALL default to a 3600-second timeout and accept a positive call ove
 
 The tool MAY provide public string-returning `render_call` and `render_result` callbacks. Rendering SHALL use only public Tau APIs, and generic portable content SHALL remain usable if custom rendering is unavailable or returns no rendering.
 
-Any child count SHALL render as one frame: a counts headline (`task · <succeeded>/<total> succeeded` with running/failed/pending clauses when positive, icon `…` while any child runs, else `✗` when any failed, else `✓`) followed by one self-contained child component per child in input order: a header, the streamed work (collapsed: the newest items with a truncation hint; expanded: the full stream), status icons/hints, error, delegated task, and usage counters. A `Total:` aggregate usage line SHALL appear only when more than one child exists. The call label SHALL derive from the task count (`1 child`, `N children`). Rendering SHALL distinguish in-flight children (process not yet reaped) from succeeded and failed ones and SHALL map semantic status to icons (`DONE` ✓, `DONE_WITH_CONCERNS` ⚠, `BLOCKED` ✗, `NEEDS_CONTEXT` ?). Because Tau re-renders the tool row after every accepted child message, expanded and collapsed views SHALL update live from the same details payload. Rendering SHALL NOT add or change parent-model content.
+Any child count SHALL render as one frame: a counts headline (`task · <succeeded>/<total> succeeded` with running/failed/pending clauses when positive, icon `…` while any child runs, else `✗` when any failed, else `✓`) followed by one self-contained child component per child in input order: a header, the streamed work (collapsed: the newest items with a truncation hint; expanded: the full stream), status icons/hints, error, delegated task, and usage counters. A `Total:` aggregate usage line SHALL appear only when more than one child exists. The call label SHALL be the `description` value when it is non-empty after trimming, and the effective `subagent_type` otherwise. The call label SHALL NOT derive from the task count. Rendering SHALL distinguish in-flight children (process not yet reaped) from succeeded and failed ones and SHALL map semantic status to icons (`DONE` ✓, `DONE_WITH_CONCERNS` ⚠, `BLOCKED` ✗, `NEEDS_CONTEXT` ?). Because Tau re-renders the tool row after every accepted child message, expanded and collapsed views SHALL update live from the same details payload. Rendering SHALL NOT add or change parent-model content.
+
+#### Scenario: Call label from the description
+
+- GIVEN a call with `description: "Review auth"` and effective `subagent_type` `code-review`
+- WHEN the result renders
+- THEN the call label is `Review auth`
+
+#### Scenario: Call label falls back to the agent name
+
+- GIVEN a call whose `description` is only whitespace
+- WHEN the result renders
+- THEN the call label is the effective `subagent_type`
 
 #### Scenario: Live child view
 
@@ -1009,15 +1149,337 @@ The display of the `subagents` section SHALL fail safe: when the running fronten
 - THEN the summary remains the normal sidebar summary
 - AND no error propagates to the frontend or the task tool
 
+### Requirement: Task result envelope
+
+For every result that starts a child, the model-facing content SHALL be one envelope of the form `<task id="<taskId>" state="completed|error">`. The envelope SHALL wrap one inner `task_result` or `task_error` tag. The `taskId` SHALL be the child's Tau session id. The envelope state SHALL be the process outcome only. `completed` SHALL mean that the child finished and delivered a final assistant message, whatever status marker that message carries inside its text. `error` SHALL mean that the child failed, was cancelled, timed out, or ended with no final assistant message. Child status markers (`DONE`, `DONE_WITH_CONCERNS`, `BLOCKED`, `NEEDS_CONTEXT`) SHALL stay inside the message text and SHALL NOT change the envelope state.
+
+A successful child SHALL wrap its complete final assistant message in `task_result`. A final assistant message without text SHALL wrap the placeholder `(no output)`. A child in the `error` state SHALL wrap its final assistant message in `task_error`. When no final message exists, the `task_error` tag SHALL wrap the OpenCode failure form `Subagent failed (task_id: <id>): <error>`. In that form, `<id>` is the effective child session id, so it is the fresh id after a fallback.
+
+A pre-session failure is a call that fails before Tau creates the child session. The causes are a process startup failure, a cancellation before startup, or an interactive project-approval denial. A pre-session failure SHALL carry state `error` with no `id` attribute, and its `task_error` tag SHALL wrap the startup, cancellation, or denial error text.
+
+Repair notes SHALL appear as `Note:` lines before the envelope. The inner content SHALL be the child message verbatim with no escaping. The `id` and `state` attributes SHALL carry the semantics. The envelope tags SHALL be informational.
+
+#### Scenario: Completed envelope
+- GIVEN a fresh child finishes and delivers a final assistant message
+- WHEN the result content is built
+- THEN the content is one envelope with state `completed` and the envelope `id` equal to the child session id
+- AND the `task_result` tag wraps the complete final assistant message
+
+#### Scenario: Error envelope with a final message
+- GIVEN a child times out after it emitted a final assistant message
+- WHEN the result content is built
+- THEN the envelope state is `error`
+- AND the `task_error` tag wraps the complete final assistant message
+- AND the envelope `id` is the child session id
+
+#### Scenario: Error envelope without a final message
+- GIVEN a child fails with no final assistant message
+- WHEN the result content is built
+- THEN the envelope state is `error`
+- AND the `task_error` tag wraps `Subagent failed (task_id: <id>): <error>` with the child session id
+
+#### Scenario: Status marker keeps the envelope state
+- GIVEN a child exits cleanly and its final message ends with the `BLOCKED` marker
+- WHEN the envelope is built
+- THEN the envelope state is `completed`
+- AND the marker stays inside the wrapped message text
+
+#### Scenario: Final message without text
+- GIVEN a successful child whose final assistant message has no text
+- WHEN the envelope is built
+- THEN the `task_result` tag wraps `(no output)`
+
+#### Scenario: Error final message without text
+- GIVEN a child in the error state whose final assistant message has no text
+- WHEN the envelope is built
+- THEN the `task_error` tag wraps `(no output)`
+
+#### Scenario: Repair note placement
+- GIVEN a child-starting result carries a repair note
+- WHEN the content is built
+- THEN the note appears as a `Note:` line before the envelope
+
+#### Scenario: Verbatim inner content
+- GIVEN a child final message contains characters that look like markup
+- WHEN the envelope is built
+- THEN the inner content is the message text verbatim with no escaping
+
+#### Scenario: Pre-session failure envelope
+- GIVEN a child process fails to start
+- WHEN the result content is built
+- THEN the envelope state is `error` with no `id` attribute
+- AND the `task_error` tag wraps the startup error text
+
+#### Scenario: Interactive denial envelope
+- GIVEN a requested name resolves to a project definition
+- AND the session runs interactively
+- WHEN the operator denies the approval request
+- THEN the call cancels before any child starts
+- AND the envelope state is `error` with no `id` attribute
+- AND the `task_error` tag wraps the denial error text
+- AND the details entry carries no `taskId` and `planned` is 1
+
+#### Scenario: Cancellation before startup envelope
+- GIVEN a call is cancelled before the child process starts
+- WHEN the result content is built
+- THEN the envelope state is `error` with no `id` attribute
+- AND the `task_error` tag wraps the cancellation error text
+
+### Requirement: task_id resume
+
+A call with `task_id` SHALL resume that child session instead of creating one. A resume run SHALL launch a new child process against the existing session. The session SHALL retain its previous messages and tool outputs. The call's `prompt` SHALL be the new user turn. The result content SHALL relay the new final assistant message in an envelope whose `id` is the existing session's id.
+
+`task_id` SHALL require `subagent_type` to name the agent whose prompt the resumed run uses. A call with `task_id` and no `subagent_type` SHALL fail closed with a teach-back that names both fields. The tool SHALL NOT record a per-session agent owner. A `task_id` resumed under a different `subagent_type` SHALL continue that session with the named agent's prompt and policies.
+
+The runner SHALL regenerate the agent body prompt and the profile policy extensions for the resumed run. It SHALL apply the thinking policy, the overrides, and the recursion guard exactly as in a fresh run. The appended prompt SHALL use a resume variant of the isolation sentence. That variant states the session's own prior turns are the child's earlier work on this task. Effective provider, model, and reasoning effort SHALL resolve exactly as in a fresh call and SHALL apply to the resumed run. `timeoutSeconds` SHALL bound the resumed run. Usage in details SHALL cover the resumed run only. Only the new turn's events SHALL stream.
+
+#### Scenario: Resume continues the child session
+- GIVEN a prior child session with messages and tool outputs
+- WHEN a call carries that `task_id`, a `subagent_type`, and a `prompt`
+- THEN a new child process runs against the existing session
+- AND the session keeps its earlier messages and tool outputs
+- AND the content is the new final assistant message in a completed envelope with the same id
+
+#### Scenario: Resume requires subagent_type
+- GIVEN a call carries `task_id` and no `subagent_type`
+- WHEN validation runs
+- THEN no child starts
+- AND the teach-back names `task_id` and `subagent_type`
+
+#### Scenario: Resume under a different agent
+- GIVEN a child session started with one agent
+- WHEN a call resumes it with a different `subagent_type`
+- THEN the resumed run uses the named agent's body prompt and policies
+
+#### Scenario: Resume prompt uses the resume variant
+- GIVEN a resumed run
+- WHEN the appended prompt is built
+- THEN the isolation sentence states the session's own prior turns are the child's earlier work on this task
+
+#### Scenario: Resume overrides and timeout apply
+- GIVEN a resume call carries `provider`, `model`, and `timeoutSeconds`
+- WHEN the resumed child launches
+- THEN the resolved provider and model apply to the resumed run exactly as in a fresh call
+- AND `timeoutSeconds` bounds the resumed run
+
+#### Scenario: Resume usage covers the resumed run
+- GIVEN a resumed child completes
+- WHEN its details usage is read
+- THEN the usage covers the resumed run only
+
+### Requirement: Resume working directory
+
+A resumed run SHALL use the session's recorded creation cwd as its working directory. The call's `cwd` SHALL NOT relocate a resumed run. A resume call whose session verification passes and that carries `cwd` SHALL get a repair note that states the resumed run uses the session's recorded cwd. The store record SHALL keep its creation cwd.
+
+#### Scenario: Resume cwd is the recorded cwd
+- GIVEN a child session created in one directory
+- WHEN a resume call carries a different `cwd`
+- THEN the resumed child runs in the session's recorded creation cwd
+- AND the result carries the repair note about the recorded cwd
+
+#### Scenario: Store record keeps creation cwd
+- GIVEN a resumed run completed
+- WHEN the session record is read
+- THEN the recorded creation cwd is unchanged
+
+### Requirement: Resume authorization model
+
+Resume authorization SHALL be possession-based. Possession of the `task_id` SHALL authorize the resume. The tool SHALL NOT add per-caller authorization and SHALL NOT add access auditing. A call from any parent session SHALL resume any child session named by its `task_id`, including a parent in a different project. The same-id lock SHALL coordinate task-tool calls only.
+
+The accepted prevention for cross-account exposure is the single-user deployment. A direct resume of a child session by another process is not prevented by the same-id lock. The operator accepts both exposures. The store's file permissions are the operating system's defaults. Tau establishes no permission contract.
+
+#### Scenario: Cross-project resume proceeds
+- GIVEN a child session created under one project
+- WHEN a parent session in a different project resumes it with its `task_id`
+- THEN the resume proceeds like any other resume
+
+#### Scenario: Lock scope is task calls
+- GIVEN a task call holds the same-id lock for a session
+- WHEN another process resumes that session directly through Tau
+- THEN the direct resume is not prevented by the task tool's lock
+
+### Requirement: Unknown task_id fallback
+
+Before resuming, the tool SHALL verify through the Tau session store that the session exists and that its recorded role is the subagent role. A call whose `task_id` matches no session SHALL start a fresh child with a new session id. Its result SHALL carry a repair note that states the id matched no session. A `task_id` that matches a session whose recorded role is not the subagent role SHALL also start a fresh child with a new session id. Its repair note SHALL state that the session is not a task child. A fallback fresh child SHALL follow the fresh-run rules. A fallback child that fails with no final message SHALL produce the OpenCode failure form with the fresh session id.
+
+A resumed child whose Tau invocation fails with a cleaned stderr excerpt matching `Unknown session:` case-insensitively SHALL retry once as a fresh child with a new session id. The retry SHALL run the call's prompt. The retry's result SHALL carry the repair note that states the id matched no session, and its envelope `id` SHALL name the fresh session id. Any other resumed-run failure SHALL surface through the existing error paths with no retry.
+
+#### Scenario: Unknown session falls back
+- GIVEN a `task_id` that matches no session in the store
+- WHEN the call runs
+- THEN a fresh child starts with a new session id
+- AND the result carries a `Note:` line that states the id matched no session
+- AND the note appears before the envelope
+
+#### Scenario: Non-subagent session falls back
+- GIVEN a `task_id` that names a session whose recorded role is not the subagent role
+- WHEN the call runs
+- THEN a fresh child starts with a new session id
+- AND the repair note states that the session is not a task child
+
+#### Scenario: Fallback failure names the fresh id
+- GIVEN a fallback fresh child fails with no final message
+- WHEN the error envelope is built
+- THEN the OpenCode failure form names the fresh session id
+
+#### Scenario: Runtime unknown-session failure falls back
+- GIVEN a resume call whose session verification passed
+- WHEN the resumed child's Tau invocation fails with a stderr excerpt matching `Unknown session:`
+- THEN the runner retries once as a fresh child with a new session id
+- AND the fresh child runs the call's prompt
+- AND the result carries a `Note:` line that states the id matched no session
+- AND the envelope `id` names the fresh session id
+
+#### Scenario: Other resume failures follow the error paths
+- GIVEN a resumed child's Tau invocation fails with a stderr excerpt that does not match `Unknown session:`
+- WHEN the result is built
+- THEN the failure surfaces through the existing error paths
+- AND no fresh-child retry starts
+
+### Requirement: Pinned child sessions
+
+Every fresh run SHALL create a pinned child session. The tool SHALL generate a new session id for every fresh child. The tool SHALL record it as the child's `taskId` on the child result, in the details entry, and as the envelope `id`. The child session SHALL carry the subagent role, so it stays out of the default `tau sessions` listing and lists under `tau sessions --all`. The runner SHALL record the id for every fresh-child attempt, including an attempt that fails after startup. When tau never persisted the session record, a later resume with that id SHALL fall back per the Unknown task_id fallback requirement.
+
+Child sessions accumulate in the Tau session store with no retention. The accepted recovery for unwanted child sessions is manual store maintenance while no tau process uses the store. The store root is `~/.tau/sessions/`, with one directory per parent project, one `index.jsonl` per project directory, and one `<session-id>.jsonl` transcript per session. Each index line records the session's `id` and its transcript `path`. The maintenance steps:
+
+1. Find the child's line by `id` in the project `index.jsonl` files under the store root.
+2. Stop the tau processes that use the store.
+3. Delete the transcript file that the line's `path` names.
+4. Delete the child's line from that `index.jsonl`.
+5. Verify with `tau sessions --all` that the child no longer lists.
+
+The store manager guards index updates with a process lock and atomic replacement, so editing a quiescent store avoids the race.
+
+#### Scenario: Fresh child session id
+- GIVEN a fresh call
+- WHEN the child starts
+- THEN the child runs in a new pinned session
+- AND the child result, the details entry, and the envelope `id` carry that session id as `taskId`
+
+#### Scenario: Child session listing
+- GIVEN a completed child session
+- WHEN the session listings run
+- THEN `tau sessions --all` lists the session
+- AND the default `tau sessions` listing omits it
+
+#### Scenario: Failed attempt still records the id
+- GIVEN a fresh child that fails after startup
+- WHEN the result is built
+- THEN the result records the generated session id
+
+#### Scenario: Recovery removes the session
+- GIVEN the operator deletes a child's transcript file and its `index.jsonl` line while no tau process uses the store
+- WHEN a later call resumes that id
+- THEN the id matches no session
+- AND the call starts a fresh child with the repair note that the id matched no session
+
+### Requirement: Concurrent task calls
+
+Several `task` calls in one assistant message SHALL run concurrently. Each call SHALL be validated, approved, and dispatched independently. The tool SHALL set no cap on the number of `task` calls in one message. Each result SHALL carry its own envelope. One call's failure SHALL NOT stop the others.
+
+#### Scenario: Parallel dispatch
+- GIVEN two `task` calls in one assistant message
+- WHEN both run
+- THEN both children are active in parallel
+- AND each result carries its own envelope
+
+#### Scenario: Independent failure
+- GIVEN two `task` calls in one message and one child fails
+- WHEN both finish
+- THEN the failed call carries its error envelope
+- AND the other result is intact
+
+#### Scenario: No call cap
+- GIVEN an assistant message with three `task` calls
+- WHEN dispatch runs
+- THEN all three calls dispatch their children
+
+### Requirement: Same-task_id exclusion
+
+Two concurrent calls that carry the same `task_id` SHALL NOT both run. Exactly one SHALL start its child. The other SHALL fail closed with a teach-back that names the same-id conflict. The losing call's result SHALL carry the fail-closed result contract of the Content envelope and complete details requirement. The exclusion SHALL be process-safe: a lock keyed by `task_id` SHALL coordinate parent processes on the machine that hosts the session store.
+
+#### Scenario: Same-id pair in one message
+- GIVEN two `task` calls in one message carry the same `task_id`
+- WHEN both run
+- THEN one result carries the child envelope
+- AND the other result is a fail-closed teach-back that names the same-id conflict
+- AND the losing result carries no envelope, an empty `results` array, and no `planned` field
+
+#### Scenario: Cross-process same-id exclusion
+- GIVEN two parent processes on the machine that hosts the session store
+- WHEN both dispatch a call with the same `task_id`
+- THEN exactly one child starts
+- AND the other call fails closed
+
+### Requirement: Tool description roster
+
+The tool description SHALL carry a one-liner, the agent roster with tool-policy annotations, the default selection rule, a when-not-to-use section, and usage notes. The `subagent_type` parameter description SHALL keep the roster. Each roster line SHALL render in the form `- <name>: <description> (Tools: <policy>)`.
+
+The annotation SHALL render from the resolved definition's effective profile. The `general-purpose` profile SHALL render `Tools: all`. The `read-only` profile SHALL render `Tools: read`. The `review` profile SHALL render `Tools: read, bash`, where the review instructions govern `bash` use. For the unshadowed bundled definitions, `general-purpose` and `implementation` SHALL render `Tools: all`. `read-only` SHALL render `Tools: read`. `code-review` and `document-review` SHALL render `Tools: read, bash`.
+
+The description SHALL state that omitting `subagent_type` selects `general-purpose`. The usage notes SHALL state these rules:
+
+- Several tasks are several `task` calls in one message.
+- Delegated work is not duplicated.
+- The prompt must be self-contained.
+- The result names the `task_id` that a later call can reuse to continue the same subagent session.
+- The caller states whether the child writes code or does research and how to verify the result.
+
+The description SHALL keep the dispatch-threshold rule. The rule is: delegate only substantive multi-step work that benefits from an isolated context window, or long-running work that must not block this session. It SHALL keep the prohibitions: never delegate simple reads, searches, commands, or small edits, and never dispatch a task and then do the same work. It SHALL keep the prompt-guideline sentences, including the self-contained prompt requirement.
+
+The description roster and the `subagent_type` description roster SHALL be static per session. They SHALL list the agents discovered at session start from the bundled and user layers only. Discovery is anchored at the session cwd. Name resolution SHALL follow the collision precedence of the task interface and validation requirement. The roster SHALL fall back to the bundled agents when discovery fails at session start. Teach-back rosters SHALL list the same bundled and user agents. Project agents SHALL stay out of every roster and every teach-back, including by name.
+
+#### Scenario: Roster line format
+- GIVEN the bundled definitions
+- WHEN the roster renders
+- THEN the `general-purpose` line reads `- general-purpose: <description> (Tools: all)`
+- AND the `read-only` line renders `Tools: read`
+- AND the `code-review` line renders `Tools: read, bash`
+
+#### Scenario: Annotation follows the resolved definition
+- GIVEN a user definition shadows a bundled name and carries the `review` profile
+- WHEN the roster renders
+- THEN that line renders `Tools: read, bash`
+
+#### Scenario: Default rule and when-not-to-use
+- GIVEN the tool description
+- WHEN a reader reads it
+- THEN it contains the sentence that omitting `subagent_type` selects `general-purpose`
+- AND it contains a when-not-to-use section
+
+#### Scenario: Usage notes present
+- GIVEN the tool description
+- WHEN a reader reads the usage notes
+- THEN the notes state the multi-call parallelism rule
+- AND the notes state the `task_id` reuse rule
+- AND the notes state the verification-statement rule
+
+#### Scenario: Roster scope at session start
+- GIVEN project agents exist and a session starts
+- WHEN the roster is built
+- THEN the roster lists the bundled and user agents discovered at session start
+- AND the roster names no project agent
+
+#### Scenario: Discovery failure falls back to bundled
+- GIVEN user-layer discovery fails at session start
+- WHEN the roster is built
+- THEN the roster lists the bundled agents
+
+#### Scenario: Teach-back roster excludes project agents
+- GIVEN a teach-back that lists agents
+- WHEN it renders
+- THEN it lists the same bundled and user agents as the description roster
+- AND it names no project agent
+
 ## Intentional Port Differences
 
-The current Tau implementation uses the lowercase `task` tool name and provides one homogeneous tasks-array interface with deterministic ordering, agent precedence, complete-final-message content, complete details, timeout, and cancellation. These differences from the historical pre-Tau implementation are intentional:
+The current Tau implementation uses the lowercase `task` tool name and provides one flat single-object task interface with pinned child sessions, `task_id` resume, one task envelope per child-starting result, complete details, timeout, and cancellation. These differences from the historical pre-Tau implementation are intentional:
 
 | Historical capability | Current Tau behavior |
 | --- | --- |
-| Three dispatch modes | One homogeneous `tasks` array: one item for a single child, two or more for ordered parallel dispatch |
+| Three dispatch modes | One flat call: exactly one task per `task` call; parallel work uses several `task` calls in one message under Tau's parallel tool scheduling |
 | Sequential output substitution | Removed; conditional sequences use separate calls so the controller can inspect each result |
-| Summary/review-section extraction | Removed; content is the child's complete final assistant message, with complete accepted messages retained in `details` |
+| Summary/review-section extraction | Removed; content is one task envelope wrapping the child's complete final assistant message, with complete accepted messages retained in `details` |
 | Combined provider/model setting | Separate opaque `provider` and `model` values |
 | Per-agent reasoning level | `reasoningEffort` at call, config-file, and definition levels with parent-session thinking inheritance by default, applied by a generated child extension because Tau 0.3 has no thinking-level CLI flag |
 | Arbitrary per-agent tool lists | Fixed `general-purpose`, `read-only`, and `review` profiles |
@@ -1033,5 +1495,5 @@ The current Tau implementation uses the lowercase `task` tool name and provides 
 - The read-only profile blocks Tau tool calls except `read`, and the review profile permits only `read` and `bash` with instruction-governed read-only bash usage; both are defense in depth at the tool layer only.
 - Ambient user skills can remain visible to children. The instruction not to invoke them is not enforcement.
 - Project-agent approval protects against silently consuming repository-controlled prompt files. It is separate from Tau project trust and extension-code trust.
-- Parent-model content is the child's complete final assistant message only — tool calls, thinking, and earlier messages are never relayed. Complete accepted messages always remain in `details` and may appear in expanded rendering.
+- Parent-model content is one task envelope around the child's complete final assistant message only — tool calls, thinking, and earlier messages are never relayed. Complete accepted messages always remain in `details` and may appear in expanded rendering.
 - Installing or explicitly loading the extension executes Python with the same account privileges as Tau; users must inspect code and use external sandboxing or restricted credentials when stronger isolation is required.
