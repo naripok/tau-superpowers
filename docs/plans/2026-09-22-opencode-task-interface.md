@@ -34,7 +34,7 @@ $V -m ruff format --check .
 
 The tool venv `/home/tau/venvs/superpowers` holds pytest, pytest-asyncio, mypy, and ruff. Recreate it with `uv venv /home/tau/venvs/superpowers --python 3.14` and `uv pip install --python /home/tau/venvs/superpowers/bin/python pytest pytest-asyncio mypy ruff` when missing.
 
-Every task ends with all five checks passing. Gate rule for the suite count: a task's gate may replace superseded tests only where this plan authorizes the replacement (Tasks 4 and 5), and the gate count must equal the previous gate count minus the tests that task states it replaces, plus the task's new tests. Any unexplained drop fails the task's gate. Baseline before Task 1: 267 passing at commit `b833ebd`.
+Every task ends with all five checks passing. Gate rule for the suite count: a task's gate replaces superseded tests only where this plan authorizes the replacement (Tasks 4 and 5), and the gate count must equal the previous gate count minus the tests that task states it replaces, plus the task's new tests. Any unexplained drop fails the task's gate. Baseline before Task 1: 267 passing at commit `b833ebd`.
 
 ## High-risk obligation mapping
 
@@ -161,12 +161,13 @@ Existing tests that assert the superseded tasks-array surface are replaced insid
 - Resume under a different agent: a resume call naming a different `subagent_type` runs that agent's composed prompt and policy extensions against the same session.
 - Resume usage: the details usage accumulates only the new turn's messages, not the prior turns.
 - Cross-project resume: a store record whose project directory differs from the runner's cwd still verifies and resumes.
+- Resumed-run timeout: a resume call against a store record, with a fake tau that sleeps and a short `timeout_seconds`, produces a result with `timed_out` true and `task_id` equal to the resumed session id.
 - No retry on other failures: a fake tau that exits 2 printing a different message produces no second invocation.
 - Pre-session failure: a pre-spawn cancelled signal and a spawn `OSError` produce a result with `task_id is None`.
 - Failed post-spawn attempt keeps the id: a fake tau that spawns and then exits nonzero, or times out, produces a result whose `task_id` equals the generated 32-hex id.
 - Resume prompt variant: `compose_child_prompt(agent, resumed=True)` contains the pinned resume sentence and not the baseline isolation sentence. `resumed=False` reproduces the baseline text.
 - Resumed-run settings: with `resumed=True` the runner still writes the profile policy extension and the thinking policy extension, and still appends the system prompt file, proving the regenerated settings ride the resumed run.
-- Integration tests: update the fake-tau fixture to accept and log the new session flags, and update assertions that inspect child argv. Add one integration test that pins a session and resumes it through the full extension path.
+- Integration tests: update the fake-tau fixture to accept and log the new session flags, and update assertions that inspect child argv. Add one integration test that pins a session and resumes it through the full extension path: the test pre-creates the store record through `SessionManager` with redirected `TauPaths` before the resume call, so the runner's verification finds it.
 
 **Check:** the five commands in the Commands section. Expected: all pass.
 
@@ -255,7 +256,7 @@ Existing tests that assert the superseded tasks-array surface are replaced insid
   4. Catalog override check for the one effective pair, using `effective_provider_model` with the config chain. Drop the `tasks[{index}]: ` prefix. Unknown agents never reach this check.
   5. Project approval, unchanged baseline logic, with two result-shape changes:
      - Headless without approval: fail-closed teach-back result. Content keeps the current message that names the project agents directory. Details carry an empty `results` array and no `planned`.
-     - Interactive denial: pre-session failure result. Build one `ChildResult` with `agent=request.subagent_type`, `task=request.prompt`, `cwd=str(resolve_child_cwd(self.default_cwd, request.cwd))`, `error_message="Canceled: project-local agents were not approved."`, `status="BLOCKED"`, and `task_id=None`. Content is the envelope of that result. Details carry that one entry and `planned` 1. No child starts.
+     - Interactive denial: pre-session failure result. Build one `ChildResult` with `agent=request.subagent_type`, `agent_source="project"`, `task=request.prompt`, `cwd=str(resolve_child_cwd(self.default_cwd, request.cwd))`, `error_message="Canceled: project-local agents were not approved."`, `status="BLOCKED"`, and `task_id=None`. Content is the envelope of that result. Details carry that one entry and `planned` 1. No child starts.
   6. Same-id lock: when `request.task_id` is not `None`, acquire `same_id_lock(request.task_id)`. `None` returns the fail-closed teach-back result whose content names the conflict: `Invalid parameters: another running task call already holds task_id '<id>'. Wait for that call to finish or use a different task_id.` The lock context wraps the child run and releases in a `finally`. Test isolation: `locking.py` computes its default locks directory per acquisition, so tests redirect it by monkeypatching `HOME` to a temporary directory before constructing the dispatcher. No dispatcher parameter is added.
   7. Single-child dispatch: call `self.runner.run(...)` once with `resume_session_id=request.task_id`, the resolved overrides, and `on_message` wired to partial updates. No worker pool and no slots.
 - Envelope content builder in `dispatch.py`:
@@ -315,12 +316,12 @@ Existing tests that assert the superseded tasks-array surface are replaced insid
   - Discover with scope `"user"` (bundled plus user only), not `"both"`.
   - Render one line per discovered agent in sorted name order: `- {name}: {one_line(description)} (Tools: {annotation})` where `annotation` is `_PROFILE_ANNOTATIONS[agent.profile]`.
   - On discovery failure return `""` as before.
-  - The fallback when discovery returns empty or fails is the static bundled roster with the same line format:
+  - The fallback when discovery returns empty or fails is the static bundled roster with the same line format, rendered in the same sorted-name order as the dynamic roster:
+    - `- code-review: Adversarial read-only code reviewer. (Tools: read, bash)`
+    - `- document-review: Adversarial read-only document reviewer. (Tools: read, bash)`
     - `- general-purpose: General-purpose subagent with full tool access. (Tools: all)`
     - `- implementation: Implementation subagent for code, tests, and verification. (Tools: all)`
     - `- read-only: Read-only subagent for named-file investigation. (Tools: read)`
-    - `- code-review: Adversarial read-only code reviewer. (Tools: read, bash)`
-    - `- document-review: Adversarial read-only document reviewer. (Tools: read, bash)`
 - `_task_parameters(roster_text: str)` keeps its current parameter and returns the flat schema:
   - `type` object, `additionalProperties` false, `required` `["prompt"]`.
   - `prompt`: string, `minLength` 1, description `The child's task. The prompt is preserved verbatim.`
