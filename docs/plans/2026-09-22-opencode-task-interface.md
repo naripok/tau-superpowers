@@ -44,9 +44,9 @@ Every task ends with all five checks passing. Expected suite count after all tas
 | Migration: operator re-installs the extension and skills, then restarts sessions | Task 7 documents the re-install and restart in the README |
 | Rollout: extension version stays 0.1.0; behavior changes after session restart | Task 5 check asserts `pyproject.toml` still reads version 0.1.0 |
 | Rollback: revert branch commits, re-install prior extension and skills, restart; pinned child sessions need no cleanup | Retained as a plan-review check: the plan touches only extension, skills, and docs, so a branch revert restores the prior surface. The README (Task 7) states that child sessions persist harmlessly |
-| Observability: `taskId` on results and details, `tau sessions --all` listing | Tasks 1, 2, and 4 add the field and prove the listing behavior in tests |
+| Observability: `taskId` on results and details, `tau sessions --all` listing | Tasks 1, 2, and 4 add the field and record it in tests. The listing behavior itself is Tau behavior: Task 2 proves the `--session-role subagent` argv that tags child sessions out of the default listing, and the capability transcript (docs/design/evidence/opencode-task-interface/tau-capability/transcript.txt) records that `tau sessions --all` lists role-tagged sessions while the default listing omits them |
 | Recovery: quiescent store maintenance | Task 2 preserves the documented procedure in the spec. Task 7 documents it in the README |
-| Risk treatments: no call cap, storage accumulation, resumed-run usage undercount, direct `tau --session` overlap, consent boundary, recursion closed | Preserved and tested where testable (Tasks 2 and 4). The README (Task 7) carries the operator-facing statements. The same-id lock (Task 3) enforces the exclusion risk treatment |
+| Risk treatments: no call cap, storage accumulation, resumed-run usage undercount, direct `tau --session` overlap, consent boundary, recursion closed | The no-call cap is tested in Task 4 (three concurrent calls all dispatch). Recursion closure keeps its existing runner tests. The resumed-run usage undercount rests on the unchanged collection contract (existing runner tests) plus the Task 2 resume tests showing details carry only the new turn's stream. The remaining accepted exposures are operator-facing statements carried by Task 7's README additions |
 
 ## Preservation mapping
 
@@ -142,7 +142,7 @@ Existing tests that assert the superseded tasks-array surface are replaced insid
 - `compose_child_prompt(agent: AgentConfig, *, resumed: bool = False) -> str` — when `resumed` is `True`, the first section of `_SHARED_INSTRUCTIONS` reads exactly:
   - `This session continues an earlier delegated task: the session's own prior turns are your earlier work on this task. Rely on them, this prompt, and the task input; you do not have the controller's conversation history. Do not invoke ambient user skills. That instruction is behavioral guidance, not a security boundary.`
   - Everything else in `_SHARED_INSTRUCTIONS`, the profile sections, and the agent-body joining rules stay unchanged.
-- Refactor shape: extract the current `run` body after argument resolution into one private helper that takes the resolved cwd, the `SessionSelection`, and the same overrides, and runs one child invocation. All collection, timeout, cancellation, hard-kill, stderr, and temporary-file logic moves unchanged. `run` keeps only session selection, verification, fallback, and note assembly. Import `SUBAGENT_SESSION_ROLE` from `tau_coding.session_manager` instead of writing the literal a second time. Keep the recursion-guard environment injection unchanged.
+- Refactor shape: extract the current `run` body after argument resolution into one private helper that takes the child's working directory, the `SessionSelection`, and the same overrides, and runs one child invocation. The fresh and fallback paths pass the resolved call cwd. The resume path passes the verified record's cwd, so the subprocess spawn directory matches the recorded cwd and the argv carries no `--cwd`. All collection, timeout, cancellation, hard-kill, stderr, and temporary-file logic moves unchanged. `run` keeps only session selection, verification, fallback, and note assembly. Import `SUBAGENT_SESSION_ROLE` from `tau_coding.session_manager` instead of writing the literal a second time. Keep the recursion-guard environment injection unchanged.
 
 **Behavior:**
 
@@ -158,6 +158,9 @@ Existing tests that assert the superseded tasks-array surface are replaced insid
 - Verification failure on a wrong-role record (role `None` or another role): same fallback with the not-a-task-child note.
 - Resume cwd: a resume call with `cwd_override` carries the recorded-cwd note, the result `cwd` equals the record's cwd, and the store record keeps its creation cwd. A resume call without `cwd_override` carries no cwd note.
 - Runtime fallback: a fake tau that accepts `--session` and then exits 2 printing `Unknown session: <id>` on stderr produces one retry as a fresh child, a result whose `task_id` is the fresh id, and notes equal to the unknown-session note only.
+- Resume under a different agent: a resume call naming a different `subagent_type` runs that agent's composed prompt and policy extensions against the same session.
+- Resume usage: the details usage accumulates only the new turn's messages, not the prior turns.
+- Cross-project resume: a store record whose project directory differs from the runner's cwd still verifies and resumes.
 - No retry on other failures: a fake tau that exits 2 printing a different message produces no second invocation.
 - Pre-session failure: a pre-spawn cancelled signal and a spawn `OSError` produce a result with `task_id is None`.
 - Resume prompt variant: `compose_child_prompt(agent, resumed=True)` contains the pinned resume sentence and not the baseline isolation sentence. `resumed=False` reproduces the baseline text.
@@ -252,7 +255,7 @@ Existing tests that assert the superseded tasks-array surface are replaced insid
   5. Project approval, unchanged baseline logic, with two result-shape changes:
      - Headless without approval: fail-closed teach-back result. Content keeps the current message that names the project agents directory. Details carry an empty `results` array and no `planned`.
      - Interactive denial: pre-session failure result. Build one `ChildResult` with `agent=request.subagent_type`, `task=request.prompt`, `cwd=str(resolve_child_cwd(self.default_cwd, request.cwd))`, `error_message="Canceled: project-local agents were not approved."`, `status="BLOCKED"`, and `task_id=None`. Content is the envelope of that result. Details carry that one entry and `planned` 1. No child starts.
-  6. Same-id lock: when `request.task_id` is not `None`, acquire `same_id_lock(request.task_id)`. `None` returns the fail-closed teach-back result whose content names the conflict: `Invalid parameters: another running task call already holds task_id '<id>'. Wait for that call to finish or use a different task_id.` The lock context wraps the child run and releases in a `finally`.
+  6. Same-id lock: when `request.task_id` is not `None`, acquire `same_id_lock(request.task_id)`. `None` returns the fail-closed teach-back result whose content names the conflict: `Invalid parameters: another running task call already holds task_id '<id>'. Wait for that call to finish or use a different task_id.` The lock context wraps the child run and releases in a `finally`. Test isolation: `locking.py` computes its default locks directory per acquisition, so tests redirect it by monkeypatching `HOME` to a temporary directory before constructing the dispatcher. No dispatcher parameter is added.
   7. Single-child dispatch: call `self.runner.run(...)` once with `resume_session_id=request.task_id`, the resolved overrides, and `on_message` wired to partial updates. No worker pool and no slots.
 - Envelope content builder in `dispatch.py`:
   - `def build_envelope(result: ChildResult) -> str` — renders the model-facing envelope for one child result.
@@ -261,10 +264,10 @@ Existing tests that assert the superseded tasks-array surface are replaced insid
   - Completed body: `<task_result>` wrapping `final_output(result.messages)` or `(no output)` when the final message has no text.
   - Error body, in this order: when a final assistant message exists, `<task_error>` wraps its text or `(no output)` when textless. When no final message exists and `task_id` is not `None`, `<task_error>` wraps `Subagent failed (task_id: {result.task_id}): {result.error_message or "unknown error"}`. When no final message exists and `task_id` is `None`, `<task_error>` wraps `result.error_message` verbatim.
   - Inner content is verbatim. No escaping.
-- `_result_content(result, notices)` — concatenate `Note: {note}` lines from `request.notices` followed by `result.notes`, one blank line, then `build_envelope(result)`. Match the baseline note assembly shape.
+- `_result_content(result, notes)` — render `Note: {note}` lines from the merged `notes` tuple, one blank line, then `build_envelope(result)`. The caller merges the two note sources in one place: `(*request.notices, *result.notes)`. Match the baseline note assembly shape.
 - Partial updates: content is `f"{done}/1 done"` where `done` is 1 when the single child result is terminal (`exit_code != 1 or error_message is not None`) and 0 otherwise. Details keep `planned` 1 and the current results array. Usage observer wiring is unchanged.
 - Final details: `results=[child_result]`, `planned=1`, additive `taskId` from Task 1. Pre-session denial entry carries no `taskId`. Fail-closed results (validation, eligibility, catalog, headless approval, lock loss) carry `results=[]` and no `planned`, exactly as the baseline `_tool_result(results=[])` does.
-- Teach-back roster: render `_roster` from the discovered agents filtered to `source in {"bundled", "user"}`, in the current `; `-joined `name: description` form. Project agent names and descriptions never appear. `_invalid_parameters_content` keeps the session-inheritance and thinking-level lines and ends with the one flat example line `Example: {"prompt": "Find caching options"}`.
+- Teach-back roster: render `_roster` from the discovered agents filtered to `source in {"bundled", "user"}`, keeping the baseline `name (source): description` form joined by `; `. The source suffix stays, because the filter already excludes project agents. Project agent names and descriptions never appear. `_invalid_parameters_content` keeps the session-inheritance and thinking-level lines and ends with the one flat example line `Example: {"prompt": "Find caching options"}`.
 
 **Behavior:**
 
@@ -279,9 +282,10 @@ Existing tests that assert the superseded tasks-array surface are replaced insid
 - Placeholder coercion and whitespace-only overrides: notes surface as `Note:` lines before the envelope; whitespace-only rejects with both content statements.
 - Eligibility: an unknown `subagent_type` fails closed with a roster listing and no project agent named, including when `agentScope` is `both`.
 - Project approval: headless failure carries the directory-naming teach-back with empty results and no `planned`; interactive approval proceeds; interactive denial carries the no-id error envelope, a details entry without `taskId`, and `planned` 1.
-- Envelope states: completed with message text, completed with a textless final message (`(no output)`), error with a final message, error textless final (`(no output)` in `task_error`), error without a final message (OpenCode form with the id), pre-session failure without the id attribute, verbatim content with markup-like characters, `Note:` placement.
+- Envelope states: completed with message text, completed with a textless final message (`(no output)`), error with a final message, error textless final (`(no output)` in `task_error`), error without a final message (OpenCode form with the id), pre-session failure without the id attribute, cancellation before startup (a task_id-less cancelled result renders the error envelope with no id attribute wrapping the cancellation text), a `BLOCKED`-marked final message inside a `completed` envelope, verbatim content with markup-like characters, `Note:` placement.
+- Default selection: a valid call with only `prompt` dispatches one `general-purpose` child.
 - Details: schemaVersion 2, one entry whose `taskId` equals the envelope id, `planned` 1, and the full baseline field list preserved.
-- Concurrency: two concurrent `execute` calls with distinct ids both complete with their own envelopes; one failing child leaves the other intact.
+- Concurrency: three concurrent `execute` calls with distinct ids all complete with their own envelopes; one failing child leaves the others intact.
 - Same-id exclusion: two concurrent `execute` calls with the same `task_id` produce one child result and one fail-closed teach-back with no envelope, empty results, and no `planned`.
 - Catalog: an unsupported override fails closed with the catalog message and no `tasks[` prefix.
 - Partial updates: content `<done>/1 done` while running and after completion, `planned` 1, envelope only on the final result.
@@ -323,7 +327,10 @@ Existing tests that assert the superseded tasks-array surface are replaced insid
   - `description`: string, description `Short orchestration label for display. No behavioral effect.`
   - `task_id`: string, `minLength` 1, description `Resume a previous child session: pass the task_id from an earlier task result to continue the same subagent session instead of starting a fresh one. Requires subagent_type.`
   - `cwd`: string, description `Working directory for a fresh child. Omission uses this session's cwd. Ignored on a resumed run.`
-  - `agentScope`, `confirmProjectAgents`, `provider`, `model`, `reasoningEffort`: keep the current definitions and descriptions.
+  - `agentScope`, `confirmProjectAgents`: keep the current definitions and descriptions.
+  - `provider`: description gains the coercion sentence: `A default, inherit, or auto placeholder is coerced to omitted with a repair note.` The exact-name rule and fail-fast statements stay.
+  - `model`: description gains the same coercion sentence. The exact-model-ID rule and fail-fast statements stay.
+  - `reasoningEffort`: description gains the same coercion sentence. The level list and fallback chain stay.
   - `timeoutSeconds`: `{"type": "number", "exclusiveMinimum": 0, "maximum": 10800, "default": 3600}` with the current description.
   - No `tasks` property remains.
 - The tool description follows the OpenCode layout in this order:
@@ -353,6 +360,7 @@ Existing tests that assert the superseded tasks-array surface are replaced insid
 **Tests must prove:**
 
 - The schema has `required ["prompt"]`, no `tasks` property, `timeoutSeconds` maximum 10800 and default 3600, and `additionalProperties` false.
+- The `provider`, `model`, and `reasoningEffort` schema descriptions each state that a `default`, `inherit`, or `auto` placeholder is coerced to omitted with a repair note.
 - The description contains the five roster lines with annotations in the pinned format, the default-rule sentence, the when-not-to-use text, and the usage-note statements for multi-call parallelism, `task_id` reuse, and verification.
 - A user definition that shadows a bundled name changes that line's annotation to the resolved definition's profile.
 - Discovery failure falls back to the static annotated bundled roster.
@@ -380,7 +388,7 @@ Existing tests that assert the superseded tasks-array surface are replaced insid
 
 - `render_task_call(arguments)`:
   - When `arguments.get("description")` is a string whose trimmed value is non-empty, the label is the description value as given, collapsed by `_one_line` for display.
-  - Otherwise the label is the effective `subagent_type`: `arguments.get("subagent_type")` when it is a non-empty string, else `general-purpose`.
+  - Otherwise the label is the effective `subagent_type`: the trimmed value of `arguments.get("subagent_type")` when it is a non-empty string after trimming, else `general-purpose`.
   - Remove `_call_label` and its task-count logic. Keep the `▸ Task · ` prefix and the `escape` call.
 
 **Behavior:**
@@ -436,7 +444,7 @@ Existing tests that assert the superseded tasks-array surface are replaced insid
 - The 3600-second default timeout and the 10800-second cap.
 - The catalog fail-fast and override-guidance statements keep their current meaning, with placeholders coerced to omitted.
 
-README additions in the task tool section: the re-install and restart migration step, the statement that child sessions accumulate in the Tau session store and that cleanup is the quiescent store-maintenance procedure from the feature spec, the no-call-cap risk acceptance, the resumed-run usage undercount, and the rollback note that a branch revert never reads pinned child sessions and needs no cleanup.
+README additions in the task tool section: the re-install and restart migration step, the statement that child sessions accumulate in the Tau session store and that cleanup is the quiescent store-maintenance procedure from the feature spec, the no-call-cap risk acceptance, the resumed-run usage undercount, the rollback note that a branch revert never reads pinned child sessions and needs no cleanup, the statement that a direct `tau --session` resume bypasses the task-tool lock and the operator accepts that overlap, and the statement that the approval prompt is the consent boundary for repository-controlled project agents.
 
 **Tests must prove:** No runtime behavior changes. The check is a reference scan.
 
