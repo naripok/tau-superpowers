@@ -15,7 +15,7 @@ This is a template for constructing the `prompt` value of a Tau `task` tool call
 }
 ```
 
-The child has no controller conversation history. Name the plan, feature spec, and proposal paths explicitly and include any required command or search output. Name the affected source file paths in the dispatch. When living specs exist for the affected domains, name the living-spec paths too. The result content is the reviewer's complete final message: the `## Document Review` report (verdict + findings) ending in the status line.
+The child has no controller conversation history. Name the plan, feature spec, and proposal paths explicitly and include any required command or search output. Name the affected source file paths in the dispatch. When living specs exist for the affected domains, name the living-spec paths too. The result content is one `task` envelope around the reviewer's complete final message: the `## Document Review` report (verdict + findings) ending in the status line. The envelope names the child session's `taskId`, so a follow-up call can resume that session with `task_id` and `subagent_type`.
 
 ```markdown
     You are a plan document reviewer. Check that this plan is complete and ready for implementation.

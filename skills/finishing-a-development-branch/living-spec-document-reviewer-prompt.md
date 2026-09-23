@@ -15,7 +15,7 @@ This is a template for constructing the `prompt` value of a Tau `task` tool call
 }
 ```
 
-The child has no controller conversation history. Name every input path explicitly and include any required command or search output. The result content is the reviewer's complete final message: the `## Document Review` report (verdict + findings) ending in the status line.
+The child has no controller conversation history. Name every input path explicitly and include any required command or search output. The result content is one `task` envelope around the reviewer's complete final message: the `## Document Review` report (verdict + findings) ending in the status line. The envelope names the child session's `taskId`, so a follow-up call can resume that session with `task_id` and `subagent_type`.
 
 ```markdown
     You are reviewing a living-spec synchronization candidate before integration.

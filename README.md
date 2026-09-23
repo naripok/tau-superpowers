@@ -56,7 +56,7 @@ The main flow is:
 - User and project agent definitions with deterministic precedence and explicit project-agent approval.
 - A per-subagent config file (`~/.tau/superpowers-subagent.toml` and `<project>/.tau/superpowers-subagent.toml`) that pins provider, model, and `reasoningEffort` globally or per agent; an example file ships as `superpowers-subagent.example.toml`.
 - Per-child `reasoningEffort` at call or config-file level, applied as the child's Tau thinking level.
-- Parent-model content is each child's complete final assistant message, with the complete wire messages retained in structured result details.
+- Parent-model content is one task envelope wrapping the child's complete final assistant message, with the complete wire messages retained in structured result details.
 
 ## Included Skills
 
@@ -195,9 +195,9 @@ A call can continue a previous child session instead of starting a fresh one. Pa
 
 ### Result content
 
-The model-facing result content is one task envelope: `<task id="<taskId>" state="completed|error">` wrapping `<task_result>` or `<task_error>`. The envelope `id` is the child's Tau session id. `completed` means the child finished and delivered a final assistant message. `error` means the child failed, was cancelled, timed out, or ended with no final assistant message. Child status markers (`DONE`, `DONE_WITH_CONCERNS`, `BLOCKED`, `NEEDS_CONTEXT`) stay inside the message text. Repair notes appear as `Note:` lines before the envelope.
+The model-facing result content is one task envelope for every result that starts a child: `<task id="<taskId>" state="completed|error">` wrapping `<task_result>` or `<task_error>`. The envelope `id` is the child's Tau session id. `completed` means the child finished and delivered a final assistant message. `error` means the child failed, was cancelled, timed out, or ended with no final assistant message. Child status markers (`DONE`, `DONE_WITH_CONCERNS`, `BLOCKED`, `NEEDS_CONTEXT`) stay inside the message text. Repair notes appear as `Note:` lines before the envelope.
 
-Structured details keep schemaVersion 2 with a one-element `results` array and `planned: 1`. Each result carries the child's `taskId`, and the array holds the complete wire messages.
+For every result that starts a child, structured details keep schemaVersion 2 with a one-element `results` array and `planned: 1`. Each result carries the child's `taskId`, and the array holds the complete wire messages.
 
 ### Live TUI visibility
 

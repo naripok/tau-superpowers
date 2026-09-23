@@ -181,19 +181,19 @@ Structured `details` uses this versioned shape (fields marked `?` are optional):
   agentScope: "user" | "project" | "both",
   projectAgentsDir: string | null,
   discoveryDiagnostics: string[],
-  planned: 1,
+  planned?: 1,
   configPaths?: string[],
   configDiagnostics?: string[],
   results: [{
     agent, agentSource, taskId, task, cwd, exitCode, messages, stderr,
-    usage: { input, output, cacheRead, cacheWrite, cost, contextTokens, turns },
+    usage: { input, output, cacheRead, cacheWrite, cost, estimatedCost, contextTokens, turns },
     provider?, model?, reasoningEffort?, stopReason?, errorMessage?, status,
     timedOut, cancelled, malformedJsonLines
   }]
 }
 ```
 
-`results` holds exactly one entry for the call's one child, and `planned` is 1. The entry carries no `taskId` after a failure before Tau creates the session.
+For every result that starts a child, `results` holds exactly one entry and `planned` is 1. The entry carries no `taskId` after a failure before Tau creates the session.
 
 Inspect `details.results` for semantic status and process state. It also holds each child's complete accepted Tau wire messages, including tool calls and earlier turns. Content and details both represent failures. Tau tool results do not have an `isError` field.
 
