@@ -35,6 +35,18 @@ class AgentConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class SessionSelection:
+    """The Tau session a child run pins to.
+
+    ``resume`` False pins a new session whose ``id`` the caller generated; True
+    reconnects the existing session named by ``id`` exactly as recorded.
+    """
+
+    id: str
+    resume: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class DiscoveryResult:
     """Discovered agents and non-fatal diagnostics."""
 
@@ -110,6 +122,12 @@ class ChildResult:
     timed_out: bool = False
     cancelled: bool = False
     malformed_json_lines: int = 0
+    #: The child's Tau session id. None means no Tau session exists, which is
+    #: the pre-session failure case only.
+    task_id: str | None = None
+    #: Repair notes for model-facing content; deliberately excluded from
+    #: ``to_dict`` because details are not the model-facing channel.
+    notes: tuple[str, ...] = ()
 
     @property
     def succeeded(self) -> bool:
@@ -132,6 +150,9 @@ class ChildResult:
         result: dict[str, JSONValue] = {
             "agent": self.agent,
             "agentSource": self.agent_source,
+            # taskId sits directly after agentSource so the session id reads as
+            # part of the child identity block.
+            **({"taskId": self.task_id} if self.task_id is not None else {}),
             "task": self.task,
             "cwd": self.cwd,
             "exitCode": self.exit_code,

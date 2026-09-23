@@ -3,7 +3,7 @@ from pathlib import Path
 from tau_agent.messages import AssistantMessage, TextContent, ThinkingContent, ToolCall, UserMessage
 
 from superpowers_subagent.config import AgentOverrides
-from superpowers_subagent.models import AgentConfig
+from superpowers_subagent.models import AgentConfig, SessionSelection
 from superpowers_subagent.utils import (
     build_tau_argv,
     effective_provider_model,
@@ -346,5 +346,114 @@ def test_build_tau_argv_uses_supported_flags_and_positional_task(tmp_path: Path)
         "provider-a",
         "--model",
         "namespace/model-a",
+        "Do the work",
+    ]
+
+
+def test_build_tau_argv_fresh_session_pins_session_id_and_role(tmp_path: Path) -> None:
+    """Prove a fresh SessionSelection inserts --session-id and --session-role
+    immediately after --no-approve, keeps --cwd, and keeps every later flag and
+    the task positional in the baseline order."""
+    argv = build_tau_argv(
+        executable="tau",
+        cwd=tmp_path,
+        prompt_path=tmp_path / "prompt.md",
+        task="Do the work",
+        provider="provider-a",
+        model="namespace/model-a",
+        policy_path=tmp_path / "policy.py",
+        thinking_policy_path=tmp_path / "thinking_policy.py",
+        session=SessionSelection(id="a" * 32),
+    )
+
+    assert argv == [
+        "tau",
+        "--mode",
+        "json",
+        "--no-extensions",
+        "--no-approve",
+        "--session-id",
+        "a" * 32,
+        "--session-role",
+        "subagent",
+        "--cwd",
+        str(tmp_path),
+        "--append-system-prompt",
+        str(tmp_path / "prompt.md"),
+        "-e",
+        str(tmp_path / "policy.py"),
+        "-e",
+        str(tmp_path / "thinking_policy.py"),
+        "--provider",
+        "provider-a",
+        "--model",
+        "namespace/model-a",
+        "Do the work",
+    ]
+
+
+def test_build_tau_argv_resumed_session_uses_session_and_drops_cwd(tmp_path: Path) -> None:
+    """Prove a resumed SessionSelection inserts --session immediately after
+    --no-approve and emits no --session-id, --session-role, or --cwd, because
+    tau runs the child in the session's recorded cwd."""
+    argv = build_tau_argv(
+        executable="tau",
+        cwd=tmp_path,
+        prompt_path=tmp_path / "prompt.md",
+        task="Do the work",
+        provider="provider-a",
+        model="namespace/model-a",
+        policy_path=tmp_path / "policy.py",
+        thinking_policy_path=tmp_path / "thinking_policy.py",
+        session=SessionSelection(id="c" * 32, resume=True),
+    )
+
+    assert argv == [
+        "tau",
+        "--mode",
+        "json",
+        "--no-extensions",
+        "--no-approve",
+        "--session",
+        "c" * 32,
+        "--append-system-prompt",
+        str(tmp_path / "prompt.md"),
+        "-e",
+        str(tmp_path / "policy.py"),
+        "-e",
+        str(tmp_path / "thinking_policy.py"),
+        "--provider",
+        "provider-a",
+        "--model",
+        "namespace/model-a",
+        "Do the work",
+    ]
+
+
+def test_build_tau_argv_without_session_reproduces_baseline(tmp_path: Path) -> None:
+    """Prove session=None reproduces the baseline argv exactly, so existing
+    callers observe no change."""
+    kwargs = {
+        "executable": "tau",
+        "cwd": tmp_path,
+        "prompt_path": tmp_path / "prompt.md",
+        "task": "Do the work",
+        "provider": None,
+        "model": None,
+    }
+
+    argv = build_tau_argv(**kwargs, session=None)
+
+    assert argv == build_tau_argv(**kwargs)
+    assert argv == [
+        "tau",
+        "--mode",
+        "json",
+        "--no-extensions",
+        "--no-approve",
+        "--cwd",
+        str(tmp_path),
+        "--append-system-prompt",
+        str(tmp_path / "prompt.md"),
         "Do the work",
     ]
