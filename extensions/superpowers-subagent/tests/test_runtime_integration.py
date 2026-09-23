@@ -3,8 +3,10 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import shutil
 import subprocess
+import uuid
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
@@ -18,10 +20,13 @@ from tau_agent.tools import AgentTool, AgentToolResult
 from tau_agent.types import JSONValue
 from tau_ai import FakeProvider
 from tau_coding.extensions import ExtensionRuntime
+from tau_coding.paths import TauPaths
 from tau_coding.resources import TauResourcePaths
 from tau_coding.session import CodingSession, CodingSessionConfig
+from tau_coding.session_manager import SUBAGENT_SESSION_ROLE, SessionManager
 
-from superpowers_subagent.runner import RECURSION_GUARD
+from superpowers_subagent.models import AgentConfig
+from superpowers_subagent.runner import RECURSION_GUARD, TauChildRunner
 
 EXTENSION_DIR = Path(__file__).resolve().parents[1]
 FAKE_TAU_SOURCE = Path(__file__).parent / "fixtures" / "fake_tau.py"
@@ -280,6 +285,12 @@ async def test_real_runtime_executes_single_and_parallel_with_ordered_updates(
 
     starts = [item for item in read_log(log_path) if item["event"] == "start"]
     assert len(starts) == 4
+    # Every fresh child is pinned to a new subagent-role session and keeps the
+    # fresh-run cwd flag.
+    assert all(item["sessionRole"] == "subagent" for item in starts)
+    assert all(re.fullmatch(r"[0-9a-f]{32}", item["sessionId"]) for item in starts)
+    assert all("--cwd" in item["argv"] and "--session" not in item["argv"] for item in starts)
+    assert single_child["taskId"] == starts[0]["sessionId"]
     read_only = [item for item in starts if item["policyPath"] is not None]
     assert {item["task"].splitlines()[0] for item in read_only} == {"two"}
     assert all(item["guard"] == "1" for item in starts)
@@ -540,3 +551,165 @@ async def test_real_runtime_inherits_parent_thinking_level_and_config_overrides(
     unpinned_child = child_results(unpinned)[0]
     assert unpinned_child["model"] == "outer-model"
     assert unpinned_child["reasoningEffort"] == "medium"
+
+
+def resume_agent(tmp_path: Path) -> AgentConfig:
+    """A read-only agent distinct from the fresh call's agent, so a resume test
+    can prove the resumed run regenerates the call agent's prompt and policy."""
+
+    return AgentConfig(
+        name="resume-worker",
+        description="Resume worker",
+        system_prompt="Resumed integration body",
+        source="user",
+        file_path=tmp_path / "resume-worker.md",
+        profile="read-only",
+    )
+
+
+def create_store_record(session_id: str, cwd: Path) -> None:
+    """Pre-create one subagent-role record in the default (HOME-redirected)
+    session store, so a resume call's verification finds it."""
+
+    SessionManager(TauPaths()).create_session(
+        cwd=cwd,
+        model="fixture-model",
+        session_id=session_id,
+        role=SUBAGENT_SESSION_ROLE,
+    )
+
+
+async def run_resumed(
+    tmp_path: Path,
+    *,
+    agent: AgentConfig,
+    task: str,
+    resume_session_id: str,
+    timeout_seconds: float = 2,
+) -> Any:
+    """Drive one resumed child through the extension-shaped runner (default
+    executable and default store paths), the same construction the extension
+    uses, until the flat task_id surface lands in a later task."""
+
+    return await TauChildRunner().run(
+        default_cwd=tmp_path,
+        agent=agent,
+        task=task,
+        cwd_override=None,
+        provider_override=None,
+        model_override=None,
+        reasoning_effort_override=None,
+        timeout_seconds=timeout_seconds,
+        signal=None,
+        resume_session_id=resume_session_id,
+    )
+
+
+@pytest.mark.asyncio
+async def test_runtime_pins_a_session_and_resumes_it(
+    tmp_path: Path,
+    fake_tau_environment: tuple[Path, Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Prove the full extension path pins every fresh child to a persisted
+    session id, and that the same id resumes through the real session store in
+    the recorded cwd with the call agent's regenerated settings."""
+
+    _executable, log_path = fake_tau_environment
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    _runtime, tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
+
+    pinned = await tool.execute(
+        "pinned", {"tasks": [{"agent": "general-purpose", "task": "pinned work"}]}
+    )
+    pinned_child = child_results(pinned)[0]
+    starts = [item for item in read_log(log_path) if item["event"] == "start"]
+    assert len(starts) == 1
+    pinned_start = starts[0]
+    task_id = pinned_child["taskId"]
+    assert pinned_start["sessionId"] == task_id
+    assert pinned_start["sessionRole"] == "subagent"
+    assert pinned_start["argv"][pinned_start["argv"].index("--session-id") + 1] == task_id
+    assert "--session" not in pinned_start["argv"]
+    assert "This is an isolated delegated task" in pinned_start["prompt"]
+
+    recorded_cwd = tmp_path / "recorded-cwd"
+    recorded_cwd.mkdir()
+    create_store_record(task_id, recorded_cwd)
+
+    result = await run_resumed(
+        tmp_path,
+        agent=resume_agent(tmp_path),
+        task="continue the pinned work",
+        resume_session_id=task_id,
+    )
+
+    assert result.succeeded
+    assert result.task_id == task_id
+    assert result.cwd == str(recorded_cwd.resolve())
+    assert result.notes == ()
+    assert result.usage.turns == 1
+    assert result.usage.input == 2
+    assert result.usage.output == 3
+    starts = [item for item in read_log(log_path) if item["event"] == "start"]
+    assert len(starts) == 2
+    resumed_start = starts[1]
+    argv = resumed_start["argv"]
+    assert argv[argv.index("--session") + 1] == task_id
+    assert "--session-id" not in argv
+    assert "--session-role" not in argv
+    assert "--cwd" not in argv
+    assert "--no-extensions" in argv
+    assert "--no-approve" in argv
+    assert resumed_start["resumeSession"] == task_id
+    assert resumed_start["cwd"] == str(recorded_cwd.resolve())
+    assert resumed_start["prompt"].startswith("Resumed integration body")
+    assert "This session continues an earlier delegated task" in resumed_start["prompt"]
+    assert "Enforced Read-Only Profile" in resumed_start["prompt"]
+    assert resumed_start["policyPath"] is not None
+    assert not Path(resumed_start["promptPath"]).exists()
+    assert not Path(resumed_start["policyPath"]).exists()
+    assert SessionManager(TauPaths()).get_session(task_id).cwd == recorded_cwd.resolve()
+
+
+@pytest.mark.asyncio
+async def test_runtime_resumed_unknown_session_falls_back_to_a_fresh_child(
+    tmp_path: Path,
+    fake_tau_environment: tuple[Path, Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Prove a verified resume whose child reports tau's clean ``Unknown
+    session:`` failure retries once as a fresh child running the call's prompt."""
+
+    _executable, log_path = fake_tau_environment
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    _runtime, _tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
+
+    orphan_id = uuid.uuid4().hex
+    create_store_record(orphan_id, tmp_path)
+
+    result = await run_resumed(
+        tmp_path,
+        agent=resume_agent(tmp_path),
+        task="unknown-session",
+        resume_session_id=orphan_id,
+    )
+
+    starts = [item for item in read_log(log_path) if item["event"] == "start"]
+    assert len(starts) == 2
+    assert starts[0]["resumeSession"] == orphan_id
+    retry_argv = starts[1]["argv"]
+    fresh_id = retry_argv[retry_argv.index("--session-id") + 1]
+    assert re.fullmatch(r"[0-9a-f]{32}", fresh_id)
+    assert fresh_id != orphan_id
+    assert "--session" not in retry_argv
+    assert "--cwd" in retry_argv
+    assert starts[1]["task"] == "unknown-session"
+    assert result.succeeded
+    assert result.task_id == fresh_id
+    assert result.cwd == str(tmp_path.resolve())
+    assert result.notes == (f"task_id {orphan_id} matched no session, so a fresh child started.",)
