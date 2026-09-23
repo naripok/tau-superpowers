@@ -34,7 +34,7 @@ $V -m ruff format --check .
 
 The tool venv `/home/tau/venvs/superpowers` holds pytest, pytest-asyncio, mypy, and ruff. Recreate it with `uv venv /home/tau/venvs/superpowers --python 3.14` and `uv pip install --python /home/tau/venvs/superpowers/bin/python pytest pytest-asyncio mypy ruff` when missing.
 
-Every task ends with all five checks passing. Gate rule for the suite count: a task's gate replaces superseded tests only where this plan authorizes the replacement (Tasks 4 and 5), and the gate count must equal the previous gate count minus the tests that task states it replaces, plus the task's new tests. Any unexplained drop fails the task's gate. Baseline before Task 1: 267 passing at commit `b833ebd`.
+Every task ends with all five checks passing. Gate rule for the suite count: a task's gate replaces superseded tests only where this plan authorizes the replacement (Task 4 and Task 5 replace tasks-array surface tests, and Task 6 replaces `test_call_renderer_labels_from_task_count`), and the gate count must equal the previous gate count minus the tests that task states it replaces, plus the task's new tests. Any unexplained drop fails the task's gate. Baseline before Task 1: 267 passing at commit `b833ebd`.
 
 ## High-risk obligation mapping
 
@@ -60,7 +60,7 @@ Established unchanged baseline behavior gets regression checks only, never chang
 - Child collection, timeout, cancellation, hard-kill, and temporary-file cleanup (`runner.py` internals, existing `test_runner.py` tests)
 - Resume authorization: the spec requires possession-based authorization with no per-caller authorization and no auditing. There is nothing to implement. Tasks 2 and 3 preserve this scope by adding no access checks, and the Task 3 constraint text restates it
 
-Existing tests that assert the superseded tasks-array surface are replaced inside Tasks 4 and 5. No other existing test changes behavior.
+Existing tests that assert the superseded tasks-array surface are replaced inside Tasks 4, 5, and 6. Task 6 additionally replaces the superseded call-label test `test_call_renderer_labels_from_task_count` in `tests/test_rendering.py`. No other existing test changes behavior.
 
 ---
 
@@ -131,9 +131,10 @@ Existing tests that assert the superseded tasks-array surface are replaced insid
     - `record.role != SUBAGENT_SESSION_ROLE`: emit the not-a-task-child note, then run a fresh invocation as in the missing-record case.
     - Otherwise: run one resumed invocation with `SessionSelection(id=resume_session_id, resume=True)`. Set `result.task_id = record.id` and `result.cwd = str(record.cwd)`. When `cwd_override` is not `None`, also emit the recorded-cwd note.
   - Runtime fallback: after a resumed invocation ends, when the invocation did not succeed and `_stderr_excerpt(result.stderr)` matches `unknown session:` case-insensitively, retry exactly once as a fresh invocation with `SessionSelection(id=fresh_id, resume=False)` and the call's `resolved_cwd`. The retry result replaces the failed attempt. Its `task_id` is `fresh_id`, its `cwd` is `str(resolved_cwd)`, and its `notes` are exactly the unknown-session note.
-- Failure classification of pre-session causes stays inside the fresh-invocation path:
-  - Pre-spawn cancellation (`_is_cancelled` before `create_subprocess_exec`) and `OSError`/`ValueError` from `create_subprocess_exec` leave `task_id` as `None`. These are the spec's pre-session failures: no Tau session exists.
-  - Once the child process is spawned, `task_id` stays `fresh_id` on every later failure, including timeout, kill, and nonzero exit.
+- Failure classification of pre-session causes:
+  - Fresh path: pre-spawn cancellation (`_is_cancelled` before `create_subprocess_exec`) and `OSError`/`ValueError` from `create_subprocess_exec` leave `task_id` as `None`. These are the spec's pre-session failures: no Tau session exists.
+  - Resume path: the session was just verified to exist, so the same two causes keep `task_id = record.id`, and the envelope carries the resumed id. The spec's envelope rule names the child session id in every case, and the resumed child's session id is the verified record's id. No retry starts, because no stderr excerpt exists.
+  - Once the child process is spawned, `task_id` stays the selected selection's id on every later failure, including timeout, kill, and nonzero exit.
 - Repair notes, pinned exact strings. The runner appends them to `result.notes` in this order:
   - Unknown session: `f"task_id {task_id} matched no session, so a fresh child started."`
   - Not a task child: `f"task_id {task_id} is not a task child session, so a fresh child started."`
@@ -164,6 +165,7 @@ Existing tests that assert the superseded tasks-array surface are replaced insid
 - Resumed-run timeout: a resume call against a store record, with a fake tau that sleeps and a short `timeout_seconds`, produces a result with `timed_out` true and `task_id` equal to the resumed session id.
 - No retry on other failures: a fake tau that exits 2 printing a different message produces no second invocation.
 - Pre-session failure: a pre-spawn cancelled signal and a spawn `OSError` produce a result with `task_id is None`.
+- Resumed-path pre-spawn failure: a resumed invocation cancelled before spawn keeps `task_id` equal to the resumed session id.
 - Failed post-spawn attempt keeps the id: a fake tau that spawns and then exits nonzero, or times out, produces a result whose `task_id` equals the generated 32-hex id.
 - Resume prompt variant: `compose_child_prompt(agent, resumed=True)` contains the pinned resume sentence and not the baseline isolation sentence. `resumed=False` reproduces the baseline text.
 - Resumed-run settings: with `resumed=True` the runner still writes the profile policy extension and the thinking policy extension, and still appends the system prompt file, proving the regenerated settings ride the resumed run.
@@ -269,7 +271,7 @@ Existing tests that assert the superseded tasks-array surface are replaced insid
 - `_result_content(result, notes)` — render `Note: {note}` lines from the merged `notes` tuple, one blank line, then `build_envelope(result)`. The caller merges the two note sources in one place: `(*request.notices, *result.notes)`. Match the baseline note assembly shape.
 - Partial updates: content is `f"{done}/1 done"` where `done` is 1 when the single child result is terminal (`exit_code != 1 or error_message is not None`) and 0 otherwise. Details keep `planned` 1 and the current results array. Usage observer wiring is unchanged.
 - Final details: `results=[child_result]`, `planned=1`, additive `taskId` from Task 1. Pre-session denial entry carries no `taskId`. Fail-closed results (validation, eligibility, catalog, headless approval, lock loss) carry `results=[]` and no `planned`, exactly as the baseline `_tool_result(results=[])` does.
-- Teach-back roster: render `_roster` from the discovered agents filtered to `source in {"bundled", "user"}`, keeping the baseline `name (source): description` form joined by `; `. The source suffix stays, because the filter already excludes project agents. Project agent names and descriptions never appear. `_invalid_parameters_content` keeps the session-inheritance and thinking-level lines and ends with the one flat example line `Example: {"prompt": "Find caching options"}`.
+- Teach-back roster: render `_roster` from a user-scope discovery anchored at the session cwd, independent of the call's `agentScope`: the dispatcher computes it from `self.discovery_fn(self.default_cwd, "user")` when a teach-back renders, so the roster always lists the same bundled and user agents as the description roster. Filter to `source in {"bundled", "user"}` and keep the baseline `name (source): description` form joined by `; `. The source suffix stays, because the filter already excludes project agents. Project agent names and descriptions never appear. `_invalid_parameters_content` keeps the session-inheritance and thinking-level lines and ends with the one flat example line `Example: {"prompt": "Find caching options"}`.
 
 **Behavior:**
 
@@ -286,6 +288,8 @@ Existing tests that assert the superseded tasks-array surface are replaced insid
 - Project approval: headless failure carries the directory-naming teach-back with empty results and no `planned`; interactive approval proceeds; interactive denial carries the no-id error envelope, a details entry without `taskId`, and `planned` 1.
 - Envelope states: completed with message text, completed with a textless final message (`(no output)`), error with a final message, error textless final (`(no output)` in `task_error`), error without a final message (OpenCode form with the id), pre-session failure without the id attribute, cancellation before startup (a task_id-less cancelled result renders the error envelope with no id attribute wrapping the cancellation text), a `BLOCKED`-marked final message inside a `completed` envelope, verbatim content with markup-like characters, `Note:` placement.
 - Default selection: a valid call with only `prompt` dispatches one `general-purpose` child.
+- cwd resolution: a relative `cwd` resolves against the parent session cwd, a `~`-prefixed `cwd` expands, and the canonical absolute path reaches the child invocation.
+- Teach-back roster under project scope: an unknown `subagent_type` with `agentScope: "project"` produces a teach-back that lists the user agents and names no project agent.
 - Details: schemaVersion 2, one entry whose `taskId` equals the envelope id, `planned` 1, and the full baseline field list preserved.
 - Concurrency: three concurrent `execute` calls with distinct ids all complete with their own envelopes; one failing child leaves the others intact.
 - Same-id exclusion: two concurrent `execute` calls with the same `task_id` produce one child result and one fail-closed teach-back with no envelope, empty results, and no `planned`.
@@ -316,12 +320,12 @@ Existing tests that assert the superseded tasks-array surface are replaced insid
   - Discover with scope `"user"` (bundled plus user only), not `"both"`.
   - Render one line per discovered agent in sorted name order: `- {name}: {one_line(description)} (Tools: {annotation})` where `annotation` is `_PROFILE_ANNOTATIONS[agent.profile]`.
   - On discovery failure return `""` as before.
-  - The fallback when discovery returns empty or fails is the static bundled roster with the same line format, rendered in the same sorted-name order as the dynamic roster:
-    - `- code-review: Adversarial read-only code reviewer. (Tools: read, bash)`
-    - `- document-review: Adversarial read-only document reviewer. (Tools: read, bash)`
-    - `- general-purpose: General-purpose subagent with full tool access. (Tools: all)`
-    - `- implementation: Implementation subagent for code, tests, and verification. (Tools: all)`
-    - `- read-only: Read-only subagent for named-file investigation. (Tools: read)`
+  - The fallback when discovery returns empty or fails is the static bundled roster with the same line format, rendered in the same sorted-name order as the dynamic roster. The pinned text equals the bundled definitions' `one_line`-collapsed descriptions as of this branch:
+    - `- code-review: Adversarial read-only code reviewer. Use for code quality review, spec compliance review, and inspection of named files. (Tools: read, bash)`
+    - `- document-review: Adversarial read-only document reviewer for the design workflow gates. Use for proposal review, feature-spec review, pl… (Tools: read, bash)`
+    - `- general-purpose: General-purpose subagent with full tool access. Use for non-trivial tasks that requires reading and writing files or ru… (Tools: all)`
+    - `- implementation: Implementation subagent for writing code, tests, and running verification. Use for one well-scoped implementation task… (Tools: all)`
+    - `- read-only: Read-only subagent for multi-file investigation of named files. Cannot modify files or run commands. Use for non-trivia… (Tools: read)`
 - `_task_parameters(roster_text: str)` keeps its current parameter and returns the flat schema:
   - `type` object, `additionalProperties` false, `required` `["prompt"]`.
   - `prompt`: string, `minLength` 1, description `The child's task. The prompt is preserved verbatim.`
@@ -465,7 +469,7 @@ Expected: the greps find no tasks-array call examples in consumers, and the suit
 
 - [ ] Apply the flat-form rewrite to every listed file
 - [ ] Run the check commands
-- [ ] Commit: `git add README.md skills && git commit -m "docs: flat task surface across consumers"`
+- [ ] Commit: `git add README.md skills extensions/superpowers-subagent/tests/test_extension.py && git commit -m "docs: flat task surface across consumers"`
 
 ---
 
