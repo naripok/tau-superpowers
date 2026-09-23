@@ -1,14 +1,14 @@
-"""Task validation and child orchestration."""
+"""Task validation and single-child dispatch."""
 
 from __future__ import annotations
 
-import asyncio
 from collections.abc import Callable, Mapping, Sequence
+from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol, cast
 
-from tau_agent.messages import TextContent
+from tau_agent.messages import AssistantMessage, TextContent
 from tau_agent.tools import (
     AgentToolResult,
     ToolCancellationToken,
@@ -19,13 +19,13 @@ from tau_agent.types import JSONValue
 from .catalog import CatalogSnapshot, provider_model_override_error
 from .config import AgentOverrides, SubagentConfig
 from .discovery import discover_agents
+from .locking import same_id_lock
 from .models import (
     THINKING_LEVELS,
     AgentConfig,
     AgentScope,
     ChildResult,
     DiscoveryResult,
-    TaskItem,
     details_dict,
 )
 from .runner import TauChildRunner
@@ -33,13 +33,27 @@ from .utils import (
     effective_provider_model,
     final_output,
     one_line,
-    parse_status,
     resolve_child_cwd,
 )
 
-MAX_TASKS = 8
-MAX_CONCURRENCY = 4
 DEFAULT_TIMEOUT_SECONDS = 3600.0
+MAX_TIMEOUT_SECONDS = 10800.0
+#: The exact flat field surface; anything else fails closed.
+_ALLOWED_FIELDS = frozenset(
+    {
+        "prompt",
+        "subagent_type",
+        "description",
+        "task_id",
+        "cwd",
+        "agentScope",
+        "confirmProjectAgents",
+        "provider",
+        "model",
+        "reasoningEffort",
+        "timeoutSeconds",
+    }
+)
 _RESERVED_OVERRIDE_PLACEHOLDERS: frozenset[str] = frozenset({"default", "inherit", "auto"})
 
 UsageObserver = Callable[[Sequence[ChildResult], bool], None]
@@ -60,7 +74,16 @@ class ConfirmationUi(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class ParsedRequest:
-    items: tuple[TaskItem, ...]
+    """One validated flat task call: exactly one prompt for exactly one child."""
+
+    #: The call's prompt, preserved verbatim; it is the child's task.
+    prompt: str
+    #: Effective agent name after trimming; omission resolves to general-purpose.
+    subagent_type: str
+    description: str | None
+    #: Trimmed effective id for session lookup, the same-id lock, and repair notes.
+    task_id: str | None
+    cwd: str | None
     agent_scope: AgentScope
     confirm_project_agents: bool
     provider: str | None
@@ -81,7 +104,7 @@ CatalogFn = Callable[[], CatalogSnapshot | None]
 
 
 class TaskDispatcher:
-    """Validate and orchestrate one Task call."""
+    """Validate and dispatch one Task call to exactly one child."""
 
     def __init__(
         self,
@@ -107,6 +130,7 @@ class TaskDispatcher:
         self.config = config
         self.usage_observer = usage_observer
         self.catalog_fn = catalog_fn
+        self._config_diagnostics: tuple[str, ...] = ()
 
     async def execute(
         self,
@@ -122,72 +146,41 @@ class TaskDispatcher:
         try:
             request = validate_arguments(arguments)
         except ValidationFailure as exc:
-            return _tool_result(
-                _invalid_parameters_content(str(exc), discovery, self),
-                scope=scope,
-                discovery=discovery,
-                config=self.config,
-                config_diagnostics=self._config_diagnostics,
-                results=[],
-            )
+            return self._fail_closed(str(exc), scope=scope, discovery=discovery)
 
         agents = discovery.by_name()
-        catalog_error = self._catalog_override_error(request, agents)
-        if catalog_error is not None:
-            return _tool_result(
-                _invalid_parameters_content(catalog_error, discovery, self),
+        agent = agents.get(request.subagent_type)
+        if agent is None:
+            return self._fail_closed(
+                f"unknown agent '{request.subagent_type}'",
                 scope=request.agent_scope,
                 discovery=discovery,
-                config=self.config,
-                config_diagnostics=self._config_diagnostics,
-                results=[],
             )
-        project_agents = sorted(
-            {
-                item.agent
-                for item in request.items
-                if item.agent in agents and agents[item.agent].source == "project"
-            }
-        )
-        if project_agents and request.confirm_project_agents:
-            directory = discovery.project_agents_dir
-            if not self.ui.has_ui:
-                return _tool_result(
-                    "Project agent approval required in headless mode. Inspect "
-                    f"{directory} and set confirmProjectAgents: false to explicitly approve "
-                    "these definitions for this task call.",
-                    scope=request.agent_scope,
-                    discovery=discovery,
-                    config=self.config,
-                    config_diagnostics=self._config_diagnostics,
-                    results=[],
-                )
-            approved = await self.ui.confirm(
-                "Run project-local agents?",
-                "Agents: " + ", ".join(project_agents) + f"\nSource: {directory}\n\n"
-                "Project agents are repository-controlled prompt input.",
-            )
-            if not approved:
-                return _tool_result(
-                    "Canceled: project-local agents were not approved.",
-                    scope=request.agent_scope,
-                    discovery=discovery,
-                    config=self.config,
-                    config_diagnostics=self._config_diagnostics,
-                    results=[],
-                )
+        catalog_error = self._catalog_override_error(request, agent)
+        if catalog_error is not None:
+            return self._fail_closed(catalog_error, scope=request.agent_scope, discovery=discovery)
+        denial = await self._project_approval(request, agent, discovery)
+        if denial is not None:
+            return denial
+        return await self._run_locked(request, agent, discovery, signal, on_update)
 
-        results = await self._run_children(request, discovery, agents, signal, on_update)
+    def _fail_closed(
+        self,
+        error: str,
+        *,
+        scope: AgentScope,
+        discovery: DiscoveryResult,
+    ) -> AgentToolResult:
+        """Return the fail-closed contract: teach-back content, empty results,
+        no ``planned``, and no child started."""
 
-        if self.usage_observer is not None:
-            self.usage_observer(results, True)
-        return _final_result(
-            request,
-            discovery,
-            results,
+        return _tool_result(
+            _invalid_parameters_content(error, self),
+            scope=scope,
+            discovery=discovery,
             config=self.config,
             config_diagnostics=self._config_diagnostics,
-            planned=len(request.items),
+            results=[],
         )
 
     def _merged_config_diagnostics(self, agents: dict[str, AgentConfig]) -> tuple[str, ...]:
@@ -211,17 +204,19 @@ class TaskDispatcher:
         )
         return (*self.config.diagnostics, *extras)
 
-    def _catalog_override_error(
-        self,
-        request: ParsedRequest,
-        agents: dict[str, AgentConfig],
-    ) -> str | None:
+    def _config_layers(
+        self, agent_name: str
+    ) -> tuple[AgentOverrides | None, AgentOverrides | None]:
+        if self.config is None:
+            return None, None
+        return self.config.overrides_for(agent_name), self.config.defaults
+
+    def _catalog_override_error(self, request: ParsedRequest, agent: AgentConfig) -> str | None:
         """Fail fast on literal overrides the provider catalog cannot honor.
 
-        Skips unknown agents: they fail with their own structured result. The
-        resolution mirrors ``_run_item`` exactly, so an accepted pair is the
-        pair the child would actually receive. Without a catalog the check is
-        skipped and dispatch behaves as before.
+        Without a catalog the check is skipped. The resolution mirrors
+        ``_dispatch_child`` exactly, so an accepted pair is the pair the child
+        would actually receive.
         """
 
         if self.catalog_fn is None:
@@ -229,139 +224,132 @@ class TaskDispatcher:
         snapshot = self.catalog_fn()
         if snapshot is None:
             return None
-        for index, item in enumerate(request.items):
-            agent = agents.get(item.agent)
-            if agent is None:
-                continue
-            provider, model = effective_provider_model(
-                agent,
-                request.provider,
-                request.model,
-                config_overrides=self.config.overrides_for(item.agent) if self.config else None,
-                config_defaults=self.config.defaults if self.config else None,
-                parent_provider=self.parent_provider,
-                parent_model=self.parent_model,
-            )
-            error = provider_model_override_error(
-                provider,
-                model,
-                parent_provider=self.parent_provider,
-                parent_model=self.parent_model,
-                snapshot=snapshot,
-            )
-            if error is not None:
-                return f"tasks[{index}]: {error}"
-        return None
+        config_overrides, config_defaults = self._config_layers(request.subagent_type)
+        provider, model = effective_provider_model(
+            agent,
+            request.provider,
+            request.model,
+            config_overrides=config_overrides,
+            config_defaults=config_defaults,
+            parent_provider=self.parent_provider,
+            parent_model=self.parent_model,
+        )
+        return provider_model_override_error(
+            provider,
+            model,
+            parent_provider=self.parent_provider,
+            parent_model=self.parent_model,
+            snapshot=snapshot,
+        )
 
-    async def _run_children(
+    async def _project_approval(
         self,
         request: ParsedRequest,
+        agent: AgentConfig,
         discovery: DiscoveryResult,
-        agents: dict[str, AgentConfig],
-        signal: ToolCancellationToken | None,
-        on_update: ToolUpdateCallback | None,
-    ) -> list[ChildResult]:
-        """Run one child per item, at most ``MAX_CONCURRENCY`` at a time.
+    ) -> AgentToolResult | None:
+        """Gate project-controlled agent prompts; None means approved or exempt.
 
-        One item runs a single child; two or more run in parallel. Results
-        keep input order via fixed slots, and queued work never starts after
-        a timeout or cancellation so partial state stays consistent.
+        A headless session fails closed with the directory-naming teach-back. An
+        interactive denial cancels the call before any child starts with the
+        pre-session failure result: an error envelope with no id attribute and a
+        details entry without a ``taskId``.
         """
 
-        slots: list[ChildResult | None] = [None] * len(request.items)
-        next_index = 0
-        stop_queued = False
+        if agent.source != "project" or not request.confirm_project_agents:
+            return None
+        directory = discovery.project_agents_dir
+        if not self.ui.has_ui:
+            return self._fail_closed(
+                "Project agent approval required in headless mode. Inspect "
+                f"{directory} and set confirmProjectAgents: false to explicitly approve "
+                "these definitions for this task call.",
+                scope=request.agent_scope,
+                discovery=discovery,
+            )
+        approved = await self.ui.confirm(
+            "Run project-local agents?",
+            "Agents: " + agent.name + f"\nSource: {directory}\n\n"
+            "Project agents are repository-controlled prompt input.",
+        )
+        if approved:
+            return None
+        result = ChildResult(
+            agent=request.subagent_type,
+            agent_source="project",
+            task=request.prompt,
+            cwd=str(resolve_child_cwd(self.default_cwd, request.cwd)),
+            error_message="Canceled: project-local agents were not approved.",
+            status="BLOCKED",
+        )
+        return _tool_result(
+            _call_content(request, result),
+            scope=request.agent_scope,
+            discovery=discovery,
+            config=self.config,
+            config_diagnostics=self._config_diagnostics,
+            results=[result],
+            planned=1,
+        )
 
-        def current_results() -> list[ChildResult]:
-            return [result for result in slots if result is not None]
+    async def _run_locked(
+        self,
+        request: ParsedRequest,
+        agent: AgentConfig,
+        discovery: DiscoveryResult,
+        signal: ToolCancellationToken | None,
+        on_update: ToolUpdateCallback | None,
+    ) -> AgentToolResult:
+        """Run the single child under the same-id lock when the call carries a
+        ``task_id``; a lost race fails closed with the conflict teach-back."""
 
-        def emit() -> None:
-            results = current_results()
-            complete = sum(_is_terminal_slot(result) for result in results)
+        if request.task_id is None:
+            lock: AbstractContextManager[None] = nullcontext()
+        else:
+            acquired = same_id_lock(request.task_id)
+            if acquired is None:
+                return self._fail_closed(
+                    f"another running task call already holds task_id '{request.task_id}'. "
+                    "Wait for that call to finish or use a different task_id.",
+                    scope=request.agent_scope,
+                    discovery=discovery,
+                )
+            lock = acquired
+        with lock:
+            return await self._dispatch_child(request, agent, discovery, signal, on_update)
+
+    async def _dispatch_child(
+        self,
+        request: ParsedRequest,
+        agent: AgentConfig,
+        discovery: DiscoveryResult,
+        signal: ToolCancellationToken | None,
+        on_update: ToolUpdateCallback | None,
+    ) -> AgentToolResult:
+        """Run the one child and build its envelope result.
+
+        Partial updates stream after each accepted child message and again on
+        completion; the envelope appears only on the final result.
+        """
+
+        def emit(result: ChildResult) -> None:
             _emit_update(
                 on_update,
-                f"{complete}/{len(slots)} done",
+                _progress_content(result),
                 request,
                 discovery,
-                results,
+                [result],
                 config=self.config,
                 config_diagnostics=self._config_diagnostics,
                 usage_observer=self.usage_observer,
             )
 
-        async def worker() -> None:
-            nonlocal next_index, stop_queued
-            while next_index < len(request.items):
-                if stop_queued or _is_cancelled(signal):
-                    stop_queued = True
-                    return
-                index = next_index
-                next_index += 1
-                item = request.items[index]
-
-                def update(result: ChildResult, *, slot: int = index) -> None:
-                    slots[slot] = result
-                    emit()
-
-                result = await self._run_item(
-                    item=item,
-                    agents=agents,
-                    request=request,
-                    signal=signal,
-                    on_message=update,
-                )
-                slots[index] = result
-                if result.cancelled or result.timed_out:
-                    stop_queued = True
-                emit()
-
-        workers = [
-            asyncio.create_task(worker()) for _ in range(min(MAX_CONCURRENCY, len(request.items)))
-        ]
-        await asyncio.gather(*workers)
-
-        for index, result in enumerate(slots):
-            if result is not None:
-                continue
-            item = request.items[index]
-            cancelled = _is_cancelled(signal)
-            slots[index] = _not_started_result(
-                item,
-                agents.get(item.agent),
-                self.default_cwd,
-                cancelled=cancelled,
-                reason=(
-                    "Dispatch cancelled before child process started."
-                    if cancelled
-                    else "Child not started because a timeout stopped queued work."
-                ),
-            )
-        final = cast("list[ChildResult]", slots)
-        emit()
-        return final
-
-    async def _run_item(
-        self,
-        *,
-        item: TaskItem,
-        agents: dict[str, AgentConfig],
-        request: ParsedRequest,
-        signal: ToolCancellationToken | None,
-        on_message: Callable[[ChildResult], None] | None = None,
-    ) -> ChildResult:
-        agent = agents.get(item.agent)
-        if agent is None:
-            return _unknown_agent_result(item, self.default_cwd, _roster(agents))
-        config_overrides: AgentOverrides | None = None
-        config_defaults: AgentOverrides | None = None
-        if self.config is not None:
-            config_overrides = self.config.overrides_for(item.agent)
-            config_defaults = self.config.defaults
-        return await self.runner.run(
+        config_overrides, config_defaults = self._config_layers(request.subagent_type)
+        result = await self.runner.run(
             default_cwd=self.default_cwd,
             agent=agent,
-            task=item.task,
-            cwd_override=item.cwd,
+            task=request.prompt,
+            cwd_override=request.cwd,
             provider_override=request.provider,
             model_override=request.model,
             reasoning_effort_override=request.reasoning_effort,
@@ -372,29 +360,63 @@ class TaskDispatcher:
             parent_reasoning_effort=self.parent_reasoning_effort,
             timeout_seconds=request.timeout_seconds,
             signal=signal,
-            on_message=on_message,
+            on_message=emit,
+            resume_session_id=request.task_id,
+        )
+        emit(result)
+        if self.usage_observer is not None:
+            self.usage_observer([result], True)
+        return _tool_result(
+            _call_content(request, result),
+            scope=request.agent_scope,
+            discovery=discovery,
+            config=self.config,
+            config_diagnostics=self._config_diagnostics,
+            results=[result],
+            planned=1,
         )
 
 
 def validate_arguments(arguments: Mapping[str, JSONValue]) -> ParsedRequest:
-    """Validate and normalize one homogeneous tasks-array Task call."""
+    """Validate and normalize one flat single-object Task call."""
 
-    notices: list[str] = []
-    allowed = {
-        "description",
-        "tasks",
-        "agentScope",
-        "confirmProjectAgents",
-        "provider",
-        "model",
-        "reasoningEffort",
-        "timeoutSeconds",
-    }
-    unknown = sorted(set(arguments) - allowed)
+    if "background" in arguments:
+        raise ValidationFailure(
+            "background dispatch is not supported in this harness. The result of a task "
+            "call arrives when the child finishes; use several task calls in one message "
+            "to run children in parallel."
+        )
+    unknown = sorted(set(arguments) - _ALLOWED_FIELDS)
     if unknown:
         raise ValidationFailure(f"unknown field(s): {', '.join(unknown)}")
 
-    _optional_string(arguments, "description", nonempty=False)
+    prompt = arguments.get("prompt")
+    if not isinstance(prompt, str) or not prompt.strip():
+        raise ValidationFailure("prompt requires a non-empty string")
+
+    subagent_present = "subagent_type" in arguments
+    subagent_type = "general-purpose"
+    if subagent_present:
+        value = arguments["subagent_type"]
+        if not isinstance(value, str) or not value.strip():
+            raise ValidationFailure("subagent_type requires a non-empty string when present")
+        subagent_type = value.strip()
+
+    description = _optional_string(arguments, "description", nonempty=False)
+
+    task_id: str | None = None
+    if "task_id" in arguments:
+        value = arguments["task_id"]
+        if not isinstance(value, str) or not value.strip():
+            raise ValidationFailure("task_id requires a non-empty string when present")
+        if not subagent_present:
+            raise ValidationFailure(
+                "task_id requires subagent_type: pass the agent whose prompt the resumed run uses"
+            )
+        task_id = value.strip()
+
+    cwd = _optional_string(arguments, "cwd", nonempty=False)
+
     scope_value = arguments.get("agentScope", "user")
     if scope_value not in {"user", "project", "both"}:
         raise ValidationFailure("agentScope must be `user`, `project`, or `both`")
@@ -403,6 +425,8 @@ def validate_arguments(arguments: Mapping[str, JSONValue]) -> ParsedRequest:
     confirm = arguments.get("confirmProjectAgents", True)
     if not isinstance(confirm, bool):
         raise ValidationFailure("confirmProjectAgents must be a boolean")
+
+    notices: list[str] = []
     provider = _optional_literal_override(arguments, "provider", notices)
     model = _optional_literal_override(arguments, "model", notices)
     reasoning_effort = _optional_thinking_level(arguments, "reasoningEffort", notices)
@@ -410,56 +434,24 @@ def validate_arguments(arguments: Mapping[str, JSONValue]) -> ParsedRequest:
     if (
         isinstance(timeout_value, bool)
         or not isinstance(timeout_value, (int, float))
-        or not 0 < timeout_value <= DEFAULT_TIMEOUT_SECONDS
+        or not 0 < timeout_value <= MAX_TIMEOUT_SECONDS
     ):
-        raise ValidationFailure("timeoutSeconds must be greater than 0 and at most 3600")
-    timeout = float(timeout_value)
-
-    if "tasks" not in arguments:
-        raise ValidationFailure(
-            "provide a non-empty tasks array of 1 to 8 items, each with a non-empty agent and task"
-        )
-    items = _parse_items(arguments["tasks"])
-    if not items:
-        raise ValidationFailure(
-            "provide a non-empty tasks array of 1 to 8 items, each with a non-empty agent and task"
-        )
-    if len(items) > MAX_TASKS:
-        raise ValidationFailure(f"tasks accepts at most {MAX_TASKS} items")
+        raise ValidationFailure("timeoutSeconds must be greater than 0 and at most 10800")
 
     return ParsedRequest(
-        items=items,
+        prompt=prompt,
+        subagent_type=subagent_type,
+        description=description,
+        task_id=task_id,
+        cwd=cwd,
         agent_scope=scope,
         confirm_project_agents=confirm,
         provider=provider,
         model=model,
         reasoning_effort=reasoning_effort,
-        timeout_seconds=timeout,
+        timeout_seconds=float(timeout_value),
         notices=tuple(notices),
     )
-
-
-def _parse_items(value: JSONValue) -> tuple[TaskItem, ...]:
-    if not isinstance(value, list):
-        raise ValidationFailure("tasks must be an array")
-    items: list[TaskItem] = []
-    for index, raw_item in enumerate(value):
-        if not isinstance(raw_item, dict):
-            raise ValidationFailure(f"tasks[{index}] must be an object")
-        unknown = sorted(set(raw_item) - {"agent", "task", "cwd"})
-        if unknown:
-            raise ValidationFailure(f"tasks[{index}] has unknown field(s): {', '.join(unknown)}")
-        agent = raw_item.get("agent")
-        task = raw_item.get("task")
-        cwd = raw_item.get("cwd")
-        if not isinstance(agent, str) or not agent.strip():
-            raise ValidationFailure(f"tasks[{index}].agent must be a non-empty string")
-        if not isinstance(task, str) or not task.strip():
-            raise ValidationFailure(f"tasks[{index}].task must be a non-empty string")
-        if cwd is not None and not isinstance(cwd, str):
-            raise ValidationFailure(f"tasks[{index}].cwd must be a string")
-        items.append(TaskItem(agent=agent.strip(), task=task, cwd=cwd))
-    return tuple(items)
 
 
 def _optional_string(arguments: Mapping[str, JSONValue], key: str, *, nonempty: bool) -> str | None:
@@ -560,49 +552,61 @@ def _tool_result(
     )
 
 
-def _final_result(
-    request: ParsedRequest,
-    discovery: DiscoveryResult,
-    results: list[ChildResult],
-    *,
-    config: SubagentConfig | None = None,
-    config_diagnostics: tuple[str, ...] | None = None,
-    planned: int,
-) -> AgentToolResult:
-    """Build the R5 content envelope: one result is the bare final message or a
-    concise failure; several results get a counts header plus one section per
-    child in input order."""
+def build_envelope(result: ChildResult) -> str:
+    """Render the model-facing task envelope for one child result.
 
-    return _tool_result(
-        _result_content(results, request.notices),
-        scope=request.agent_scope,
-        discovery=discovery,
-        config=config,
-        config_diagnostics=config_diagnostics,
-        results=results,
-        planned=planned,
+    The state is the process outcome only: ``completed`` means the child
+    finished and delivered a final assistant message, whatever status marker
+    that message carries inside its text. Child status markers stay inside the
+    wrapped text. The inner content is the child's own text, verbatim.
+    """
+
+    has_final = any(isinstance(message, AssistantMessage) for message in result.messages)
+    state = "completed" if result.succeeded and has_final else "error"
+    opening = (
+        f'<task id="{result.task_id}" state="{state}">'
+        if result.task_id is not None
+        else f'<task state="{state}">'
     )
-
-
-def _result_content(results: list[ChildResult], notices: tuple[str, ...] = ()) -> str:
-    if len(results) == 1:
-        result = results[0]
-        if not result.succeeded:
-            base = f"Agent {result.agent} failed: {result.error_message or 'see details'}"
-        else:
-            base = final_output(result.messages) or "(no output)"
+    if state == "completed":
+        inner = f"<task_result>{final_output(result.messages) or '(no output)'}</task_result>"
+    elif has_final:
+        inner = f"<task_error>{final_output(result.messages) or '(no output)'}</task_error>"
+    elif result.task_id is not None:
+        failure = (
+            f"Subagent failed (task_id: {result.task_id}): "
+            f"{result.error_message or 'unknown error'}"
+        )
+        inner = f"<task_error>{failure}</task_error>"
     else:
-        succeeded = sum(result.succeeded for result in results)
-        sections = [
-            f"[{result.agent}] ({'completed' if result.succeeded else 'failed'})\n\n"
-            f"{final_output(result.messages) or result.error_message or '(no output)'}"
-            for result in results
-        ]
-        base = f"{succeeded}/{len(results)} succeeded\n\n" + "\n\n\n".join(sections)
-    if not notices:
-        return base
-    notes = "".join(f"Note: {notice}\n" for notice in notices)
-    return notes + "\n" + base
+        inner = f"<task_error>{result.error_message}</task_error>"
+    return f"{opening}{inner}</task>"
+
+
+def _result_content(result: ChildResult, notes: tuple[str, ...] = ()) -> str:
+    """Render repair notes as ``Note:`` lines ahead of the envelope."""
+
+    envelope = build_envelope(result)
+    if not notes:
+        return envelope
+    rendered = "".join(f"Note: {note}\n" for note in notes)
+    return f"{rendered}\n{envelope}"
+
+
+def _call_content(request: ParsedRequest, result: ChildResult) -> str:
+    """Merge the two note sources in the one place that renders call content."""
+
+    return _result_content(result, (*request.notices, *result.notes))
+
+
+def _is_terminal(result: ChildResult) -> bool:
+    return result.exit_code != 1 or result.error_message is not None
+
+
+def _progress_content(result: ChildResult) -> str:
+    """Preserved progress form, fixed to the single child: ``<done>/1 done``."""
+
+    return f"{1 if _is_terminal(result) else 0}/1 done"
 
 
 def _emit_update(
@@ -629,46 +633,9 @@ def _emit_update(
             config=config,
             config_diagnostics=config_diagnostics,
             results=results,
-            planned=len(request.items),
+            planned=1,
         )
     )
-
-
-def _unknown_agent_result(
-    item: TaskItem,
-    default_cwd: Path,
-    roster: str,
-) -> ChildResult:
-    result = ChildResult(
-        agent=item.agent,
-        agent_source="unknown",
-        task=item.task,
-        cwd=str(resolve_child_cwd(default_cwd, item.cwd)),
-        error_message=f"Unknown agent {item.agent!r}. Available agents: {roster}.",
-    )
-    result.status = parse_status("", failed=True)
-    return result
-
-
-def _not_started_result(
-    item: TaskItem,
-    agent: AgentConfig | None,
-    default_cwd: Path,
-    *,
-    cancelled: bool,
-    reason: str,
-) -> ChildResult:
-    result = ChildResult(
-        agent=item.agent,
-        agent_source=agent.source if agent is not None else "unknown",
-        task=item.task,
-        cwd=str(resolve_child_cwd(default_cwd, item.cwd)),
-        error_message=reason,
-        stop_reason="aborted" if cancelled else "error",
-        cancelled=cancelled,
-    )
-    result.status = "BLOCKED"
-    return result
 
 
 def _roster(agents: dict[str, AgentConfig]) -> str:
@@ -682,11 +649,24 @@ def _roster(agents: dict[str, AgentConfig]) -> str:
     )
 
 
-def _invalid_parameters_content(
-    error: str,
-    discovery: DiscoveryResult,
-    dispatcher: TaskDispatcher,
-) -> str:
+def _teach_back_roster(dispatcher: TaskDispatcher) -> str:
+    """Roster for teach-backs, anchored at user scope at the session cwd.
+
+    Independent of the call's ``agentScope``, so every teach-back lists the same
+    bundled and user agents as the description roster and never names a project
+    agent.
+    """
+
+    discovery = dispatcher.discovery_fn(dispatcher.default_cwd, "user")
+    eligible = {
+        name: agent
+        for name, agent in discovery.by_name().items()
+        if agent.source in {"bundled", "user"}
+    }
+    return _roster(eligible)
+
+
+def _invalid_parameters_content(error: str, dispatcher: TaskDispatcher) -> str:
     """Teach back the call surface: roster, session inheritance, and an example.
 
     Without the bundled workflow skills, this failure content is the only
@@ -694,8 +674,11 @@ def _invalid_parameters_content(
     name the valid values, not just reject the call.
     """
 
-    agents = discovery.by_name()
-    lines = [f"Invalid parameters: {error}", "", f"Available agents: {_roster(agents)}"]
+    lines = [
+        f"Invalid parameters: {error}",
+        "",
+        f"Available agents: {_teach_back_roster(dispatcher)}",
+    ]
     if dispatcher.parent_provider or dispatcher.parent_model:
         lines.append(
             "This session runs on provider "
@@ -706,15 +689,5 @@ def _invalid_parameters_content(
     lines.append(
         "reasoningEffort, when passed, must be one of: " + ", ".join(THINKING_LEVELS) + "."
     )
-    lines.append(
-        'Example: {"tasks": [{"agent": "general-purpose", "task": "Find what fails in app/"}]}'
-    )
+    lines.append('Example: {"prompt": "Find caching options"}')
     return "\n".join(lines)
-
-
-def _is_cancelled(signal: ToolCancellationToken | None) -> bool:
-    return signal is not None and signal.is_cancelled()
-
-
-def _is_terminal_slot(result: ChildResult) -> bool:
-    return result.exit_code != 1 or result.error_message is not None

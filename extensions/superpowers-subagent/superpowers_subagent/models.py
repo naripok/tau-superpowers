@@ -58,15 +58,6 @@ class DiscoveryResult:
         return {agent.name: agent for agent in self.agents}
 
 
-@dataclass(frozen=True, slots=True)
-class TaskItem:
-    """One normalized child invocation."""
-
-    agent: str
-    task: str
-    cwd: str | None = None
-
-
 @dataclass(slots=True)
 class UsageStats:
     """Usage accumulated from accepted assistant messages."""
