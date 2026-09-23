@@ -415,10 +415,10 @@ Existing tests that assert the superseded tasks-array surface are replaced insid
 
 **Check:** the five commands in the Commands section. Expected: all pass.
 
-- [ ] Write the failing tests for the behaviors above. Run them and check that each fails for the expected reason
-- [ ] Implement the interface and behavior
-- [ ] Run verification (tests, lint, type check)
-- [ ] Commit: `git add extensions/superpowers-subagent && git commit -m "feat: description-first task call label"`
+- [x] Write the failing tests for the behaviors above. Run them and check that each fails for the expected reason
+- [x] Implement the interface and behavior
+- [x] Run verification (tests, lint, type check)
+- [x] Commit: `git add extensions/superpowers-subagent && git commit -m "feat: description-first task call label"`
 
 ### Task 7: Consumer documentation across README, reference, and skills
 
