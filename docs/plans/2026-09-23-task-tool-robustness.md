@@ -224,10 +224,10 @@ This task replaces the `test_discovery.py` scope-selection tests, `tests/test_ex
 
 **Check:** the four Commands-section commands. Expected: all pass.
 
-- [ ] Write the failing tests for the behaviors above. Run them and check that each fails for the expected reason
-- [ ] Implement the interface and behavior
-- [ ] Run verification (tests, lint, type check)
-- [ ] Commit: `git add extensions/superpowers-subagent/superpowers_subagent/discovery.py extensions/superpowers-subagent/superpowers_subagent/extension.py extensions/superpowers-subagent/superpowers_subagent/dispatch.py extensions/superpowers-subagent/superpowers_subagent/catalog.py extensions/superpowers-subagent/tests/ && git commit -m "feat: fix agent discovery to all layers"`
+- [x] Write the failing tests for the behaviors above. Run them and check that each fails for the expected reason
+- [x] Implement the interface and behavior
+- [x] Run verification (tests, lint, type check)
+- [x] Commit: `git add extensions/superpowers-subagent/superpowers_subagent/discovery.py extensions/superpowers-subagent/superpowers_subagent/extension.py extensions/superpowers-subagent/superpowers_subagent/dispatch.py extensions/superpowers-subagent/superpowers_subagent/catalog.py extensions/superpowers-subagent/tests/ && git commit -m "feat: fix agent discovery to all layers"`
 
 ### Task 4: Fail-closed resume, mapping wiring, and repair-note removal
 
