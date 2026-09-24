@@ -431,10 +431,10 @@ This task replaces the flat-surface tests named above — including `tests/test_
 
 **Check:** the four Commands-section commands. Expected: all pass.
 
-- [ ] Write the failing tests for the behaviors above. Run them and check that each fails for the expected reason
-- [ ] Implement the interface and behavior
-- [ ] Run verification (tests, lint, type check)
-- [ ] Commit: `git add extensions/superpowers-subagent/ && git commit -m "feat: register the two-tool task surface"`
+- [x] Write the failing tests for the behaviors above. Run them and check that each fails for the expected reason
+- [x] Implement the interface and behavior
+- [x] Run verification (tests, lint, type check)
+- [x] Commit: `git add extensions/superpowers-subagent/ && git commit -m "feat: register the two-tool task surface"`
 
 ### Task 7: Consumer documentation update
 
