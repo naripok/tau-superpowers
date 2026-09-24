@@ -91,14 +91,12 @@ def test_discovery_precedence_and_lexical_order(tmp_path: Path) -> None:
     assert result.by_name()["shared"].system_prompt == "project"
     assert result.by_name()["user-only"].source == "user"
     assert result.by_name()["user-only"].system_prompt == "user"
-    assert result.project_agents_dir == project
 
     plain_cwd = tmp_path / "plain"
     plain_cwd.mkdir()
     plain = discover_agents(plain_cwd, bundled_dir=bundled, user_dir=user)
     assert [agent.name for agent in plain.agents] == ["alpha", "shared", "user-only"]
     assert plain.by_name()["shared"].source == "user"
-    assert plain.project_agents_dir is None
 
 
 def test_nearest_project_agents_directory_wins(tmp_path: Path) -> None:

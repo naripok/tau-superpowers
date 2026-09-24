@@ -12,7 +12,7 @@ session exists.
 
 from __future__ import annotations
 
-from superpowers_subagent.models import ChildResult, UsageStats
+from superpowers_subagent.models import ChildResult, UsageStats, details_dict
 
 
 def test_usage_stats_to_dict_adds_estimated_cost() -> None:
@@ -142,3 +142,17 @@ def test_child_result_has_no_notes_field() -> None:
     )
 
     assert not hasattr(result, "notes")
+
+
+def test_details_dict_carries_no_agent_scope_or_directory_fields() -> None:
+    """Prove the details shape drops the agent-scope and project-agents-directory
+    fields: no call or discovery result can reintroduce them, and every other
+    key keeps its existing name."""
+
+    details = details_dict(discovery_diagnostics=("one diagnostic",), results=[])
+
+    assert "agentScope" not in details
+    assert "projectAgentsDir" not in details
+    assert details["schemaVersion"] == 2
+    assert details["discoveryDiagnostics"] == ["one diagnostic"]
+    assert details["results"] == []

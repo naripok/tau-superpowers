@@ -33,7 +33,6 @@ BUNDLED_ROSTER_LINES = (
 class FakeContext:
     def __init__(self) -> None:
         self.cwd = Path.cwd()
-        self.ui = object()  # type: ignore[assignment]
         self.provider_name = "openai"
         self.model = "gpt-5.6-sol"
 
@@ -101,8 +100,10 @@ def _agent_definition(name: str, description: str, profile: str) -> str:
 
 def test_setup_registers_exactly_one_task(monkeypatch: Any) -> None:
     """Prove the task tool registers once with the flat single-object schema:
-    exactly the spec's field list, one required `prompt`, no `tasks` property,
-    the 10800-second timeout cap, and unknown fields rejected by declaration."""
+    exactly the five surviving fields, one required `prompt`, no `tasks`
+    property, the 10800-second timeout cap, and unknown fields rejected by
+    declaration. The removed cwd, agentScope, confirmProjectAgents, provider,
+    model, and reasoningEffort properties advertise nowhere."""
 
     tau = FakeTau()
     tool = _installed_tool(monkeypatch, tau)
@@ -123,15 +124,18 @@ def test_setup_registers_exactly_one_task(monkeypatch: Any) -> None:
         "subagent_type",
         "description",
         "task_id",
+        "timeoutSeconds",
+    }
+    assert "tasks" not in properties
+    for removed in (
         "cwd",
         "agentScope",
         "confirmProjectAgents",
         "provider",
         "model",
         "reasoningEffort",
-        "timeoutSeconds",
-    }
-    assert "tasks" not in properties
+    ):
+        assert removed not in properties
     assert properties["prompt"]["minLength"] == 1
     assert (
         properties["prompt"]["description"] == "The child's task. The prompt is preserved verbatim."
@@ -146,20 +150,6 @@ def test_setup_registers_exactly_one_task(monkeypatch: Any) -> None:
         "continue the same subagent session instead of starting a fresh one. Requires "
         "subagent_type."
     )
-    assert properties["cwd"]["description"] == (
-        "Working directory for a fresh child. Omission uses this session's cwd. Ignored on "
-        "a resumed run."
-    )
-    assert properties["agentScope"] == {
-        "type": "string",
-        "enum": ["user", "project", "both"],
-        "default": "user",
-    }
-    assert properties["confirmProjectAgents"] == {
-        "type": "boolean",
-        "default": True,
-        "description": "Require interactive approval for resolved project agents.",
-    }
     assert properties["timeoutSeconds"] == {
         "type": "number",
         "exclusiveMinimum": 0,
@@ -211,32 +201,6 @@ def test_task_description_carries_opencode_layout(monkeypatch: Any, tmp_path: Pa
     assert positions == sorted(positions)
 
 
-def test_task_schema_defines_literal_override_contract(monkeypatch: Any) -> None:
-    """Prove override fields state session inheritance, exact values, fail-fast,
-    and placeholder coercion to omitted with a repair note."""
-
-    properties = _installed_tool(monkeypatch, FakeTau()).parameters["properties"]
-    coercion = "A default, inherit, or auto placeholder is coerced to omitted with a repair note."
-    for field in ("provider", "model", "reasoningEffort"):
-        description = properties[field]["description"].lower()
-        assert "optional literal" in description
-        assert "omit it to give every child this session's" in description
-        assert "exact" in description
-        assert coercion in properties[field]["description"]
-    provider = properties["provider"]["description"].lower()
-    assert "tau providers" in provider
-    assert "configured provider" in provider
-    assert "fail before any child starts" in provider
-    model = properties["model"]["description"].lower()
-    assert "selected provider" in model
-    assert "supported" in model
-    assert "fail before any child starts" in model
-    reasoning = properties["reasoningEffort"]
-    assert reasoning["enum"] == ["off", "minimal", "low", "medium", "high", "xhigh"]
-    for level in ("off", "minimal", "low", "medium", "high", "xhigh"):
-        assert f"`{level}`" in reasoning["description"]
-
-
 def test_subagent_type_description_carries_discovered_roster(monkeypatch: Any) -> None:
     """Prove the subagent_type description embeds the discovered roster, so the
     parameter alone teaches which agents exist and what each is for."""
@@ -253,7 +217,7 @@ def test_subagent_type_description_carries_discovered_roster(monkeypatch: Any) -
     monkeypatch.setattr(
         extension_module,
         "discover_agents",
-        lambda _cwd: DiscoveryResult(agents=agents, project_agents_dir=None, diagnostics=()),
+        lambda _cwd: DiscoveryResult(agents=agents, diagnostics=()),
     )
     subagent_type = _installed_tool(monkeypatch, FakeTau()).parameters["properties"][
         "subagent_type"

@@ -22,8 +22,8 @@
 # With this file absent or empty, every subagent that pins nothing inherits
 # the parent session's model and thinking effort by default.
 
-# Global fallback for agents that pin nothing and select no call override;
-# values not set here still fall through to the parent session.
+# Global fallback for agents that pin nothing; values not set here still fall
+# through to the parent session.
 [defaults]
 # provider = "openai"
 # model = "gpt-5.6-sol"

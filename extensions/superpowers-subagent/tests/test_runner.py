@@ -270,10 +270,6 @@ raise SystemExit(9)
         default_cwd=tmp_path,
         agent=make_agent(tmp_path),
         task="task",
-        cwd_override=None,
-        provider_override=None,
-        model_override=None,
-        reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
         session=fresh_session(),
@@ -298,10 +294,6 @@ raise SystemExit(9)
         default_cwd=tmp_path,
         agent=make_agent(tmp_path),
         task="task",
-        cwd_override=None,
-        provider_override=None,
-        model_override=None,
-        reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
         session=fresh_session(),
@@ -327,10 +319,6 @@ raise SystemExit(9)
         default_cwd=tmp_path,
         agent=make_agent(tmp_path),
         task="task",
-        cwd_override=None,
-        provider_override=None,
-        model_override=None,
-        reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
         session=fresh_session(),
@@ -355,10 +343,6 @@ raise SystemExit(9)
         default_cwd=tmp_path,
         agent=make_agent(tmp_path),
         task="task",
-        cwd_override=None,
-        provider_override=None,
-        model_override=None,
-        reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
         session=fresh_session(),
@@ -400,10 +384,6 @@ raise SystemExit(9)
         default_cwd=tmp_path,
         agent=make_agent(tmp_path),
         task="task",
-        cwd_override=None,
-        provider_override=None,
-        model_override=None,
-        reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
         session=fresh_session(),
@@ -460,10 +440,6 @@ print("warning", file=sys.stderr)
         default_cwd=tmp_path,
         agent=make_agent(tmp_path, profile="read-only"),
         task="Do work",
-        cwd_override=None,
-        provider_override=None,
-        model_override="call/model",
-        reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
         session=fresh_session(),
@@ -488,7 +464,7 @@ print("warning", file=sys.stderr)
         "turns": 1,
     }
     assert result.provider == "agent-provider"
-    assert result.model == "call/model"
+    assert result.model == "agent-model"
     assert updates == [1, 2]
 
     record = json.loads(record_path.read_text())
@@ -496,7 +472,7 @@ print("warning", file=sys.stderr)
     assert record["args"][-1] == "Do work"
     assert "--provider" in record["args"]
     assert record["args"][record["args"].index("--provider") + 1] == "agent-provider"
-    assert record["args"][record["args"].index("--model") + 1] == "call/model"
+    assert record["args"][record["args"].index("--model") + 1] == "agent-model"
     assert "-e" in record["args"]
     assert "ToolCallHookResult" in record["policy"]
     assert "event.tool_name not in _ALLOWED_TOOLS" in record["policy"]
@@ -628,10 +604,6 @@ print(json.dumps({"type": "message_end", "message": {
         default_cwd=tmp_path,
         agent=agent,
         task="task",
-        cwd_override=None,
-        provider_override=None,
-        model_override=None,
-        reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
         session=fresh_session(),
@@ -676,10 +648,6 @@ print(json.dumps({"type": "message_end", "message": {
         default_cwd=tmp_path,
         agent=agent,
         task="task",
-        cwd_override=None,
-        provider_override=None,
-        model_override=None,
-        reasoning_effort_override=None,
         parent_provider="openai",
         parent_model="gpt-5.6-sol",
         timeout_seconds=2,
@@ -738,10 +706,6 @@ print(json.dumps({"type": "message_end", "message": {
         default_cwd=tmp_path,
         agent=agent,
         task="task",
-        cwd_override=None,
-        provider_override=None,
-        model_override=None,
-        reasoning_effort_override=None,
         parent_reasoning_effort="medium",
         parent_provider="openai",
         parent_model="gpt-5.6-sol",
@@ -788,10 +752,6 @@ print(json.dumps({"type": "message_end", "message": {
         default_cwd=tmp_path,
         agent=agent,
         task="task",
-        cwd_override=None,
-        provider_override=None,
-        model_override=None,
-        reasoning_effort_override=None,
         config_overrides=AgentOverrides(model="config/model", reasoning_effort="high"),
         parent_reasoning_effort="medium",
         parent_provider="parent-provider",
@@ -815,6 +775,9 @@ print(json.dumps({"type": "message_end", "message": {
 async def test_runner_writes_thinking_policy_with_effective_level_and_cleans_it(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Prove the runner writes the thinking policy from the effective resolved
+    level, here the config-agent pin, and cleans the file up afterwards."""
+
     record_path = tmp_path / "record.json"
     monkeypatch.setenv("FAKE_TAU_RECORD", str(record_path))
     fake_tau = write_fake_tau(
@@ -845,10 +808,7 @@ print(json.dumps({"type": "message_end", "message": {
         default_cwd=tmp_path,
         agent=agent,
         task="task",
-        cwd_override=None,
-        provider_override=None,
-        model_override=None,
-        reasoning_effort_override="high",
+        config_overrides=AgentOverrides(reasoning_effort="high"),
         timeout_seconds=2,
         signal=None,
         session=fresh_session(),
@@ -901,10 +861,6 @@ print(json.dumps({"type": "message_end", "message": {
         default_cwd=tmp_path,
         agent=agent,
         task="task",
-        cwd_override=None,
-        provider_override=None,
-        model_override=None,
-        reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
         session=fresh_session(),
@@ -928,10 +884,6 @@ async def test_runner_marks_zero_exit_without_assistant_as_protocol_failure(tmp_
         default_cwd=tmp_path,
         agent=make_agent(tmp_path),
         task="task",
-        cwd_override=None,
-        provider_override=None,
-        model_override=None,
-        reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
         session=fresh_session(),
@@ -950,10 +902,6 @@ async def test_runner_times_out_and_terminates_child(tmp_path: Path) -> None:
         default_cwd=tmp_path,
         agent=make_agent(tmp_path),
         task="task",
-        cwd_override=None,
-        provider_override=None,
-        model_override=None,
-        reasoning_effort_override=None,
         timeout_seconds=0.05,
         signal=None,
         session=fresh_session(),
@@ -989,10 +937,6 @@ time.sleep(10)
         default_cwd=tmp_path,
         agent=make_agent(tmp_path),
         task="task",
-        cwd_override=None,
-        provider_override=None,
-        model_override=None,
-        reasoning_effort_override=None,
         timeout_seconds=0.05,
         signal=None,
         session=fresh_session(),
@@ -1014,10 +958,6 @@ async def test_runner_observes_cancellation_before_and_during_spawn(tmp_path: Pa
         default_cwd=tmp_path,
         agent=make_agent(tmp_path),
         task="task",
-        cwd_override=None,
-        provider_override=None,
-        model_override=None,
-        reasoning_effort_override=None,
         timeout_seconds=2,
         signal=token,
         session=fresh_session(),
@@ -1031,10 +971,6 @@ async def test_runner_observes_cancellation_before_and_during_spawn(tmp_path: Pa
             default_cwd=tmp_path,
             agent=make_agent(tmp_path),
             task="task",
-            cwd_override=None,
-            provider_override=None,
-            model_override=None,
-            reasoning_effort_override=None,
             timeout_seconds=2,
             signal=token,
             session=fresh_session(),
@@ -1082,10 +1018,6 @@ async def test_runner_task_cancellation_terminates_live_child(
             default_cwd=tmp_path,
             agent=make_agent(tmp_path),
             task="task",
-            cwd_override=None,
-            provider_override=None,
-            model_override=None,
-            reasoning_effort_override=None,
             timeout_seconds=30,
             signal=None,
             session=fresh_session(),
@@ -1274,10 +1206,6 @@ async def test_runner_pins_every_fresh_child_to_a_new_subagent_session(
         default_cwd=tmp_path,
         agent=make_agent(tmp_path),
         task="task",
-        cwd_override=None,
-        provider_override=None,
-        model_override=None,
-        reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
         session=session,
@@ -1291,6 +1219,36 @@ async def test_runner_pins_every_fresh_child_to_a_new_subagent_session(
     assert argv[argv.index("--session-role") + 1] == "subagent"
     assert "--session" not in argv
     assert "--cwd" in argv
+
+
+@pytest.mark.asyncio
+async def test_runner_fresh_child_spawns_in_the_parent_session_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Prove a fresh child always spawns in the parent session's working
+    directory: the child's process cwd and the Tau ``--cwd`` flag both carry the
+    resolved default cwd."""
+
+    record_path = tmp_path / "record.json"
+    monkeypatch.setenv("FAKE_TAU_RECORD", str(record_path))
+    fake_tau = write_single_record_fake_tau(tmp_path, record_path)
+
+    result = await TauChildRunner(str(fake_tau)).run(
+        default_cwd=tmp_path,
+        agent=make_agent(tmp_path),
+        task="task",
+        timeout_seconds=2,
+        signal=None,
+        session=fresh_session(),
+    )
+
+    resolved = tmp_path.expanduser().resolve()
+    assert result.succeeded
+    assert result.cwd == str(resolved)
+    record = json.loads(record_path.read_text())
+    assert record["cwd"] == str(resolved)
+    argv = record["args"]
+    assert argv[argv.index("--cwd") + 1] == str(resolved)
 
 
 @pytest.mark.asyncio
@@ -1311,10 +1269,7 @@ async def test_runner_resumes_verified_subagent_session_without_cwd_flag(
         default_cwd=tmp_path,
         agent=make_agent(tmp_path, profile="read-only"),
         task="continue the work",
-        cwd_override=None,
-        provider_override=None,
-        model_override="call/model",
-        reasoning_effort_override="high",
+        config_overrides=AgentOverrides(reasoning_effort="high"),
         timeout_seconds=2,
         signal=None,
         session=SessionSelection(id=child.id, resume=True),
@@ -1332,7 +1287,7 @@ async def test_runner_resumes_verified_subagent_session_without_cwd_flag(
     assert "--no-extensions" in argv
     assert "--no-approve" in argv
     assert argv[-1] == "continue the work"
-    assert argv[argv.index("--model") + 1] == "call/model"
+    assert argv[argv.index("--model") + 1] == "agent-model"
     assert record["cwd"] == str(child.cwd)
     assert len(record["extensionPaths"]) == 2
     assert "Generated tool policy" in record["extensions"][0]
@@ -1359,10 +1314,6 @@ async def test_runner_missing_record_raises_resume_failure_without_starting_a_ch
             default_cwd=tmp_path,
             agent=make_agent(tmp_path),
             task="task",
-            cwd_override=None,
-            provider_override=None,
-            model_override=None,
-            reasoning_effort_override=None,
             timeout_seconds=2,
             signal=None,
             session=SessionSelection(id="missing-id", resume=True),
@@ -1391,10 +1342,6 @@ async def test_runner_wrong_role_record_raises_resume_failure_without_starting_a
             default_cwd=tmp_path,
             agent=make_agent(tmp_path),
             task="task",
-            cwd_override=None,
-            provider_override=None,
-            model_override=None,
-            reasoning_effort_override=None,
             timeout_seconds=2,
             signal=None,
             session=SessionSelection(id=child.id, resume=True),
@@ -1405,12 +1352,11 @@ async def test_runner_wrong_role_record_raises_resume_failure_without_starting_a
 
 
 @pytest.mark.asyncio
-async def test_runner_resumed_run_uses_the_recorded_cwd_without_a_note(
+async def test_runner_resumed_run_uses_the_recorded_cwd(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Prove a resume call with a cwd override still spawns in the session's
-    recorded creation cwd, leaves the store record's cwd unchanged, and carries
-    no repair note: the note channel is removed from results."""
+    """Prove a resumed run spawns in the session's recorded creation cwd and
+    leaves the store record's cwd unchanged: no call-level cwd exists."""
 
     record_path = tmp_path / "record.json"
     monkeypatch.setenv("FAKE_TAU_RECORD", str(record_path))
@@ -1419,17 +1365,11 @@ async def test_runner_resumed_run_uses_the_recorded_cwd_without_a_note(
     recorded = tmp_path / "recorded-cwd"
     recorded.mkdir()
     child = create_child_record(store, recorded)
-    elsewhere = tmp_path / "elsewhere"
-    elsewhere.mkdir()
 
     result = await TauChildRunner(str(fake_tau), paths=store).run(
         default_cwd=tmp_path,
         agent=make_agent(tmp_path),
         task="task",
-        cwd_override=str(elsewhere),
-        provider_override=None,
-        model_override=None,
-        reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
         session=SessionSelection(id=child.id, resume=True),
@@ -1438,7 +1378,6 @@ async def test_runner_resumed_run_uses_the_recorded_cwd_without_a_note(
     assert result.cwd == str(child.cwd)
     assert json.loads(record_path.read_text())["cwd"] == str(child.cwd)
     assert SessionManager(store).get_session(child.id).cwd == child.cwd
-    assert not hasattr(result, "notes")
 
 
 @pytest.mark.asyncio
@@ -1468,10 +1407,6 @@ async def test_runner_unknown_session_diagnostic_raises_resume_failure_without_a
             default_cwd=tmp_path,
             agent=make_agent(tmp_path),
             task="task",
-            cwd_override=None,
-            provider_override=None,
-            model_override=None,
-            reasoning_effort_override=None,
             timeout_seconds=2,
             signal=None,
             session=SessionSelection(id=child.id, resume=True),
@@ -1508,10 +1443,6 @@ raise SystemExit(2)
         default_cwd=tmp_path,
         agent=make_agent(tmp_path),
         task="task",
-        cwd_override=None,
-        provider_override=None,
-        model_override=None,
-        reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
         session=SessionSelection(id=child.id, resume=True),
@@ -1548,10 +1479,6 @@ async def test_runner_resumed_run_uses_the_call_agents_prompt_and_policies(
         default_cwd=tmp_path,
         agent=agent,
         task="task",
-        cwd_override=None,
-        provider_override=None,
-        model_override=None,
-        reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
         session=SessionSelection(id=child.id, resume=True),
@@ -1595,10 +1522,6 @@ print(json.dumps({"type": "message_end", "message": {
         default_cwd=tmp_path,
         agent=make_agent(tmp_path),
         task="task",
-        cwd_override=None,
-        provider_override=None,
-        model_override=None,
-        reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
         session=SessionSelection(id=child.id, resume=True),
@@ -1630,10 +1553,6 @@ async def test_runner_resumes_a_record_from_another_project(
         default_cwd=tmp_path,
         agent=make_agent(tmp_path),
         task="task",
-        cwd_override=None,
-        provider_override=None,
-        model_override=None,
-        reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
         session=SessionSelection(id=child.id, resume=True),
@@ -1658,10 +1577,6 @@ async def test_runner_resumed_run_times_out_with_the_resumed_task_id(
         default_cwd=tmp_path,
         agent=make_agent(tmp_path),
         task="task",
-        cwd_override=None,
-        provider_override=None,
-        model_override=None,
-        reasoning_effort_override=None,
         timeout_seconds=0.05,
         signal=None,
         session=SessionSelection(id=child.id, resume=True),
@@ -1684,10 +1599,6 @@ async def test_runner_fresh_pre_session_failures_leave_task_id_unset(
         default_cwd=tmp_path,
         agent=make_agent(tmp_path),
         task="task",
-        cwd_override=None,
-        provider_override=None,
-        model_override=None,
-        reasoning_effort_override=None,
         timeout_seconds=2,
         signal=token,
         session=fresh_session(),
@@ -1699,10 +1610,6 @@ async def test_runner_fresh_pre_session_failures_leave_task_id_unset(
         default_cwd=tmp_path,
         agent=make_agent(tmp_path),
         task="task",
-        cwd_override=None,
-        provider_override=None,
-        model_override=None,
-        reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
         session=fresh_session(),
@@ -1727,10 +1634,6 @@ async def test_runner_resumed_pre_spawn_failures_keep_the_verified_task_id(
         default_cwd=tmp_path,
         agent=make_agent(tmp_path),
         task="task",
-        cwd_override=None,
-        provider_override=None,
-        model_override=None,
-        reasoning_effort_override=None,
         timeout_seconds=2,
         signal=token,
         session=SessionSelection(id=child.id, resume=True),
@@ -1742,10 +1645,6 @@ async def test_runner_resumed_pre_spawn_failures_keep_the_verified_task_id(
         default_cwd=tmp_path,
         agent=make_agent(tmp_path),
         task="task",
-        cwd_override=None,
-        provider_override=None,
-        model_override=None,
-        reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
         session=SessionSelection(id=child.id, resume=True),
@@ -1772,10 +1671,6 @@ async def test_runner_post_spawn_failures_keep_the_generated_task_id(
         default_cwd=tmp_path,
         agent=make_agent(tmp_path),
         task="task",
-        cwd_override=None,
-        provider_override=None,
-        model_override=None,
-        reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
         session=failed_session,
@@ -1789,10 +1684,6 @@ async def test_runner_post_spawn_failures_keep_the_generated_task_id(
         default_cwd=tmp_path,
         agent=make_agent(tmp_path),
         task="task",
-        cwd_override=None,
-        provider_override=None,
-        model_override=None,
-        reasoning_effort_override=None,
         timeout_seconds=0.05,
         signal=None,
         session=timed_out_session,

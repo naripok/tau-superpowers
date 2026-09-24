@@ -9,7 +9,6 @@ from typing import Literal, cast
 from tau_agent.messages import AgentMessage
 from tau_agent.types import JSONValue
 
-AgentScope = Literal["user", "project", "both"]
 AgentSource = Literal["bundled", "user", "project", "unknown"]
 AgentProfile = Literal["general-purpose", "read-only", "review"]
 SubagentStatus = Literal["DONE", "DONE_WITH_CONCERNS", "BLOCKED", "NEEDS_CONTEXT"]
@@ -52,7 +51,6 @@ class DiscoveryResult:
     """Discovered agents and non-fatal diagnostics."""
 
     agents: tuple[AgentConfig, ...]
-    project_agents_dir: Path | None
     diagnostics: tuple[str, ...]
 
     def by_name(self) -> dict[str, AgentConfig]:
@@ -168,8 +166,6 @@ class ChildResult:
 
 def details_dict(
     *,
-    agent_scope: AgentScope,
-    project_agents_dir: Path | None,
     discovery_diagnostics: tuple[str, ...],
     results: list[ChildResult],
     planned: int | None = None,
@@ -188,8 +184,6 @@ def details_dict(
 
     details: dict[str, JSONValue] = {
         "schemaVersion": 2,
-        "agentScope": agent_scope,
-        "projectAgentsDir": str(project_agents_dir) if project_agents_dir else None,
         "discoveryDiagnostics": list(discovery_diagnostics),
         "results": [result.to_dict() for result in results],
     }

@@ -41,42 +41,37 @@ def test_parse_status_uses_outcome_default() -> None:
     assert parse_status("no marker", failed=True) == "BLOCKED"
 
 
-def test_provider_and_model_overrides_are_independent_and_opaque(tmp_path: Path) -> None:
-    agent = AgentConfig(
-        name="worker",
-        description="Worker",
+def test_effective_provider_model_prefers_config_agent_over_agent_definition(
+    tmp_path: Path,
+) -> None:
+    """Prove a config [agents.<name>] pin shadows the agent definition's
+    frontmatter pins at the top of the resolution chain, per field."""
+
+    pinned = AgentConfig(
+        name="pinned",
+        description="Pinned",
         system_prompt="",
         source="user",
-        file_path=tmp_path / "worker.md",
-        provider="configured-provider",
-        model="configured/model",
-        reasoning_effort="xhigh",
-    )
-
-    assert effective_provider_model(agent, None, "call/provider/model") == (
-        "configured-provider",
-        "call/provider/model",
-    )
-
-
-def test_effective_provider_model_falls_back_to_parent_session(tmp_path: Path) -> None:
-    """Prove unpinned children inherit the parent session's provider and model."""
-
-    plain = AgentConfig(
-        name="plain",
-        description="Plain",
-        system_prompt="",
-        source="user",
-        file_path=tmp_path / "plain.md",
+        file_path=tmp_path / "pinned.md",
+        provider="agent-provider",
+        model="agent/model",
     )
 
     assert effective_provider_model(
-        plain, None, None, parent_provider="openai", parent_model="gpt-5.6-sol"
-    ) == ("openai", "gpt-5.6-sol")
+        pinned, config_overrides=AgentOverrides(provider="config-provider", model="config/model")
+    ) == ("config-provider", "config/model")
+    # A config section that pins one side leaves the agent definition's other
+    # pin in place: resolution is per field.
+    assert effective_provider_model(
+        pinned, config_overrides=AgentOverrides(model="config/model")
+    ) == ("agent-provider", "config/model")
 
 
-def test_effective_provider_model_prefers_agent_and_call_over_parent(tmp_path: Path) -> None:
-    """Prove agent pins and call overrides always beat parent-session values."""
+def test_effective_provider_model_agent_definition_beats_config_defaults_and_parent(
+    tmp_path: Path,
+) -> None:
+    """Prove the agent definition's frontmatter pins beat config [defaults],
+    which beat the parent session, on an independent per-key basis."""
 
     pinned = AgentConfig(
         name="pinned",
@@ -96,15 +91,33 @@ def test_effective_provider_model_prefers_agent_and_call_over_parent(tmp_path: P
     )
 
     assert effective_provider_model(
-        pinned, None, None, parent_provider="openai", parent_model="gpt-5.6-sol"
+        pinned,
+        config_defaults=AgentOverrides(provider="default-provider", model="default/model"),
+        parent_provider="parent-provider",
+        parent_model="parent-model",
     ) == ("agent-provider", "agent/model")
     assert effective_provider_model(
         plain,
-        "call-provider",
-        "call/model",
-        parent_provider="openai",
-        parent_model="gpt-5.6-sol",
-    ) == ("call-provider", "call/model")
+        config_defaults=AgentOverrides(provider="default-provider"),
+        parent_provider="parent-provider",
+        parent_model="parent-model",
+    ) == ("default-provider", "parent-model")
+
+
+def test_effective_provider_model_falls_back_to_parent_session(tmp_path: Path) -> None:
+    """Prove unpinned children inherit the parent session's provider and model."""
+
+    plain = AgentConfig(
+        name="plain",
+        description="Plain",
+        system_prompt="",
+        source="user",
+        file_path=tmp_path / "plain.md",
+    )
+
+    assert effective_provider_model(
+        plain, parent_provider="openai", parent_model="gpt-5.6-sol"
+    ) == ("openai", "gpt-5.6-sol")
 
 
 def test_effective_provider_model_falls_back_per_side_when_agent_pins_one_side(
@@ -128,54 +141,43 @@ def test_effective_provider_model_falls_back_per_side_when_agent_pins_one_side(
         file_path=tmp_path / "provider-pinned.md",
         provider="agent-provider",
     )
-    plain = AgentConfig(
-        name="plain",
-        description="Plain",
-        system_prompt="",
-        source="user",
-        file_path=tmp_path / "plain.md",
-    )
 
     assert effective_provider_model(
-        model_pinned, None, None, parent_provider="openai", parent_model="gpt-5.6-sol"
+        model_pinned, parent_provider="openai", parent_model="gpt-5.6-sol"
     ) == ("openai", "agent/model")
     assert effective_provider_model(
-        provider_pinned, None, None, parent_provider="openai", parent_model="gpt-5.6-sol"
+        provider_pinned, parent_provider="openai", parent_model="gpt-5.6-sol"
     ) == ("agent-provider", "gpt-5.6-sol")
-    assert effective_provider_model(
-        plain, "call-provider", None, parent_provider="openai", parent_model="gpt-5.6-sol"
-    ) == ("call-provider", "gpt-5.6-sol")
 
 
-def test_effective_reasoning_effort_prefers_call_then_agent(tmp_path: Path) -> None:
-    agent = AgentConfig(
-        name="worker",
-        description="Worker",
+def test_effective_reasoning_effort_prefers_config_agent_over_agent_definition(
+    tmp_path: Path,
+) -> None:
+    """Prove a config [agents.<name>] reasoning_effort pin shadows the agent
+    definition's frontmatter pin."""
+
+    pinned = AgentConfig(
+        name="pinned",
+        description="Pinned",
         system_prompt="",
         source="user",
-        file_path=tmp_path / "worker.md",
+        file_path=tmp_path / "pinned.md",
         reasoning_effort="xhigh",
     )
 
-    assert effective_reasoning_effort(agent, None) == "xhigh"
-    assert effective_reasoning_effort(agent, "medium") == "medium"
-
-    plain = AgentConfig(
-        name="plain",
-        description="Plain",
-        system_prompt="",
-        source="user",
-        file_path=tmp_path / "plain.md",
+    assert (
+        effective_reasoning_effort(
+            pinned, config_overrides=AgentOverrides(reasoning_effort="medium")
+        )
+        == "medium"
     )
-    assert effective_reasoning_effort(plain, None) is None
-    assert effective_reasoning_effort(plain, "low") == "low"
 
 
-def test_effective_reasoning_effort_config_layers_and_parent_fallback(
+def test_effective_reasoning_effort_agent_definition_beats_config_defaults_and_parent(
     tmp_path: Path,
 ) -> None:
-    """Prove the reasoning effort resolves at call, config-agent, agent,
-    config-defaults, then parent-session precedence."""
+    """Prove the agent definition's reasoning_effort pin beats config [defaults]
+    and the parent session, and config [defaults] beats the parent session."""
 
     pinned = AgentConfig(
         name="pinned",
@@ -192,60 +194,25 @@ def test_effective_reasoning_effort_config_layers_and_parent_fallback(
         source="user",
         file_path=tmp_path / "plain.md",
     )
-    agent_config = AgentOverrides(reasoning_effort="medium")
-    defaults_config = AgentOverrides(reasoning_effort="low")
 
-    # Call beats config-agent, config-agent beats agent pin, agent beats
-    # config-defaults, config-defaults beats the parent session level.
     assert (
-        effective_reasoning_effort(
-            pinned, "off", config_overrides=agent_config, config_defaults=defaults_config
-        )
-        == "off"
-    )
-    assert (
-        effective_reasoning_effort(
-            pinned, None, config_overrides=agent_config, config_defaults=defaults_config
-        )
-        == "medium"
-    )
-    assert (
-        effective_reasoning_effort(
-            pinned,
-            None,
-            config_overrides=None,
-            config_defaults=defaults_config,
-            parent_reasoning_effort="xhigh",
-        )
+        effective_reasoning_effort(pinned, config_defaults=AgentOverrides(reasoning_effort="low"))
         == "xhigh"
     )
     assert (
         effective_reasoning_effort(
-            plain, None, config_defaults=defaults_config, parent_reasoning_effort="xhigh"
+            plain,
+            config_defaults=AgentOverrides(reasoning_effort="low"),
+            parent_reasoning_effort="xhigh",
         )
         == "low"
     )
-    # Nothing else pinned: the parent session thinking level is the default.
-    assert effective_reasoning_effort(plain, None, parent_reasoning_effort="medium") == "medium"
-    assert effective_reasoning_effort(plain, None) is None
 
 
-def test_effective_provider_model_config_layers_between_call_and_agent(
-    tmp_path: Path,
-) -> None:
-    """Prove config-agent values sit between the call and agent definition,
-    and config-defaults sit between the agent definition and parent fallback,
-    on an independent per-key basis."""
+def test_effective_reasoning_effort_falls_back_to_parent_session(tmp_path: Path) -> None:
+    """Prove an unpinned child inherits the parent session's thinking level, and
+    a child with no pin anywhere resolves nothing."""
 
-    pinned = AgentConfig(
-        name="pinned",
-        description="Pinned",
-        system_prompt="",
-        source="user",
-        file_path=tmp_path / "pinned.md",
-        provider="agent-provider",
-        model="agent/model",
-    )
     plain = AgentConfig(
         name="plain",
         description="Plain",
@@ -253,39 +220,9 @@ def test_effective_provider_model_config_layers_between_call_and_agent(
         source="user",
         file_path=tmp_path / "plain.md",
     )
-    agent_config = AgentOverrides(model="config/model")
-    defaults_config = AgentOverrides(provider="default-provider")
 
-    # Config-agent model shadows the agent pin while the agent provider stays.
-    assert effective_provider_model(
-        pinned,
-        None,
-        None,
-        config_overrides=agent_config,
-        config_defaults=defaults_config,
-        parent_provider="parent-provider",
-        parent_model="parent-model",
-    ) == ("agent-provider", "config/model")
-    # Config-defaults shadow the parent session fallback for an unpinned agent.
-    assert effective_provider_model(
-        plain,
-        None,
-        None,
-        config_overrides=None,
-        config_defaults=defaults_config,
-        parent_provider="parent-provider",
-        parent_model="parent-model",
-    ) == ("default-provider", "parent-model")
-    # A call override still wins over every other layer.
-    assert effective_provider_model(
-        pinned,
-        "call-provider",
-        None,
-        config_overrides=agent_config,
-        config_defaults=defaults_config,
-        parent_provider="parent-provider",
-        parent_model="parent-model",
-    ) == ("call-provider", "config/model")
+    assert effective_reasoning_effort(plain, parent_reasoning_effort="medium") == "medium"
+    assert effective_reasoning_effort(plain) is None
 
 
 def test_effective_resolution_ignores_empty_override_objects(tmp_path: Path) -> None:
@@ -303,17 +240,12 @@ def test_effective_resolution_ignores_empty_override_objects(tmp_path: Path) -> 
 
     assert effective_provider_model(
         plain,
-        None,
-        None,
         config_overrides=empty,
         config_defaults=empty,
         parent_provider="parent-provider",
         parent_model="parent-model",
     ) == ("parent-provider", "parent-model")
-    assert (
-        effective_reasoning_effort(plain, None, config_overrides=empty, config_defaults=empty)
-        is None
-    )
+    assert effective_reasoning_effort(plain, config_overrides=empty, config_defaults=empty) is None
 
 
 def test_build_tau_argv_uses_supported_flags_and_positional_task(tmp_path: Path) -> None:

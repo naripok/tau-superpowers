@@ -116,7 +116,6 @@ def discover_agents(
 
     return DiscoveryResult(
         agents=tuple(selected[name] for name in sorted(selected)),
-        project_agents_dir=project,
         diagnostics=tuple(diagnostics),
     )
 

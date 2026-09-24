@@ -48,38 +48,23 @@ def parse_status(text: str, *, failed: bool) -> SubagentStatus:
     return "BLOCKED" if failed else "DONE"
 
 
-def resolve_child_cwd(default_cwd: Path, override: str | None) -> Path:
-    """Resolve a child cwd relative to the parent session cwd."""
-
-    if override is None:
-        return default_cwd.expanduser().resolve()
-    candidate = Path(override).expanduser()
-    if not candidate.is_absolute():
-        candidate = default_cwd / candidate
-    return candidate.resolve()
-
-
 def effective_provider_model(
     agent: AgentConfig,
-    provider_override: str | None,
-    model_override: str | None,
     *,
     config_overrides: AgentOverrides | None = None,
     config_defaults: AgentOverrides | None = None,
     parent_provider: str | None = None,
     parent_model: str | None = None,
 ) -> tuple[str | None, str | None]:
-    """Resolve provider and model independently per side at call, config-agent,
+    """Resolve provider and model independently per side at config-agent,
     agent-definition, config-defaults, then parent-session precedence."""
 
     return (
-        provider_override
-        or (config_overrides.provider if config_overrides is not None else None)
+        (config_overrides.provider if config_overrides is not None else None)
         or agent.provider
         or (config_defaults.provider if config_defaults is not None else None)
         or parent_provider,
-        model_override
-        or (config_overrides.model if config_overrides is not None else None)
+        (config_overrides.model if config_overrides is not None else None)
         or agent.model
         or (config_defaults.model if config_defaults is not None else None)
         or parent_model,
@@ -88,18 +73,16 @@ def effective_provider_model(
 
 def effective_reasoning_effort(
     agent: AgentConfig,
-    reasoning_effort_override: str | None,
     *,
     config_overrides: AgentOverrides | None = None,
     config_defaults: AgentOverrides | None = None,
     parent_reasoning_effort: str | None = None,
 ) -> str | None:
-    """Resolve the reasoning effort at call, config-agent, agent-definition,
-    config-defaults, then parent-session thinking-level precedence."""
+    """Resolve the reasoning effort at config-agent, agent-definition,
+    config-defaults, then parent-session precedence."""
 
     return (
-        reasoning_effort_override
-        or (config_overrides.reasoning_effort if config_overrides is not None else None)
+        (config_overrides.reasoning_effort if config_overrides is not None else None)
         or agent.reasoning_effort
         or (config_defaults.reasoning_effort if config_defaults is not None else None)
         or parent_reasoning_effort

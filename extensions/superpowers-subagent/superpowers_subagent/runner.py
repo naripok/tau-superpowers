@@ -27,7 +27,6 @@ from .utils import (
     effective_reasoning_effort,
     final_output,
     parse_status,
-    resolve_child_cwd,
 )
 
 RECURSION_GUARD = "TAU_SUPERPOWERS_SUBAGENT"
@@ -218,10 +217,6 @@ class TauChildRunner:
         default_cwd: Path,
         agent: AgentConfig,
         task: str,
-        cwd_override: str | None,
-        provider_override: str | None,
-        model_override: str | None,
-        reasoning_effort_override: str | None,
         config_overrides: AgentOverrides | None = None,
         config_defaults: AgentOverrides | None = None,
         parent_provider: str | None = None,
@@ -234,21 +229,23 @@ class TauChildRunner:
     ) -> ChildResult:
         """Launch and collect one child, retaining partial state on every exit path.
 
-        With ``session.resume`` False the child runs in a new session pinned to
-        ``session.id``, which the dispatcher generated and recorded in the
-        session-agent mapping before calling the runner. With ``session.resume``
-        True the session store is verified first: a missing record or a
-        non-subagent role raises ``ResumeFailure`` before any child starts. A
-        resumed run whose process fails with tau's unknown-session diagnostic
-        raises ``ResumeFailure`` carrying the bounded stderr excerpt, so every
-        resume failure starts zero children.
+        Provider, model, and thinking level resolve per field from the
+        config-agent pin, the agent-definition frontmatter, the config-defaults
+        pin, then the parent session; no call-level value participates. A fresh
+        child always spawns in ``default_cwd``, the parent session's working
+        directory. With ``session.resume`` False the child runs in a new session
+        pinned to ``session.id``, which the dispatcher generated and recorded in
+        the session-agent mapping before calling the runner. With
+        ``session.resume`` True the session store is verified first: a missing
+        record or a non-subagent role raises ``ResumeFailure`` before any child
+        starts, and the child spawns in the record's cwd. A resumed run whose
+        process fails with tau's unknown-session diagnostic raises
+        ``ResumeFailure`` carrying the bounded stderr excerpt, so every resume
+        failure starts zero children.
         """
 
-        resolved_cwd = resolve_child_cwd(default_cwd, cwd_override)
         provider, model = effective_provider_model(
             agent,
-            provider_override,
-            model_override,
             config_overrides=config_overrides,
             config_defaults=config_defaults,
             parent_provider=parent_provider,
@@ -256,15 +253,16 @@ class TauChildRunner:
         )
         reasoning_effort = effective_reasoning_effort(
             agent,
-            reasoning_effort_override,
             config_overrides=config_overrides,
             config_defaults=config_defaults,
             parent_reasoning_effort=parent_reasoning_effort,
         )
 
         if not session.resume:
+            # Fresh children always spawn in the parent session's working
+            # directory; resolved synchronously, the spawn below is async.
             return await self._run_child(
-                cwd=resolved_cwd,
+                cwd=default_cwd.expanduser().resolve(),  # noqa: ASYNC240
                 session=session,
                 agent=agent,
                 task=task,
@@ -317,11 +315,12 @@ class TauChildRunner:
     ) -> ChildResult:
         """Run one child invocation in ``session`` and collect its output.
 
-        The child spawns in ``cwd``: the resolved call cwd for a fresh run, the
-        verified record's cwd for a resumed run. ``task_id`` records the selected
-        session id once the process exists, so every post-spawn failure keeps
-        the id; a pre-spawn failure leaves the id the session semantics dictate:
-        unset for a fresh run and the verified id for a resumed run.
+        The child spawns in ``cwd``: the parent session's working directory for
+        a fresh run, the verified record's cwd for a resumed run. ``task_id``
+        records the selected session id once the process exists, so every
+        post-spawn failure keeps the id; a pre-spawn failure leaves the id the
+        session semantics dictate: unset for a fresh run and the verified id
+        for a resumed run.
         """
 
         result = ChildResult(

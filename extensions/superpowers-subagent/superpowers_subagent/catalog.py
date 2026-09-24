@@ -1,4 +1,4 @@
-"""Exception-safe Tau provider-catalog access for scoped dispatch validation.
+"""Exception-safe Tau provider-catalog access for scoped dispatch pin validation.
 
 Two jobs, both fail-safe: load the provider catalog, and restrict it to what
 the harness can actually run before teach-back errors list options to the
@@ -278,7 +278,7 @@ def _summarize(values: Iterable[str]) -> str:
     return listed
 
 
-def provider_model_override_error(
+def provider_model_pin_error(
     provider: str | None,
     model: str | None,
     *,
@@ -286,12 +286,13 @@ def provider_model_override_error(
     parent_model: str | None,
     snapshot: CatalogSnapshot | None,
 ) -> str | None:
-    """Return an actionable error for an override pair the catalog cannot honor.
+    """Return an actionable error for a pinned pair the catalog cannot honor.
 
     Conservative by design: without a snapshot, without a resolved provider, or
-    for the parent session's own running pair, the override passes untouched —
-    the child would inherit or re-run exactly what the parent session already
-    proves works.
+    for the parent session's own running pair, the pin passes untouched — the
+    child would inherit or re-run exactly what the parent session already proves
+    works. The failure always directs the caller to the config pin or the agent
+    definition, because no call-level parameter exists.
     """
 
     if snapshot is None or provider is None:
@@ -299,11 +300,10 @@ def provider_model_override_error(
     known_models = snapshot.models_by_provider.get(provider)
     if known_models is None and provider != parent_provider:
         available = _summarize(snapshot.providers)
-        inherited = f" ({parent_provider!r})" if parent_provider else ""
         return (
             f"provider {provider!r} is not a configured Tau provider. Configured "
-            f"providers: {available}. Omit provider to inherit the parent session's "
-            f"provider{inherited}, or pass one from the list."
+            f"providers: {available}. Correct the provider pin in the config file or "
+            "the agent definition, and use an exact provider name from `tau providers`."
         )
     if model is None or known_models is None:
         return None
@@ -312,12 +312,8 @@ def provider_model_override_error(
     if model in known_models:
         return None
     available = _summarize(known_models)
-    inherit = (
-        f" Omit model to inherit the parent session's model ({parent_model!r})."
-        if parent_model and provider == parent_provider
-        else " Omit model to inherit configuration."
-    )
     return (
         f"model {model!r} is not configured for provider {provider!r}. Configured "
-        f"models: {available}.{inherit} Or pass one from the list."
+        f"models: {available}. Correct the model pin in the config file or the agent "
+        "definition, or use an exact model ID supported by the provider."
     )

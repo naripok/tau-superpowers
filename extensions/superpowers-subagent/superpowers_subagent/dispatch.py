@@ -7,7 +7,6 @@ from collections.abc import Callable, Mapping, Sequence
 from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol, cast
 
 from tau_agent.messages import AssistantMessage, TextContent
 from tau_agent.tools import (
@@ -17,7 +16,7 @@ from tau_agent.tools import (
 )
 from tau_agent.types import JSONValue
 
-from .catalog import CatalogSnapshot, provider_model_override_error
+from .catalog import CatalogSnapshot, provider_model_pin_error
 from .config import AgentOverrides, SubagentConfig
 from .discovery import discover_agents
 from .locking import same_id_lock
@@ -28,20 +27,14 @@ from .mapping import (
     write_mapping_entry,
 )
 from .models import (
-    THINKING_LEVELS,
     AgentConfig,
-    AgentScope,
     ChildResult,
     DiscoveryResult,
     SessionSelection,
     details_dict,
 )
 from .runner import ResumeFailure, TauChildRunner
-from .utils import (
-    effective_provider_model,
-    final_output,
-    resolve_child_cwd,
-)
+from .utils import effective_provider_model, final_output
 
 DEFAULT_TIMEOUT_SECONDS = 3600.0
 MAX_TIMEOUT_SECONDS = 10800.0
@@ -52,31 +45,45 @@ _ALLOWED_FIELDS = frozenset(
         "subagent_type",
         "description",
         "task_id",
-        "cwd",
-        "agentScope",
-        "confirmProjectAgents",
-        "provider",
-        "model",
-        "reasoningEffort",
         "timeoutSeconds",
     }
 )
-_RESERVED_OVERRIDE_PLACEHOLDERS: frozenset[str] = frozenset({"default", "inherit", "auto"})
+#: Teach-back sentence per removed call-level field. Override fields direct the
+#: caller to the durable pins; environment and approval fields state the fixed
+#: dispatch behavior. The unknown-field teach-back appends the matching
+#: sentence for every removed field the call carried.
+_REMOVED_FIELD_SENTENCES: dict[str, str] = {
+    "provider": (
+        "The call-level provider override is removed: pin the provider in the "
+        "superpowers-subagent.toml config file ([defaults] or [agents.<name>]) or in "
+        "the agent definition's frontmatter."
+    ),
+    "model": (
+        "The call-level model override is removed: pin the model in the "
+        "superpowers-subagent.toml config file ([defaults] or [agents.<name>]) or in "
+        "the agent definition's frontmatter."
+    ),
+    "reasoningEffort": (
+        "The call-level reasoningEffort override is removed: pin the reasoning effort "
+        "in the superpowers-subagent.toml config file ([defaults] or [agents.<name>]) "
+        "or in the agent definition's frontmatter."
+    ),
+    "cwd": (
+        "The call-level cwd capability is removed: a fresh child spawns in this "
+        "session's working directory, and discovery covers all agent layers."
+    ),
+    "agentScope": (
+        "The call-level agentScope capability is removed: a fresh child spawns in this "
+        "session's working directory, and discovery covers all agent layers."
+    ),
+    "confirmProjectAgents": (
+        "The call-level confirmProjectAgents capability is removed: a fresh child "
+        "spawns in this session's working directory, and discovery covers all agent "
+        "layers."
+    ),
+}
 
 UsageObserver = Callable[[Sequence[ChildResult], bool], None]
-
-
-class ConfirmationUi(Protocol):
-    @property
-    def has_ui(self) -> bool: ...
-
-    async def confirm(
-        self,
-        title: str,
-        message: str,
-        *,
-        timeout: float | None = None,
-    ) -> bool: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,16 +98,7 @@ class ParsedRequest:
     #: Trimmed effective id for the session-agent mapping lookup, the session
     #: selection, and the same-id lock.
     task_id: str | None
-    cwd: str | None
-    agent_scope: AgentScope
-    confirm_project_agents: bool
-    provider: str | None
-    model: str | None
-    reasoning_effort: str | None
     timeout_seconds: float
-    #: Coercion notices, one line per tolerated mistake (for example placeholders
-    #: coerced to omitted); no longer rendered into result content.
-    notices: tuple[str, ...] = ()
 
 
 class ValidationFailure(ValueError):
@@ -118,7 +116,6 @@ class TaskDispatcher:
         self,
         *,
         default_cwd: Path,
-        ui: ConfirmationUi,
         runner: TauChildRunner | None = None,
         discovery_fn: DiscoveryFn = discover_agents,
         roster_text: str,
@@ -130,7 +127,6 @@ class TaskDispatcher:
         catalog_fn: CatalogFn | None = None,
     ) -> None:
         self.default_cwd = default_cwd
-        self.ui = ui
         self.runner = runner or TauChildRunner()
         self.discovery_fn = discovery_fn
         # The static session-start roster: every teach-back lists these agents,
@@ -157,13 +153,12 @@ class TaskDispatcher:
         selects nothing on a resume.
         """
 
-        scope = _scope_for_discovery(arguments)
         discovery = self.discovery_fn(self.default_cwd)
         self._config_diagnostics = self._merged_config_diagnostics(discovery.by_name())
         try:
             request = validate_arguments(arguments)
         except ValidationFailure as exc:
-            return self._fail_closed(str(exc), scope=scope, discovery=discovery)
+            return self._fail_closed(str(exc), discovery=discovery)
 
         agents = discovery.by_name()
         if request.task_id is None:
@@ -172,7 +167,6 @@ class TaskDispatcher:
             if agent is None:
                 return self._fail_closed(
                     f"unknown agent '{request.subagent_type}'",
-                    scope=request.agent_scope,
                     discovery=discovery,
                 )
         else:
@@ -181,7 +175,6 @@ class TaskDispatcher:
                 return _resume_fail_closed(
                     request.task_id,
                     f"the session-agent mapping has no entry for task_id '{request.task_id}'",
-                    request.agent_scope,
                     discovery,
                 )
             agent_name = mapped_name
@@ -191,22 +184,17 @@ class TaskDispatcher:
                     request.task_id,
                     f"the mapping entry names agent '{mapped_name}', which no discoverable "
                     "agent provides",
-                    request.agent_scope,
                     discovery,
                 )
-        catalog_error = self._catalog_override_error(request, agent_name, agent)
+        catalog_error = self._catalog_pin_error(agent_name, agent)
         if catalog_error is not None:
-            return self._fail_closed(catalog_error, scope=request.agent_scope, discovery=discovery)
-        denial = await self._project_approval(request, agent, discovery)
-        if denial is not None:
-            return denial
+            return self._fail_closed(catalog_error, discovery=discovery)
         return await self._run_locked(request, agent, agent_name, discovery, signal, on_update)
 
     def _fail_closed(
         self,
         error: str,
         *,
-        scope: AgentScope,
         discovery: DiscoveryResult,
     ) -> AgentToolResult:
         """Return the fail-closed contract: teach-back content, empty results,
@@ -214,7 +202,6 @@ class TaskDispatcher:
 
         return _tool_result(
             _invalid_parameters_content(error, self),
-            scope=scope,
             discovery=discovery,
             config=self.config,
             config_diagnostics=self._config_diagnostics,
@@ -247,10 +234,8 @@ class TaskDispatcher:
             return None, None
         return self.config.overrides_for(agent_name), self.config.defaults
 
-    def _catalog_override_error(
-        self, request: ParsedRequest, agent_name: str, agent: AgentConfig
-    ) -> str | None:
-        """Fail fast on literal overrides the provider catalog cannot honor.
+    def _catalog_pin_error(self, agent_name: str, agent: AgentConfig) -> str | None:
+        """Fail fast on a resolved pin pair the provider catalog cannot honor.
 
         Without a catalog the check is skipped. The resolution mirrors
         ``_dispatch_child`` exactly, so an accepted pair is the pair the child
@@ -266,69 +251,17 @@ class TaskDispatcher:
         config_overrides, config_defaults = self._config_layers(agent_name)
         provider, model = effective_provider_model(
             agent,
-            request.provider,
-            request.model,
             config_overrides=config_overrides,
             config_defaults=config_defaults,
             parent_provider=self.parent_provider,
             parent_model=self.parent_model,
         )
-        return provider_model_override_error(
+        return provider_model_pin_error(
             provider,
             model,
             parent_provider=self.parent_provider,
             parent_model=self.parent_model,
             snapshot=snapshot,
-        )
-
-    async def _project_approval(
-        self,
-        request: ParsedRequest,
-        agent: AgentConfig,
-        discovery: DiscoveryResult,
-    ) -> AgentToolResult | None:
-        """Gate project-controlled agent prompts; None means approved or exempt.
-
-        A headless session fails closed with the directory-naming teach-back. An
-        interactive denial cancels the call before any child starts with the
-        pre-session failure result: an error envelope with no id attribute and a
-        details entry without a ``taskId``.
-        """
-
-        if agent.source != "project" or not request.confirm_project_agents:
-            return None
-        directory = discovery.project_agents_dir
-        if not self.ui.has_ui:
-            return self._fail_closed(
-                "Project agent approval required in headless mode. Inspect "
-                f"{directory} and set confirmProjectAgents: false to explicitly approve "
-                "these definitions for this task call.",
-                scope=request.agent_scope,
-                discovery=discovery,
-            )
-        approved = await self.ui.confirm(
-            "Run project-local agents?",
-            "Agents: " + agent.name + f"\nSource: {directory}\n\n"
-            "Project agents are repository-controlled prompt input.",
-        )
-        if approved:
-            return None
-        result = ChildResult(
-            agent=request.subagent_type,
-            agent_source="project",
-            task=request.prompt,
-            cwd=str(resolve_child_cwd(self.default_cwd, request.cwd)),
-            error_message="Canceled: project-local agents were not approved.",
-            status="BLOCKED",
-        )
-        return _tool_result(
-            build_envelope(result),
-            scope=request.agent_scope,
-            discovery=discovery,
-            config=self.config,
-            config_diagnostics=self._config_diagnostics,
-            results=[result],
-            planned=1,
         )
 
     async def _run_locked(
@@ -351,7 +284,6 @@ class TaskDispatcher:
                 return self._fail_closed(
                     f"another running task call already holds task_id '{request.task_id}'. "
                     "Wait for that call to finish or use a different task_id.",
-                    scope=request.agent_scope,
                     discovery=discovery,
                 )
             lock = acquired
@@ -383,7 +315,6 @@ class TaskDispatcher:
             _emit_update(
                 on_update,
                 _progress_content(result),
-                request,
                 discovery,
                 [result],
                 config=self.config,
@@ -397,7 +328,7 @@ class TaskDispatcher:
             try:
                 write_mapping_entry(fresh_id, agent.name)
             except MappingWriteError as exc:
-                return _resume_fail_closed(None, str(exc), request.agent_scope, discovery)
+                return _resume_fail_closed(None, str(exc), discovery)
             session = SessionSelection(id=fresh_id)
         else:
             session = SessionSelection(id=request.task_id, resume=True)
@@ -406,10 +337,6 @@ class TaskDispatcher:
                 default_cwd=self.default_cwd,
                 agent=agent,
                 task=request.prompt,
-                cwd_override=request.cwd,
-                provider_override=request.provider,
-                model_override=request.model,
-                reasoning_effort_override=request.reasoning_effort,
                 config_overrides=config_overrides,
                 config_defaults=config_defaults,
                 parent_provider=self.parent_provider,
@@ -421,13 +348,12 @@ class TaskDispatcher:
                 session=session,
             )
         except ResumeFailure as exc:
-            return _resume_fail_closed(request.task_id, str(exc), request.agent_scope, discovery)
+            return _resume_fail_closed(request.task_id, str(exc), discovery)
         emit(result)
         if self.usage_observer is not None:
             self.usage_observer([result], True)
         return _tool_result(
             build_envelope(result),
-            scope=request.agent_scope,
             discovery=discovery,
             config=self.config,
             config_diagnostics=self._config_diagnostics,
@@ -447,7 +373,7 @@ def validate_arguments(arguments: Mapping[str, JSONValue]) -> ParsedRequest:
         )
     unknown = sorted(set(arguments) - _ALLOWED_FIELDS)
     if unknown:
-        raise ValidationFailure(f"unknown field(s): {', '.join(unknown)}")
+        raise ValidationFailure(_unknown_field_error(unknown))
 
     prompt = arguments.get("prompt")
     if not isinstance(prompt, str) or not prompt.strip():
@@ -474,21 +400,6 @@ def validate_arguments(arguments: Mapping[str, JSONValue]) -> ParsedRequest:
             )
         task_id = value.strip()
 
-    cwd = _optional_string(arguments, "cwd", nonempty=False)
-
-    scope_value = arguments.get("agentScope", "user")
-    if scope_value not in {"user", "project", "both"}:
-        raise ValidationFailure("agentScope must be `user`, `project`, or `both`")
-    scope: AgentScope = cast("AgentScope", scope_value)
-
-    confirm = arguments.get("confirmProjectAgents", True)
-    if not isinstance(confirm, bool):
-        raise ValidationFailure("confirmProjectAgents must be a boolean")
-
-    notices: list[str] = []
-    provider = _optional_literal_override(arguments, "provider", notices)
-    model = _optional_literal_override(arguments, "model", notices)
-    reasoning_effort = _optional_thinking_level(arguments, "reasoningEffort", notices)
     timeout_value = arguments.get("timeoutSeconds", DEFAULT_TIMEOUT_SECONDS)
     if (
         isinstance(timeout_value, bool)
@@ -502,15 +413,21 @@ def validate_arguments(arguments: Mapping[str, JSONValue]) -> ParsedRequest:
         subagent_type=subagent_type,
         description=description,
         task_id=task_id,
-        cwd=cwd,
-        agent_scope=scope,
-        confirm_project_agents=confirm,
-        provider=provider,
-        model=model,
-        reasoning_effort=reasoning_effort,
         timeout_seconds=float(timeout_value),
-        notices=tuple(notices),
     )
+
+
+def _unknown_field_error(unknown: list[str]) -> str:
+    """Build the unknown-field error, appending the removed-field sentence for
+    every removed field the call carried, so the teach-back states the fix."""
+
+    names = ", ".join(unknown)
+    sentences = [
+        _REMOVED_FIELD_SENTENCES[name] for name in unknown if name in _REMOVED_FIELD_SENTENCES
+    ]
+    if not sentences:
+        return f"unknown field(s): {names}"
+    return f"unknown field(s): {names}. " + " ".join(sentences)
 
 
 def _optional_string(arguments: Mapping[str, JSONValue], key: str, *, nonempty: bool) -> str | None:
@@ -524,71 +441,9 @@ def _optional_string(arguments: Mapping[str, JSONValue], key: str, *, nonempty: 
     return value
 
 
-def _optional_literal_override(
-    arguments: Mapping[str, JSONValue],
-    key: str,
-    notices: list[str],
-) -> str | None:
-    """Return a trimmed literal override, coercing placeholders to omitted.
-
-    Models keep sending ``default``/``inherit``/``auto`` however firmly the
-    schema forbids them, and their intent is unambiguous: inherit. Coercing to
-    omitted with a repair note keeps the dispatch alive and teaches the fix,
-    instead of spending a failed call on it.
-    """
-
-    value = _optional_string(arguments, key, nonempty=False)
-    if value is None:
-        return None
-    normalized = value.strip()
-    if not normalized:
-        raise ValidationFailure(
-            f"{key} requires a non-empty string literal override; "
-            f"omit {key} for inherited configuration"
-        )
-    if normalized.lower() in _RESERVED_OVERRIDE_PLACEHOLDERS:
-        notices.append(
-            f"{key}: {normalized!r} is a placeholder, not a literal value; treated as "
-            f"omitted, so {key} inherits configuration. Omit the field next time."
-        )
-        return None
-    return normalized
-
-
-def _optional_thinking_level(
-    arguments: Mapping[str, JSONValue],
-    key: str,
-    notices: list[str],
-) -> str | None:
-    if key not in arguments:
-        return None
-    value = arguments[key]
-    if not isinstance(value, str):
-        raise ValidationFailure(f"{key} must be a string")
-    normalized = value.strip().lower()
-    if normalized in _RESERVED_OVERRIDE_PLACEHOLDERS:
-        notices.append(
-            f"{key}: {normalized!r} is a placeholder, not a literal value; treated as "
-            f"omitted, so {key} inherits configuration. Omit the field next time."
-        )
-        return None
-    if normalized not in THINKING_LEVELS:
-        allowed = ", ".join(THINKING_LEVELS)
-        raise ValidationFailure(f"{key} must be one of: {allowed}")
-    return normalized
-
-
-def _scope_for_discovery(arguments: Mapping[str, JSONValue]) -> AgentScope:
-    value = arguments.get("agentScope", "user")
-    if value in {"user", "project", "both"}:
-        return cast("AgentScope", value)
-    return "user"
-
-
 def _tool_result(
     content: str,
     *,
-    scope: AgentScope,
     discovery: DiscoveryResult,
     results: list[ChildResult],
     config: SubagentConfig | None = None,
@@ -600,8 +455,6 @@ def _tool_result(
     return AgentToolResult(
         content=[TextContent(text=content)],
         details=details_dict(
-            agent_scope=scope,
-            project_agents_dir=discovery.project_agents_dir,
             discovery_diagnostics=discovery.diagnostics,
             config_paths=config.paths if config is not None else (),
             config_diagnostics=config_diagnostics,
@@ -645,7 +498,6 @@ def build_envelope(result: ChildResult) -> str:
 def _resume_fail_closed(
     task_id: str | None,
     reason: str,
-    scope: AgentScope,
     discovery: DiscoveryResult,
 ) -> AgentToolResult:
     """Build the fail-closed result for a resume failure or a failed mapping
@@ -683,7 +535,7 @@ def _resume_fail_closed(
             "session's agent name. Call fields: prompt (required), task_id (required), "
             "timeoutSeconds (optional).",
         ]
-    return _tool_result("\n".join(lines), scope=scope, discovery=discovery, results=[])
+    return _tool_result("\n".join(lines), discovery=discovery, results=[])
 
 
 def _is_terminal(result: ChildResult) -> bool:
@@ -699,7 +551,6 @@ def _progress_content(result: ChildResult) -> str:
 def _emit_update(
     callback: ToolUpdateCallback | None,
     content: str,
-    request: ParsedRequest,
     discovery: DiscoveryResult,
     results: list[ChildResult],
     *,
@@ -715,7 +566,6 @@ def _emit_update(
     callback(
         _tool_result(
             content,
-            scope=request.agent_scope,
             discovery=discovery,
             config=config,
             config_diagnostics=config_diagnostics,
@@ -736,27 +586,24 @@ def _teach_back_roster(dispatcher: TaskDispatcher) -> str:
 
 
 def _invalid_parameters_content(error: str, dispatcher: TaskDispatcher) -> str:
-    """Teach back the call surface: roster, session inheritance, and an example.
+    """Teach back the call surface: roster, the pin resolution chain, and an
+    example.
 
     Without the bundled workflow skills, this failure content is the only
     place a struggling controller learns the full call contract, so it must
     name the valid values, not just reject the call.
     """
 
-    lines = [
-        f"Invalid parameters: {error}",
-        "",
-        f"Available agents: {_teach_back_roster(dispatcher)}",
-    ]
-    if dispatcher.parent_provider or dispatcher.parent_model:
-        lines.append(
-            "This session runs on provider "
-            f"{dispatcher.parent_provider!r}, model {dispatcher.parent_model!r}: omit "
-            "provider, model, and reasoningEffort to give every child exactly this "
-            "configuration."
+    return "\n".join(
+        (
+            f"Invalid parameters: {error}",
+            "",
+            f"Available agents: {_teach_back_roster(dispatcher)}",
+            "Children resolve provider, model, and thinking level per field from, highest "
+            "first: the config file's [agents.<name>] section, the agent definition's "
+            "frontmatter, the config file's [defaults] section, then this session's "
+            "provider, model, and thinking level. Durable pins belong in the config file "
+            "or an agent definition.",
+            'Example: {"prompt": "Find caching options"}',
         )
-    lines.append(
-        "reasoningEffort, when passed, must be one of: " + ", ".join(THINKING_LEVELS) + "."
     )
-    lines.append('Example: {"prompt": "Find caching options"}')
-    return "\n".join(lines)

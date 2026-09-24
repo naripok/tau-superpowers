@@ -117,60 +117,6 @@ def _task_parameters(roster_text: str) -> dict[str, JSONValue]:
                     "fresh one. Requires subagent_type."
                 ),
             },
-            "cwd": {
-                "type": "string",
-                "description": (
-                    "Working directory for a fresh child. Omission uses this session's cwd. "
-                    "Ignored on a resumed run."
-                ),
-            },
-            "agentScope": {
-                "type": "string",
-                "enum": ["user", "project", "both"],
-                "default": "user",
-            },
-            "confirmProjectAgents": {
-                "type": "boolean",
-                "default": True,
-                "description": "Require interactive approval for resolved project agents.",
-            },
-            "provider": {
-                "type": "string",
-                "minLength": 1,
-                "description": (
-                    "Optional literal provider override. Omit it to give every child "
-                    "this session's provider. When passed, it must be an exact "
-                    "configured provider name (from `tau providers`; invalid names "
-                    "fail before any child starts, listing the configured ones). A "
-                    "default, inherit, or auto placeholder is coerced to omitted with "
-                    "a repair note."
-                ),
-            },
-            "model": {
-                "type": "string",
-                "minLength": 1,
-                "description": (
-                    "Optional literal model override. Omit it to give every child "
-                    "this session's model. When passed, it must be an exact model ID "
-                    "supported by the selected provider (invalid IDs fail before any "
-                    "child starts, listing the provider's configured models). A "
-                    "default, inherit, or auto placeholder is coerced to omitted with "
-                    "a repair note."
-                ),
-            },
-            "reasoningEffort": {
-                "type": "string",
-                "enum": ["off", "minimal", "low", "medium", "high", "xhigh"],
-                "description": (
-                    "Optional literal reasoningEffort override for every child: exactly "
-                    "one of `off`, `minimal`, `low`, `medium`, `high`, or `xhigh`. Omit it "
-                    "to give every child this session's thinking level. A call-level "
-                    "value overrides the config file and agent definition; otherwise "
-                    "the level falls back to the config file, then the agent "
-                    "definition, then the parent session's thinking level. A default, "
-                    "inherit, or auto placeholder is coerced to omitted with a repair note."
-                ),
-            },
             "timeoutSeconds": {
                 "type": "number",
                 "exclusiveMinimum": 0,
@@ -256,7 +202,6 @@ def setup(tau: ExtensionAPI) -> None:
         config = load_subagent_config(cwd)
         dispatcher = TaskDispatcher(
             default_cwd=cwd,
-            ui=tau.context.ui,
             runner=runner,
             roster_text=roster_text,
             parent_provider=parent_provider,

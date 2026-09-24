@@ -64,27 +64,6 @@ class RecordingSession:
         del namespace, data
 
 
-class InteractiveUi:
-    def __init__(self, answer: bool) -> None:
-        self.answer = answer
-        self.confirmations: list[tuple[str, str]] = []
-
-    @property
-    def has_ui(self) -> bool:
-        return True
-
-    async def confirm(
-        self,
-        title: str,
-        message: str,
-        *,
-        timeout: float | None = None,
-    ) -> bool:
-        del timeout
-        self.confirmations.append((title, message))
-        return self.answer
-
-
 class CancellationToken:
     def __init__(self) -> None:
         self.cancelled = False
@@ -110,13 +89,12 @@ def load_task_tool(
     tmp_path: Path,
     *,
     monkeypatch: pytest.MonkeyPatch,
-    ui: InteractiveUi | None = None,
 ) -> tuple[ExtensionRuntime, AgentTool]:
     # The suite deliberately loads the real extension, so neutralize the
     # recursion guard inherited when the suite itself runs inside a
     # superpowers child (the guard makes setup() register no tools).
     monkeypatch.delenv(RECURSION_GUARD, raising=False)
-    runtime = ExtensionRuntime(ui=ui) if ui is not None else ExtensionRuntime()
+    runtime = ExtensionRuntime()
     runtime.load(
         TauResourcePaths(
             root=tmp_path / "tau-home",
@@ -467,55 +445,6 @@ async def test_runtime_terminates_child_on_timeout_or_cancellation_and_retains_p
     assert signal_events[-1]["signal"] == 15
 
 
-@pytest.mark.asyncio
-async def test_project_agent_approval_uses_headless_fail_closed_and_public_ui_confirmation(
-    tmp_path: Path,
-    fake_tau_environment: tuple[Path, Path],
-    redirected_home: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    del redirected_home
-    _executable, log_path = fake_tau_environment
-    project_agents = tmp_path / ".tau" / "agents"
-    project_agents.mkdir(parents=True)
-    (project_agents / "project-worker.md").write_text(
-        "---\nname: project-worker\ndescription: Project worker\n---\nProject instructions.\n",
-        encoding="utf-8",
-    )
-    arguments: dict[str, JSONValue] = {
-        "prompt": "approved",
-        "subagent_type": "project-worker",
-        "agentScope": "project",
-    }
-
-    _headless_runtime, headless_tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
-    headless = await headless_tool.execute("headless", arguments)
-    assert "approval required in headless mode" in headless.text
-    assert headless.details["results"] == []
-    assert read_log(log_path) == []
-
-    denied_ui = InteractiveUi(answer=False)
-    _denied_runtime, denied_tool = load_task_tool(tmp_path, monkeypatch=monkeypatch, ui=denied_ui)
-    denied = await denied_tool.execute("denied", arguments)
-    # The denial is a pre-session failure: an error envelope with no id
-    # attribute and a details entry without a taskId.
-    assert '<task state="error">' in denied.text
-    assert "Canceled: project-local agents were not approved." in denied.text
-    assert "project-worker" in denied_ui.confirmations[0][1]
-    assert "taskId" not in child_results(denied)[0]
-    assert read_log(log_path) == []
-
-    approved_ui = InteractiveUi(answer=True)
-    _approved_runtime, approved_tool = load_task_tool(
-        tmp_path, monkeypatch=monkeypatch, ui=approved_ui
-    )
-    approved = await approved_tool.execute("approved", arguments)
-    assert approved.text.startswith('<task id="')
-    assert 'state="completed"' in approved.text
-    assert child_results(approved)[0]["agentSource"] == "project"
-    assert len([item for item in read_log(log_path) if item["event"] == "start"]) == 1
-
-
 class ThinkingRecordingSession(RecordingSession):
     """Recording session that also exposes a parent thinking level."""
 
@@ -642,10 +571,6 @@ async def run_resumed(
         default_cwd=tmp_path,
         agent=agent,
         task=task,
-        cwd_override=None,
-        provider_override=None,
-        model_override=None,
-        reasoning_effort_override=None,
         timeout_seconds=timeout_seconds,
         signal=None,
         session=SessionSelection(id=resume_session_id, resume=True),

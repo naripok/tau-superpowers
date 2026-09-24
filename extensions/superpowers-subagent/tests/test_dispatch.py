@@ -36,7 +36,7 @@ from superpowers_subagent.models import (
     SessionSelection,
 )
 from superpowers_subagent.runner import ResumeFailure
-from superpowers_subagent.utils import parse_status, resolve_child_cwd
+from superpowers_subagent.utils import parse_status
 
 
 @pytest.fixture(autouse=True)
@@ -52,22 +52,11 @@ def _redirect_home(isolated_home: Path) -> None:
     del isolated_home
 
 
-class FakeUi:
-    def __init__(self, *, has_ui: bool = False, answer: bool = False) -> None:
-        self.has_ui = has_ui
-        self.answer = answer
-        self.confirmations: list[tuple[str, str]] = []
-
-    async def confirm(self, title: str, message: str, *, timeout: float | None = None) -> bool:
-        del timeout
-        self.confirmations.append((title, message))
-        return self.answer
-
-
 class FakeRunner:
     """In-memory runner mirroring the real runner's call signature, result
-    lifecycle (running snapshot, message snapshot, finalization), and override
-    resolution precedence, so dispatch behavior is proved against the same
+    lifecycle (running snapshot, message snapshot, finalization), and pin
+    resolution precedence (config-agent, agent-definition, config-defaults,
+    then parent-session), so dispatch behavior is proved against the same
     result states the real runner produces."""
 
     def __init__(self) -> None:
@@ -83,7 +72,7 @@ class FakeRunner:
     async def run(self, **kwargs: Any) -> ChildResult:
         self.calls.append(kwargs)
         # Effective values mirror utils.effective_provider_model and
-        # utils.effective_reasoning_effort (call, config-agent, agent,
+        # utils.effective_reasoning_effort (config-agent, agent,
         # config-defaults, then parent-session precedence); keep both in sync.
         self.active += 1
         self.max_active = max(self.max_active, self.active)
@@ -108,7 +97,9 @@ class FakeRunner:
             agent=agent.name,
             agent_source=agent.source,
             task=kwargs["task"],
-            cwd=str(resolve_child_cwd(kwargs["default_cwd"], kwargs["cwd_override"])),
+            # Mirrors the real runner's fresh-child cwd: the parent session cwd,
+            # resolved. Fresh children always spawn there.
+            cwd=str(kwargs["default_cwd"].expanduser().resolve()),
             provider=self._resolved(kwargs, "provider"),
             model=self._resolved(kwargs, "model"),
             reasoning_effort=self._resolved(kwargs, "reasoning_effort"),
@@ -145,7 +136,6 @@ class FakeRunner:
         config_defaults = kwargs.get("config_defaults")
         if kind == "provider":
             values = (
-                kwargs.get("provider_override"),
                 _override(config_overrides, kind),
                 agent.provider,
                 _override(config_defaults, kind),
@@ -153,7 +143,6 @@ class FakeRunner:
             )
         elif kind == "model":
             values = (
-                kwargs.get("model_override"),
                 _override(config_overrides, kind),
                 agent.model,
                 _override(config_defaults, kind),
@@ -161,7 +150,6 @@ class FakeRunner:
             )
         else:
             values = (
-                kwargs.get("reasoning_effort_override"),
                 _override(config_overrides, kind),
                 agent.reasoning_effort,
                 _override(config_defaults, kind),
@@ -211,10 +199,8 @@ def make_discovery(tmp_path: Path, *, source: str = "bundled") -> DiscoveryResul
         )
         for name in ("general-purpose", "read-only", "implementation", "code-review")
     )
-    project_dir = tmp_path / ".tau" / "agents" if source == "project" else None
     return DiscoveryResult(
         agents=agents,
-        project_agents_dir=project_dir,
         diagnostics=("one diagnostic",),
     )
 
@@ -231,7 +217,6 @@ def make_all_layer_discovery(tmp_path: Path) -> DiscoveryResult:
     )
     return DiscoveryResult(
         agents=(*bundled.agents, project_agent),
-        project_agents_dir=tmp_path / ".tau" / "agents",
         diagnostics=(),
     )
 
@@ -240,7 +225,6 @@ def make_dispatcher(
     tmp_path: Path,
     runner: FakeRunner,
     *,
-    ui: FakeUi | None = None,
     source: str = "bundled",
     parent_provider: str | None = None,
     parent_model: str | None = None,
@@ -261,7 +245,6 @@ def make_dispatcher(
         )
     return TaskDispatcher(
         default_cwd=tmp_path,
-        ui=ui or FakeUi(),
         runner=runner,  # type: ignore[arg-type]
         discovery_fn=discovery_fn if discovery_fn is not None else (lambda _cwd: discovery),
         roster_text=roster_text,
@@ -439,35 +422,14 @@ def test_validation_task_id_requires_subagent_type_and_names_both_fields() -> No
     assert "subagent_type" in message
 
 
-def test_validation_description_and_cwd_are_optional_strings() -> None:
-    request = validate_arguments({"prompt": "work", "description": "  brief  ", "cwd": "src"})
+def test_validation_description_is_an_optional_string() -> None:
+    request = validate_arguments({"prompt": "work", "description": "  brief  "})
     assert request.description == "  brief  "
-    assert request.cwd == "src"
     assert validate_arguments({"prompt": "work"}).description is None
-    assert validate_arguments({"prompt": "work"}).cwd is None
 
     with pytest.raises(ValidationFailure) as description:
         validate_arguments({"prompt": "work", "description": 5})
     assert str(description.value) == "description must be a string"
-
-    with pytest.raises(ValidationFailure) as cwd:
-        validate_arguments({"prompt": "work", "cwd": 5})
-    assert str(cwd.value) == "cwd must be a string"
-
-
-def test_validation_rejects_invalid_agent_scope() -> None:
-    with pytest.raises(ValidationFailure) as excinfo:
-        validate_arguments({"prompt": "work", "agentScope": "everyone"})
-    assert str(excinfo.value) == "agentScope must be `user`, `project`, or `both`"
-    assert validate_arguments({"prompt": "work"}).agent_scope == "user"
-
-
-@pytest.mark.parametrize("value", ["yes", 1])
-def test_validation_rejects_non_boolean_confirm_project_agents(value: Any) -> None:
-    with pytest.raises(ValidationFailure) as excinfo:
-        validate_arguments({"prompt": "work", "confirmProjectAgents": value})
-    assert str(excinfo.value) == "confirmProjectAgents must be a boolean"
-    assert validate_arguments({"prompt": "work"}).confirm_project_agents is True
 
 
 @pytest.mark.parametrize("value", [0, -1, -0.5, 10801, "soon", True])
@@ -491,12 +453,6 @@ def test_validation_accepts_a_fully_populated_flat_call() -> None:
             "subagent_type": " read-only ",
             "description": "  brief  ",
             "task_id": " task-7 ",
-            "cwd": "src",
-            "agentScope": "both",
-            "confirmProjectAgents": False,
-            "provider": " provider  name ",
-            "model": " org/ model-id ",
-            "reasoningEffort": " XHIGH ",
             "timeoutSeconds": 2.5,
         }
     )
@@ -504,43 +460,77 @@ def test_validation_accepts_a_fully_populated_flat_call() -> None:
     assert request.subagent_type == "read-only"
     assert request.description == "  brief  "
     assert request.task_id == "task-7"
-    assert request.cwd == "src"
-    assert request.agent_scope == "both"
-    assert request.confirm_project_agents is False
-    assert request.provider == "provider  name"
-    assert request.model == "org/ model-id"
-    assert request.reasoning_effort == "xhigh"
     assert request.timeout_seconds == 2.5
-    assert request.notices == ()
 
 
+# ---------------------------------------------------------------------------
+# Removed call-level fields fail closed
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("field", ("provider", "model", "reasoningEffort"))
-@pytest.mark.parametrize(
-    "value",
-    (
-        "default",
-        " DEFAULT ",
-        "DeFaUlT",
-        "inherit",
-        " INHERIT ",
-        "InHeRiT",
-        "auto",
-        " AUTO ",
-        "AuTo",
-    ),
-)
-def test_validation_treats_reserved_placeholders_as_omitted(field: str, value: str) -> None:
-    """Placeholders carry an unambiguous inherit intent: coerce to omitted plus a note."""
+async def test_removed_override_fields_fail_closed_with_the_pin_sentence(
+    tmp_path: Path, field: str
+) -> None:
+    """Prove a removed call-level override field fails closed, starts no child,
+    and the teach-back names the removal of the call-level override and directs
+    the caller to the config-file pin (superpowers-subagent.toml, [defaults] or
+    [agents.<name>]) or the agent definition's frontmatter."""
 
-    request = validate_arguments({"prompt": "work", field: value})
+    runner = FakeRunner()
+    result = await make_dispatcher(tmp_path, runner).execute({"prompt": "work", field: "x"})
 
-    attribute = {
-        "provider": "provider",
-        "model": "model",
-        "reasoningEffort": "reasoning_effort",
-    }[field]
-    assert getattr(request, attribute) is None
-    assert any(field in notice and "omitted" in notice for notice in request.notices)
+    assert result.text.startswith(f"Invalid parameters: unknown field(s): {field}")
+    assert "override is removed" in result.text
+    assert "superpowers-subagent.toml" in result.text
+    assert "[defaults] or [agents.<name>]" in result.text
+    assert "frontmatter" in result.text
+    assert "omit" not in result.text.lower()
+    assert result.details["results"] == []
+    assert "planned" not in result.details
+    assert runner.calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("field", ("cwd", "agentScope", "confirmProjectAgents"))
+async def test_removed_environment_fields_fail_closed_with_the_fixed_behavior_sentence(
+    tmp_path: Path, field: str
+) -> None:
+    """Prove a removed environment or approval field fails closed, starts no
+    child, and the teach-back names the removal of the call-level capability and
+    states the fixed behavior: a fresh child spawns in this session's working
+    directory and discovery covers all agent layers."""
+
+    runner = FakeRunner()
+    result = await make_dispatcher(tmp_path, runner).execute({"prompt": "work", field: "x"})
+
+    assert result.text.startswith(f"Invalid parameters: unknown field(s): {field}")
+    assert "capability is removed" in result.text
+    assert "spawns in this session's working directory" in result.text
+    assert "discovery covers all agent layers" in result.text
+    assert result.details["results"] == []
+    assert "planned" not in result.details
+    assert runner.calls == []
+
+
+@pytest.mark.asyncio
+async def test_removed_field_teach_back_wins_over_other_invalid_arguments(
+    tmp_path: Path,
+) -> None:
+    """Prove a removed field alongside another invalid argument still gets the
+    removed-field teach-back: the unknown-field check runs before the value
+    checks."""
+
+    runner = FakeRunner()
+    result = await make_dispatcher(tmp_path, runner).execute(
+        {"prompt": "work", "agentScope": "both", "timeoutSeconds": 0}
+    )
+
+    assert result.text.startswith("Invalid parameters: unknown field(s): agentScope")
+    assert "capability is removed" in result.text
+    assert "timeoutSeconds must be greater than 0" not in result.text
+    assert runner.calls == []
 
 
 # ---------------------------------------------------------------------------
@@ -672,14 +662,6 @@ TEACH_BACK_CASES: list[tuple[dict[str, Any], str]] = [
     ),
     ({"prompt": "work", "task_id": "task-1"}, "task_id requires subagent_type"),
     (
-        {"prompt": "work", "confirmProjectAgents": "yes"},
-        "confirmProjectAgents must be a boolean",
-    ),
-    (
-        {"prompt": "work", "agentScope": "everyone"},
-        "agentScope must be `user`, `project`, or `both`",
-    ),
-    (
         {"prompt": "work", "timeoutSeconds": 0},
         "timeoutSeconds must be greater than 0 and at most 10800",
     ),
@@ -753,58 +735,6 @@ async def test_task_id_without_subagent_type_teach_back_names_both_fields(
     assert runner.calls == []
 
 
-@pytest.mark.asyncio
-@pytest.mark.parametrize("field", ("provider", "model"))
-@pytest.mark.parametrize("value", ("default", " DEFAULT ", "inherit", "AuTo"))
-async def test_reserved_placeholders_dispatch_children_without_overrides(
-    tmp_path: Path, field: str, value: str
-) -> None:
-    """Prove tolerated placeholders run children on inherited configuration and
-    surface their repair note ahead of the envelope."""
-
-    runner = FakeRunner()
-    result = await make_dispatcher(tmp_path, runner).execute({"prompt": "work", field: value})
-
-    assert result.text.startswith("<task ")
-    assert "Note:" not in result.text
-    assert len(runner.calls) == 1
-    assert runner.calls[0]["provider_override"] is None
-    assert runner.calls[0]["model_override"] is None
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("field", ("provider", "model"))
-async def test_whitespace_literal_overrides_require_non_empty_string_and_prevent_children(
-    tmp_path: Path, field: str
-) -> None:
-    """Prove whitespace-only overrides explain omission and never start a child."""
-
-    runner = FakeRunner()
-    result = await make_dispatcher(tmp_path, runner).execute({"prompt": "work", field: "   "})
-
-    assert result.text.startswith(f"Invalid parameters: {field}")
-    assert "non-empty string" in result.text
-    assert "omit" in result.text
-    assert result.details["results"] == []
-    assert runner.calls == []
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("field", ("provider", "model"))
-async def test_non_string_literal_overrides_require_string_and_prevent_children(
-    tmp_path: Path, field: str
-) -> None:
-    """Prove wrong-type overrides retain the string error and never start a child."""
-
-    runner = FakeRunner()
-    result = await make_dispatcher(tmp_path, runner).execute({"prompt": "work", field: 3})
-
-    assert result.text.startswith(f"Invalid parameters: {field}")
-    assert "must be a string" in result.text
-    assert result.details["results"] == []
-    assert runner.calls == []
-
-
 # ---------------------------------------------------------------------------
 # Catalog fail-closed checks
 # ---------------------------------------------------------------------------
@@ -820,65 +750,75 @@ _FAKE_CATALOG = CatalogSnapshot(
 
 @pytest.mark.asyncio
 async def test_unknown_provider_fails_fast_before_children(tmp_path: Path) -> None:
+    """Prove a config pin naming an unconfigured provider fails the call closed
+    before any child starts: the teach-back lists the configured providers and
+    directs the caller to the config pin or the agent definition, never to a
+    call-level parameter."""
+
     runner = FakeRunner()
+    config = SubagentConfig(agents=(("read-only", AgentOverrides(provider="opneai")),))
     result = await make_dispatcher(
         tmp_path,
         runner,
-        parent_provider="openai",
+        config=config,
         catalog_fn=lambda: _FAKE_CATALOG,
-    ).execute({"prompt": "work", "subagent_type": "general-purpose", "provider": "opneai"})
+    ).execute({"prompt": "work", "subagent_type": "read-only"})
 
     assert "not a configured Tau provider" in result.text
     assert "openai, openrouter" in result.text
+    assert "Correct the provider pin in the config file or the agent definition" in result.text
+    assert "exact provider name from `tau providers`" in result.text
+    assert "omit" not in result.text.lower()
     assert "Available agents:" in result.text
-    assert "This session runs on provider 'openai'" in result.text
     assert result.details["results"] == []
     assert runner.calls == []
 
 
 @pytest.mark.asyncio
 async def test_unsupported_model_fails_fast_before_children(tmp_path: Path) -> None:
+    """Prove a config model pin the provider does not support fails the call
+    closed before any child starts: the teach-back lists the provider's
+    configured models and directs the caller to the model pin or an exact
+    model ID."""
+
     runner = FakeRunner()
+    config = SubagentConfig(
+        agents=(("read-only", AgentOverrides(provider="openrouter", model="gpt-5.6-sol")),)
+    )
     result = await make_dispatcher(
         tmp_path,
         runner,
-        parent_provider="openai",
+        config=config,
         catalog_fn=lambda: _FAKE_CATALOG,
-    ).execute(
-        {
-            "prompt": "work",
-            "subagent_type": "general-purpose",
-            "provider": "openrouter",
-            "model": "gpt-5.6-sol",
-        }
-    )
+    ).execute({"prompt": "work", "subagent_type": "read-only"})
 
     assert "not configured for provider 'openrouter'" in result.text
     assert "z-ai/glm-5.3" in result.text
+    assert "Correct the model pin in the config file or the agent definition" in result.text
+    assert "exact model ID supported by the provider" in result.text
     assert "tasks[" not in result.text
+    assert "omit" not in result.text.lower()
     assert result.details["results"] == []
     assert runner.calls == []
 
 
 @pytest.mark.asyncio
 async def test_parent_running_pair_passes_catalog_validation(tmp_path: Path) -> None:
-    """The pair the parent session is literally running on must never be rejected."""
+    """Prove the pair the parent session is literally running on must never be
+    rejected, even when the catalog does not list it."""
 
     runner = FakeRunner()
+    config = SubagentConfig(
+        agents=(("read-only", AgentOverrides(provider="session-provider", model="session-model")),)
+    )
     result = await make_dispatcher(
         tmp_path,
         runner,
-        parent_provider="openai",
-        parent_model="gpt-5.6-sol",
+        config=config,
+        parent_provider="session-provider",
+        parent_model="session-model",
         catalog_fn=lambda: _FAKE_CATALOG,
-    ).execute(
-        {
-            "prompt": "work",
-            "subagent_type": "general-purpose",
-            "provider": "openai",
-            "model": "gpt-5.6-sol",
-        }
-    )
+    ).execute({"prompt": "work", "subagent_type": "read-only"})
 
     assert len(runner.calls) == 1
     assert not result.text.startswith("Invalid parameters")
@@ -886,21 +826,31 @@ async def test_parent_running_pair_passes_catalog_validation(tmp_path: Path) -> 
 
 @pytest.mark.asyncio
 async def test_missing_catalog_skips_validation(tmp_path: Path) -> None:
+    """Prove a config provider pin passes through untouched when no catalog is
+    available: validation degrades to skipped instead of blocking dispatch."""
+
     runner = FakeRunner()
-    await make_dispatcher(tmp_path, runner, catalog_fn=lambda: None).execute(
-        {"prompt": "work", "subagent_type": "general-purpose", "provider": "bogus-provider"}
+    config = SubagentConfig(agents=(("read-only", AgentOverrides(provider="bogus-provider")),))
+    await make_dispatcher(tmp_path, runner, config=config, catalog_fn=lambda: None).execute(
+        {"prompt": "work", "subagent_type": "read-only"}
     )
 
     assert len(runner.calls) == 1
-    assert runner.calls[0]["provider_override"] == "bogus-provider"
+    assert runner.calls[0]["config_overrides"] == AgentOverrides(provider="bogus-provider")
 
 
 @pytest.mark.asyncio
 async def test_unknown_agent_never_reaches_catalog_validation(tmp_path: Path) -> None:
+    """Prove an unknown agent fails closed before catalog validation: a config
+    provider pin that would fail the catalog check is never even considered."""
+
     runner = FakeRunner()
-    result = await make_dispatcher(tmp_path, runner, catalog_fn=lambda: _FAKE_CATALOG).execute(
-        {"prompt": "work", "subagent_type": "missing", "provider": "bogus-provider"}
+    config = SubagentConfig(
+        agents=(("general-purpose", AgentOverrides(provider="bogus-provider")),)
     )
+    result = await make_dispatcher(
+        tmp_path, runner, config=config, catalog_fn=lambda: _FAKE_CATALOG
+    ).execute({"prompt": "work", "subagent_type": "missing"})
 
     assert result.text.startswith("Invalid parameters: unknown agent 'missing'")
     assert "not a configured Tau provider" not in result.text
@@ -980,7 +930,6 @@ async def test_prompt_only_call_dispatches_one_general_purpose_child(tmp_path: P
     assert call["task"] == "work"
     assert call["session"].resume is False
     assert re.fullmatch(r"[0-9a-f]{32}", call["session"].id)
-    assert call["cwd_override"] is None
     assert result.text.startswith('<task id="child-session-001" state="completed">')
     assert "<task_result>full output for work" in result.text
 
@@ -995,9 +944,7 @@ async def test_completed_envelope_relays_the_complete_final_message(tmp_path: Pa
         {
             "prompt": "implement",
             "subagent_type": "general-purpose",
-            "cwd": "src",
-            "model": "call/model",
-            "reasoningEffort": "medium",
+            "timeoutSeconds": 120,
         }
     )
 
@@ -1014,12 +961,11 @@ async def test_completed_envelope_relays_the_complete_final_message(tmp_path: Pa
     child = details["results"][0]
     assert child["messages"][0]["role"] == "assistant"
     assert child["provider"] == "agent-provider"
-    assert child["model"] == "call/model"
-    assert child["reasoningEffort"] == "medium"
-    assert child["cwd"] == str(resolve_child_cwd(tmp_path, "src"))
+    assert child["model"] == "agent-model"
+    # A fresh child always reports the parent session cwd, resolved.
+    assert child["cwd"] == str(tmp_path.expanduser().resolve())
     assert child["taskId"] == "child-session-001"
-    assert runner.calls[0]["model_override"] == "call/model"
-    assert runner.calls[0]["reasoning_effort_override"] == "medium"
+    assert runner.calls[0]["timeout_seconds"] == 120
 
 
 @pytest.mark.asyncio
@@ -1290,29 +1236,6 @@ async def test_mapping_entry_without_session_record_fails_closed_before_any_chil
 
 
 @pytest.mark.asyncio
-async def test_cwd_resolves_against_the_parent_session_cwd(tmp_path: Path) -> None:
-    """Prove a relative cwd resolves against the parent session cwd, a ~-prefixed
-    cwd expands, and the canonical absolute path reaches the child invocation."""
-
-    runner = FakeRunner()
-    dispatcher = make_dispatcher(tmp_path, runner)
-
-    relative = await dispatcher.execute(
-        {"prompt": "relative work", "subagent_type": "read-only", "cwd": "src/nested"}
-    )
-    tilde = await dispatcher.execute(
-        {"prompt": "home work", "subagent_type": "read-only", "cwd": "~/child-cwd"}
-    )
-
-    assert runner.calls[0]["cwd_override"] == "src/nested"
-    assert relative.details["results"][0]["cwd"] == str((tmp_path / "src" / "nested").resolve())
-    assert runner.calls[1]["cwd_override"] == "~/child-cwd"
-    assert tilde.details["results"][0]["cwd"] == str(
-        (Path.home() / "child-cwd").expanduser().resolve()
-    )
-
-
-@pytest.mark.asyncio
 @pytest.mark.parametrize("seconds", [MAX_TIMEOUT_SECONDS, DEFAULT_TIMEOUT_SECONDS, 90])
 async def test_timeout_within_the_cap_reaches_the_child(tmp_path: Path, seconds: float) -> None:
     runner = FakeRunner()
@@ -1322,70 +1245,31 @@ async def test_timeout_within_the_cap_reaches_the_child(tmp_path: Path, seconds:
 
 
 # ---------------------------------------------------------------------------
-# Project-agent approval
+# Project-layer definitions dispatch without approval
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_project_agents_fail_closed_headless_and_allow_explicit_bypass(
+async def test_project_agent_dispatches_without_confirmation_or_ui_call(
     tmp_path: Path,
 ) -> None:
+    """Prove a project-layer definition dispatches with no confirmation step and
+    no approval parameter: the child starts like any bundled agent's child."""
+
     runner = FakeRunner()
-    calls = UsageCalls()
-    headless = make_dispatcher(tmp_path, runner, source="project", usage_observer=calls.record)
-    directory = str(tmp_path / ".tau" / "agents")
-
-    rejected = await headless.execute(
-        {"prompt": "work", "subagent_type": "general-purpose", "agentScope": "project"}
+    dispatcher = make_dispatcher(
+        tmp_path,
+        runner,
+        discovery_fn=lambda _cwd: make_all_layer_discovery(tmp_path),
     )
-    assert "approval required in headless mode" in rejected.text
-    assert directory in rejected.text
-    assert "<task" not in rejected.text
-    assert rejected.details["results"] == []
-    assert "planned" not in rejected.details
-    assert runner.calls == []
-    # Headless denial returns before dispatch starts, so it feeds nothing.
-    assert calls.calls == []
 
-    approved = await headless.execute(
-        {
-            "prompt": "work",
-            "subagent_type": "general-purpose",
-            "agentScope": "project",
-            "confirmProjectAgents": False,
-        }
-    )
-    assert approved.text.startswith('<task id="child-session-001" state="completed">')
+    result = await dispatcher.execute({"prompt": "work", "subagent_type": "project-worker"})
+
+    assert result.text.startswith('<task id="child-session-001" state="completed">')
     assert len(runner.calls) == 1
-    assert calls.final_count == 1
-
-
-@pytest.mark.asyncio
-async def test_project_agents_use_ui_confirmation(tmp_path: Path) -> None:
-    denied_runner = FakeRunner()
-    denied_ui = FakeUi(has_ui=True, answer=False)
-    denied = await make_dispatcher(tmp_path, denied_runner, ui=denied_ui, source="project").execute(
-        {"prompt": "work", "subagent_type": "general-purpose", "agentScope": "project"}
-    )
-    assert denied.text.startswith('<task state="error">')
-    assert (
-        "<task_error>Canceled: project-local agents were not approved.</task_error>" in denied.text
-    )
-    assert denied_runner.calls == []
-    assert "general-purpose" in denied_ui.confirmations[0][1]
-    entry = denied.details["results"][0]
-    assert "taskId" not in entry
-    assert entry["agentSource"] == "project"
-    assert entry["status"] == "BLOCKED"
-    assert denied.details["planned"] == 1
-
-    allowed_runner = FakeRunner()
-    allowed_ui = FakeUi(has_ui=True, answer=True)
-    allowed = await make_dispatcher(
-        tmp_path, allowed_runner, ui=allowed_ui, source="project"
-    ).execute({"prompt": "work", "subagent_type": "general-purpose", "agentScope": "project"})
-    assert allowed.text.startswith('<task id="child-session-001" state="completed">')
-    assert len(allowed_runner.calls) == 1
+    assert runner.calls[0]["agent"].name == "project-worker"
+    assert runner.calls[0]["agent"].source == "project"
+    assert result.details["results"][0]["agentSource"] == "project"
 
 
 # ---------------------------------------------------------------------------
@@ -1397,15 +1281,17 @@ async def test_project_agents_use_ui_confirmation(tmp_path: Path) -> None:
 async def test_details_carry_schema_v2_planned_and_task_id(tmp_path: Path) -> None:
     runner = FakeRunner()
     result = await make_dispatcher(tmp_path, runner).execute(
-        {"prompt": "work", "subagent_type": "read-only", "description": "label", "cwd": "src"}
+        {"prompt": "work", "subagent_type": "read-only", "description": "label"}
     )
 
     details = result.details
     assert details["schemaVersion"] == 2
     assert details["planned"] == 1
-    assert details["agentScope"] == "user"
+    # The agent-scope and project-agents-directory fields are removed: no call
+    # or discovery shape can reintroduce them.
+    assert "agentScope" not in details
+    assert "projectAgentsDir" not in details
     assert details["discoveryDiagnostics"] == ["one diagnostic"]
-    assert details["projectAgentsDir"] is None
     entry = details["results"][0]
     assert entry["taskId"] == "child-session-001"
     assert '<task id="child-session-001" state="completed">' in result.text
@@ -1615,8 +1501,6 @@ async def test_single_uses_parent_provider_and_model_when_agent_is_unpinned(
     call = runner.calls[0]
     assert call["parent_provider"] == "openai"
     assert call["parent_model"] == "gpt-5.6-sol"
-    assert call["provider_override"] is None
-    assert call["model_override"] is None
     assert result.details["results"][0]["provider"] == "openai"
     assert result.details["results"][0]["model"] == "gpt-5.6-sol"
 
@@ -1637,44 +1521,7 @@ async def test_single_inherits_parent_thinking_level_by_default(tmp_path: Path) 
 
     call = runner.calls[0]
     assert call["parent_reasoning_effort"] == "medium"
-    assert call["reasoning_effort_override"] is None
     assert result.details["results"][0]["reasoningEffort"] == "medium"
-
-
-@pytest.mark.asyncio
-async def test_trimmed_literal_overrides_reach_child_configuration(tmp_path: Path) -> None:
-    """Prove authoritative provider and model values reach the child trimmed."""
-
-    runner = FakeRunner()
-    await make_dispatcher(tmp_path, runner).execute(
-        {
-            "prompt": "work",
-            "subagent_type": "read-only",
-            "provider": " openai ",
-            "model": " vendor/model name ",
-            "reasoningEffort": " HIGH ",
-        }
-    )
-
-    call = runner.calls[0]
-    assert call["provider_override"] == "openai"
-    assert call["model_override"] == "vendor/model name"
-    assert call["reasoning_effort_override"] == "high"
-
-
-@pytest.mark.asyncio
-async def test_call_reasoning_override_beats_parent_thinking_level(tmp_path: Path) -> None:
-    """Prove a call-level reasoningEffort overrides parent-session inheritance."""
-
-    runner = FakeRunner()
-    dispatcher = make_dispatcher(tmp_path, runner, parent_reasoning_effort="medium")
-
-    result = await dispatcher.execute(
-        {"prompt": "work", "subagent_type": "read-only", "reasoningEffort": "low"}
-    )
-
-    assert runner.calls[0]["reasoning_effort_override"] == "low"
-    assert result.details["results"][0]["reasoningEffort"] == "low"
 
 
 @pytest.mark.asyncio
