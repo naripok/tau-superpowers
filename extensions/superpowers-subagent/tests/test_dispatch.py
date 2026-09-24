@@ -1508,7 +1508,7 @@ async def test_single_uses_parent_provider_and_model_when_agent_is_unpinned(
 @pytest.mark.asyncio
 async def test_single_inherits_parent_thinking_level_by_default(tmp_path: Path) -> None:
     """Prove an unpinned child inherits the parent session's thinking level
-    unless the call, config, or agent definition pins one."""
+    unless the config or the agent definition pins one."""
 
     runner = FakeRunner()
     dispatcher = make_dispatcher(

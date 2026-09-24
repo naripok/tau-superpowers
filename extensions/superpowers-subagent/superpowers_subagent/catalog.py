@@ -290,7 +290,7 @@ def provider_model_pin_error(
 
     Conservative by design: without a snapshot, without a resolved provider, or
     for the parent session's own running pair, the pin passes untouched — the
-    child would inherit or re-run exactly what the parent session already proves
+    child inherits or re-runs exactly what the parent session already proves
     works. The failure always directs the caller to the config pin or the agent
     definition, because no call-level parameter exists.
     """

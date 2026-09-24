@@ -9,8 +9,7 @@
 #
 # A project file shadows the user file per key. Copy this file into your
 # dotfiles and link it as ~/.tau/superpowers-subagent.toml to set durable
-# overrides: edit values here instead of at call sites, and extension updates
-# cannot silently change your subagent behavior.
+# pins, and extension updates cannot silently change your subagent behavior.
 #
 # Effective provider/model/reasoning_effort resolve per field, highest first:
 #
