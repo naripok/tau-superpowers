@@ -44,7 +44,7 @@ def _redirect_home(isolated_home: Path) -> None:
     """Redirect HOME for every test in this module.
 
     A fresh dispatch through the real ``TaskDispatcher`` writes the session-agent
-    mapping under ``$HOME`` before the child spawns, so no test here may run
+    mapping under ``$HOME`` before the child spawns, so no test here runs
     against the developer's real home. Tests that need the home path declare
     ``isolated_home`` themselves and receive the same instance.
     """
