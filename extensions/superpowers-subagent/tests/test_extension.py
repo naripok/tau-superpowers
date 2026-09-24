@@ -88,8 +88,8 @@ def _pin_discovery_to_user_dir(monkeypatch: Any, user_dir: Path) -> None:
 
     from superpowers_subagent import discovery as discovery_module
 
-    def discover(cwd: Path, scope: Any) -> DiscoveryResult:
-        return discovery_module.discover_agents(cwd, scope, user_dir=user_dir)
+    def discover(cwd: Path) -> DiscoveryResult:
+        return discovery_module.discover_agents(cwd, user_dir=user_dir)
 
     monkeypatch.setattr(extension_module, "discover_agents", discover)
 
@@ -253,9 +253,7 @@ def test_subagent_type_description_carries_discovered_roster(monkeypatch: Any) -
     monkeypatch.setattr(
         extension_module,
         "discover_agents",
-        lambda _cwd, _scope: DiscoveryResult(
-            agents=agents, project_agents_dir=None, diagnostics=()
-        ),
+        lambda _cwd: DiscoveryResult(agents=agents, project_agents_dir=None, diagnostics=()),
     )
     subagent_type = _installed_tool(monkeypatch, FakeTau()).parameters["properties"][
         "subagent_type"
@@ -291,10 +289,11 @@ def test_roster_annotation_follows_shadowing_user_definition(
     assert "- general-purpose: General-purpose subagent with full tool access." in description
 
 
-def test_roster_scope_excludes_project_agents(monkeypatch: Any, tmp_path: Path) -> None:
-    """Prove project agents stay out of the description and the subagent_type
-    description even when planted at the session cwd: the roster discovers the
-    bundled and user layers only."""
+def test_roster_includes_project_agents(monkeypatch: Any, tmp_path: Path) -> None:
+    """Prove the description and the subagent_type description list project-layer
+    agents planted at the session cwd: the session-start roster discovers the
+    bundled, user, and project layers, so a task call can dispatch a project
+    agent by the name the tool surface teaches."""
 
     project_agents = tmp_path / ".tau" / "agents"
     project_agents.mkdir(parents=True)
@@ -307,9 +306,10 @@ def test_roster_scope_excludes_project_agents(monkeypatch: Any, tmp_path: Path) 
     tau.context.cwd = tmp_path
     tool = _installed_tool(monkeypatch, tau)
 
-    assert "project-watchdog" not in tool.description
+    roster_line = "- project-watchdog: Project watchdog for repo hygiene. (Tools: read, bash)"
+    assert roster_line in tool.description
     subagent_type = tool.parameters["properties"]["subagent_type"]["description"]
-    assert "project-watchdog" not in subagent_type
+    assert roster_line in subagent_type
     assert "- general-purpose: General-purpose subagent with full tool access." in tool.description
 
 
@@ -317,7 +317,7 @@ def test_setup_falls_back_to_bundled_roster_when_discovery_fails(monkeypatch: An
     """Discovery problems degrade to the static annotated bundled roster, never
     to no tool."""
 
-    def broken_discovery(_cwd: Any, _scope: Any) -> DiscoveryResult:
+    def broken_discovery(_cwd: Any) -> DiscoveryResult:
         raise RuntimeError("agents unavailable")
 
     monkeypatch.setattr(extension_module, "discover_agents", broken_discovery)

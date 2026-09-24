@@ -66,15 +66,16 @@ _TASK_USAGE_NOTES: tuple[str, ...] = (
 
 
 def _agent_roster(cwd: Path | None) -> str:
-    """Annotated roster of the bundled and user agents for the tool surface.
+    """Annotated roster of the bundled, user, and project agents for the tool surface.
 
-    Renders one line per agent discovered from the bundled and user layers only,
-    so project agents never reach the tool surface. Any discovery failure yields
-    an empty string; the caller falls back to the static bundled roster.
+    Renders one line per agent discovered at the session cwd from the bundled,
+    user, and project layers, so the roster names every agent a task call can
+    dispatch. Any discovery failure yields an empty string; the caller falls
+    back to the static bundled roster.
     """
 
     try:
-        discovery = discover_agents(cwd or Path.cwd(), "user")
+        discovery = discover_agents(cwd or Path.cwd())
     except Exception:  # noqa: BLE001 - the tool surface must survive discovery issues
         return ""
     lines = []
@@ -257,6 +258,7 @@ def setup(tau: ExtensionAPI) -> None:
             default_cwd=cwd,
             ui=tau.context.ui,
             runner=runner,
+            roster_text=roster_text,
             parent_provider=parent_provider,
             parent_model=parent_model,
             parent_reasoning_effort=_parent_thinking_level(tau),

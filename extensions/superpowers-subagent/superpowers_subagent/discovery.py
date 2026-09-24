@@ -10,7 +10,6 @@ from .models import (
     THINKING_LEVELS,
     AgentConfig,
     AgentProfile,
-    AgentScope,
     AgentSource,
     DiscoveryResult,
 )
@@ -90,23 +89,24 @@ def find_nearest_project_agents_dir(cwd: Path) -> Path | None:
 
 def discover_agents(
     cwd: Path,
-    scope: AgentScope,
     *,
     bundled_dir: Path | None = None,
     user_dir: Path | None = None,
 ) -> DiscoveryResult:
-    """Discover bundled, user, and nearest-project agents with fixed precedence."""
+    """Discover bundled, user, and nearest-project agents with fixed precedence.
+
+    Discovery is fixed to all three layers, so no per-call control narrows or
+    widens the set of dispatchable agents.
+    """
 
     extension_dir = Path(__file__).resolve().parent.parent
     bundled = bundled_dir or extension_dir / "agents"
     user = user_dir or Path.home() / ".tau" / "agents"
-    project = find_nearest_project_agents_dir(cwd) if scope != "user" else None
+    project = find_nearest_project_agents_dir(cwd)
 
     diagnostics: list[str] = []
     selected: dict[str, AgentConfig] = {}
-    layers: list[tuple[Path, AgentSource]] = [(bundled, "bundled")]
-    if scope != "project":
-        layers.append((user, "user"))
+    layers: list[tuple[Path, AgentSource]] = [(bundled, "bundled"), (user, "user")]
     if project is not None:
         layers.append((project, "project"))
 
@@ -145,7 +145,7 @@ def _load_directory(
             continue
         try:
             metadata, body = parse_frontmatter(content)
-            agents.append(_agent_from_metadata(metadata, body, source, path))
+            agents.append(_agent_from_metadata(metadata, body, source, path, diagnostics))
         except (FrontmatterError, ValueError) as exc:
             diagnostics.append(f"Skipped agent definition {path}: {exc}")
     return agents
@@ -156,7 +156,13 @@ def _agent_from_metadata(
     body: str,
     source: AgentSource,
     path: Path,
+    diagnostics: list[str],
 ) -> AgentConfig:
+    if "reasoningEffort" in metadata:
+        diagnostics.append(
+            f"Agent definition {path}: stale frontmatter key 'reasoningEffort' is ignored; "
+            "rename it to `reasoning_effort` to pin a reasoning effort."
+        )
     name = metadata.get("name", "").strip()
     description = metadata.get("description", "").strip()
     if not name:
@@ -170,7 +176,7 @@ def _agent_from_metadata(
     profile = cast(AgentProfile, raw_profile)
     provider = _optional_nonempty(metadata, "provider")
     model = _optional_nonempty(metadata, "model")
-    reasoning_effort = _optional_thinking_level(metadata, "reasoningEffort")
+    reasoning_effort = _optional_thinking_level(metadata, "reasoning_effort")
     return AgentConfig(
         name=name,
         description=description,

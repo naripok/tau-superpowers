@@ -32,7 +32,6 @@ from .runner import TauChildRunner
 from .utils import (
     effective_provider_model,
     final_output,
-    one_line,
     resolve_child_cwd,
 )
 
@@ -99,7 +98,7 @@ class ValidationFailure(ValueError):
     """A user-correctable Task argument error."""
 
 
-DiscoveryFn = Callable[[Path, AgentScope], DiscoveryResult]
+DiscoveryFn = Callable[[Path], DiscoveryResult]
 CatalogFn = Callable[[], CatalogSnapshot | None]
 
 
@@ -113,6 +112,7 @@ class TaskDispatcher:
         ui: ConfirmationUi,
         runner: TauChildRunner | None = None,
         discovery_fn: DiscoveryFn = discover_agents,
+        roster_text: str,
         parent_provider: str | None = None,
         parent_model: str | None = None,
         parent_reasoning_effort: str | None = None,
@@ -124,6 +124,9 @@ class TaskDispatcher:
         self.ui = ui
         self.runner = runner or TauChildRunner()
         self.discovery_fn = discovery_fn
+        # The static session-start roster: every teach-back lists these agents,
+        # so the teach-back roster cannot drift from the description roster.
+        self.roster_text = roster_text
         self.parent_provider = parent_provider
         self.parent_model = parent_model
         self.parent_reasoning_effort = parent_reasoning_effort
@@ -141,7 +144,7 @@ class TaskDispatcher:
         """Execute one validated Task invocation."""
 
         scope = _scope_for_discovery(arguments)
-        discovery = self.discovery_fn(self.default_cwd, scope)
+        discovery = self.discovery_fn(self.default_cwd)
         self._config_diagnostics = self._merged_config_diagnostics(discovery.by_name())
         try:
             request = validate_arguments(arguments)
@@ -188,15 +191,13 @@ class TaskDispatcher:
 
         A config section whose agent name exists in no bundled, user, or
         project definition is almost always a typo; report it as a diagnostic
-        so it cannot silently no-op.
+        so it cannot silently no-op. All-layer discovery already resolved the
+        section names, so no second discovery pass is needed.
         """
 
         if self.config is None:
             return ()
         unmatched = [name for name, _overrides in self.config.agents if name not in agents]
-        if unmatched:
-            all_layers = self.discovery_fn(self.default_cwd, "both").by_name()
-            unmatched = [name for name in unmatched if name not in all_layers]
         extras = tuple(
             f"Subagent config: [agents.{name}] matches no bundled, user, or project "
             "agent definition"
@@ -638,32 +639,14 @@ def _emit_update(
     )
 
 
-def _roster(agents: dict[str, AgentConfig]) -> str:
-    """One line per discovered agent so the controller can self-correct by name."""
-
-    if not agents:
-        return "none"
-    return "; ".join(
-        f"{name} ({agents[name].source}): {one_line(agents[name].description)}"
-        for name in sorted(agents)
-    )
-
-
 def _teach_back_roster(dispatcher: TaskDispatcher) -> str:
-    """Roster for teach-backs, anchored at user scope at the session cwd.
+    """The static session-start roster the dispatcher carries.
 
-    Independent of the call's ``agentScope``, so every teach-back lists the same
-    bundled and user agents as the description roster and never names a project
-    agent.
+    Every teach-back lists the same agents as the description roster, so the
+    two surfaces cannot name different agent sets.
     """
 
-    discovery = dispatcher.discovery_fn(dispatcher.default_cwd, "user")
-    eligible = {
-        name: agent
-        for name, agent in discovery.by_name().items()
-        if agent.source in {"bundled", "user"}
-    }
-    return _roster(eligible)
+    return dispatcher.roster_text
 
 
 def _invalid_parameters_content(error: str, dispatcher: TaskDispatcher) -> str:

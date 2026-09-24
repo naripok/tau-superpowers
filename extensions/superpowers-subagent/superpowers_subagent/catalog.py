@@ -108,11 +108,7 @@ def scoped_catalog_snapshot(
         entries = _scope_catalog_entries(cwd)
         settings = load_provider_settings()
         store = credential_store or FileCredentialStore()
-        agents = (
-            agent_definitions
-            if agent_definitions is not None
-            else discover_agents(cwd, "both").agents
-        )
+        agents = agent_definitions if agent_definitions is not None else discover_agents(cwd).agents
         scoped_pairs = tuple((item.provider, item.model) for item in settings.scoped_models)
         preference_defaults = {item.name: item.default_model for item in settings.providers}
         builtin_names = _builtin_provider_names()

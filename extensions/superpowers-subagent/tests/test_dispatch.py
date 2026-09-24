@@ -196,10 +196,8 @@ def make_discovery(tmp_path: Path, *, source: str = "bundled") -> DiscoveryResul
     )
 
 
-def make_scope_aware_discovery(
-    tmp_path: Path,
-) -> Any:
-    """Discovery that adds a project agent only for project and both scopes."""
+def make_all_layer_discovery(tmp_path: Path) -> DiscoveryResult:
+    """Session-style all-layer discovery: the bundled agents plus one project agent."""
     bundled = make_discovery(tmp_path, source="bundled")
     project_agent = AgentConfig(
         name="project-worker",
@@ -208,24 +206,11 @@ def make_scope_aware_discovery(
         source="project",
         file_path=tmp_path / ".tau" / "agents" / "project-worker.md",
     )
-    project = DiscoveryResult(
-        agents=(project_agent,),
+    return DiscoveryResult(
+        agents=(*bundled.agents, project_agent),
         project_agents_dir=tmp_path / ".tau" / "agents",
         diagnostics=(),
     )
-
-    def discovery(_cwd: Path, scope: str) -> DiscoveryResult:
-        if scope == "user":
-            return bundled
-        if scope == "project":
-            return project
-        return DiscoveryResult(
-            agents=(*bundled.agents, project_agent),
-            project_agents_dir=project.project_agents_dir,
-            diagnostics=(),
-        )
-
-    return discovery
 
 
 def make_dispatcher(
@@ -241,13 +226,22 @@ def make_dispatcher(
     usage_observer: Any = None,
     catalog_fn: Any = None,
     discovery_fn: Any = None,
+    roster_text: str | None = None,
 ) -> TaskDispatcher:
     discovery = make_discovery(tmp_path, source=source)
+    if roster_text is None:
+        # The dispatcher treats its roster as opaque session-start text; the
+        # name (source) form here matches what the teach-back assertions check.
+        roster_text = "; ".join(
+            f"{agent.name} ({agent.source}): {agent.description}"
+            for agent in sorted(discovery.agents, key=lambda agent: agent.name)
+        )
     return TaskDispatcher(
         default_cwd=tmp_path,
         ui=ui or FakeUi(),
         runner=runner,  # type: ignore[arg-type]
-        discovery_fn=discovery_fn if discovery_fn is not None else (lambda _cwd, _scope: discovery),
+        discovery_fn=discovery_fn if discovery_fn is not None else (lambda _cwd: discovery),
+        roster_text=roster_text,
         parent_provider=parent_provider,
         parent_model=parent_model,
         parent_reasoning_effort=parent_reasoning_effort,
@@ -901,42 +895,20 @@ async def test_unknown_agent_fails_closed_with_roster(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_unknown_agent_with_both_scope_teaches_back_without_project_agents(
-    tmp_path: Path,
-) -> None:
-    """The teach-back roster is anchored at user scope regardless of the call's
-    agentScope, so project agents are never named."""
+async def test_unknown_agent_teach_back_names_project_agents(tmp_path: Path) -> None:
+    """Prove the teach-back roster is the static session-start roster the
+    dispatcher carries: a project-layer agent discovered at session start is
+    named on every teach-back, matching the description roster."""
     runner = FakeRunner()
-    dispatcher = make_dispatcher(
-        tmp_path, runner, discovery_fn=make_scope_aware_discovery(tmp_path)
-    )
+    roster = "general-purpose (bundled): general-purpose; project-worker (project): Project worker"
+    dispatcher = make_dispatcher(tmp_path, runner, roster_text=roster)
 
-    result = await dispatcher.execute(
-        {"prompt": "work", "subagent_type": "missing", "agentScope": "both"}
-    )
+    result = await dispatcher.execute({"prompt": "work", "subagent_type": "missing"})
 
     assert result.text.startswith("Invalid parameters: unknown agent 'missing'")
+    assert "Available agents:" in result.text
+    assert "project-worker (project)" in result.text
     assert "general-purpose (bundled)" in result.text
-    assert "project-worker" not in result.text
-    assert runner.calls == []
-
-
-@pytest.mark.asyncio
-async def test_unknown_agent_with_project_scope_teaches_back_user_roster(
-    tmp_path: Path,
-) -> None:
-    runner = FakeRunner()
-    dispatcher = make_dispatcher(
-        tmp_path, runner, discovery_fn=make_scope_aware_discovery(tmp_path)
-    )
-
-    result = await dispatcher.execute(
-        {"prompt": "work", "subagent_type": "missing", "agentScope": "project"}
-    )
-
-    assert result.text.startswith("Invalid parameters: unknown agent 'missing'")
-    assert "general-purpose (bundled)" in result.text
-    assert "project-worker" not in result.text
     assert runner.calls == []
 
 
@@ -1604,20 +1576,21 @@ async def test_config_section_for_unknown_agent_name_adds_diagnostic(
 
 
 @pytest.mark.asyncio
-async def test_config_section_matching_another_scope_is_not_diagnosed(
+async def test_config_section_matching_project_agent_is_not_diagnosed(
     tmp_path: Path,
 ) -> None:
-    """Prove a config section for an agent that exists only in the project layer
-    is not flagged when the call uses user scope; scope gaps are not typos."""
+    """Prove a config section for an agent that exists in a project definition
+    is not flagged as unmatched: all-layer discovery resolves project names."""
 
     runner = FakeRunner()
     config = SubagentConfig(agents=(("project-worker", AgentOverrides(model="worker-model")),))
     dispatcher = make_dispatcher(
-        tmp_path, runner, config=config, discovery_fn=make_scope_aware_discovery(tmp_path)
+        tmp_path,
+        runner,
+        config=config,
+        discovery_fn=lambda _cwd: make_all_layer_discovery(tmp_path),
     )
 
-    result = await dispatcher.execute(
-        {"prompt": "work", "subagent_type": "general-purpose", "agentScope": "user"}
-    )
+    result = await dispatcher.execute({"prompt": "work", "subagent_type": "general-purpose"})
 
     assert result.details.get("configDiagnostics") is None
