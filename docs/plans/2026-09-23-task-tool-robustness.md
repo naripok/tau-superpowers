@@ -176,10 +176,10 @@ This task replaces the `test_config.py` tests that assert the camelCase key. It 
 
 **Check:** the four Commands-section commands. Expected: all pass.
 
-- [ ] Write the failing tests for the behaviors above. Run them and check that each fails for the expected reason
-- [ ] Implement the interface and behavior
-- [ ] Run verification (tests, lint, type check)
-- [ ] Commit: `git add extensions/superpowers-subagent/superpowers_subagent/config.py extensions/superpowers-subagent/superpowers-subagent.example.toml extensions/superpowers-subagent/tests/test_config.py extensions/superpowers-subagent/tests/test_runtime_integration.py && git commit -m "feat: rename the config reasoning-effort key to reasoning_effort"`
+- [x] Write the failing tests for the behaviors above. Run them and check that each fails for the expected reason
+- [x] Implement the interface and behavior
+- [x] Run verification (tests, lint, type check)
+- [x] Commit: `git add extensions/superpowers-subagent/superpowers_subagent/config.py extensions/superpowers-subagent/superpowers-subagent.example.toml extensions/superpowers-subagent/tests/test_config.py extensions/superpowers-subagent/tests/test_runtime_integration.py && git commit -m "feat: rename the config reasoning-effort key to reasoning_effort"`
 
 ### Task 3: Agent discovery fixed to all layers
 
