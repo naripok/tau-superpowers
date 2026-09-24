@@ -355,10 +355,10 @@ This task deletes the named override, placeholder, cwd, and approval tests in `t
 
 **Check:** the four Commands-section commands. Expected: all pass.
 
-- [ ] Write the failing tests for the behaviors above. Run them and check that each fails for the expected reason
-- [ ] Implement the interface and behavior
-- [ ] Run verification (tests, lint, type check)
-- [ ] Commit: `git add extensions/superpowers-subagent/ && git commit -m "feat: remove call-level task parameters and fix the dispatch environment"`
+- [x] Write the failing tests for the behaviors above. Run them and check that each fails for the expected reason
+- [x] Implement the interface and behavior
+- [x] Run verification (tests, lint, type check)
+- [x] Commit: `git add extensions/superpowers-subagent/ && git commit -m "feat: remove call-level task parameters and fix the dispatch environment"`
 
 ### Task 6: Two-tool registration and per-tool surface
 
