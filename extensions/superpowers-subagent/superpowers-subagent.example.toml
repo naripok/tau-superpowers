@@ -12,13 +12,12 @@
 # overrides: edit values here instead of at call sites, and extension updates
 # cannot silently change your subagent behavior.
 #
-# Effective provider/model/reasoningEffort resolve per field, highest first:
+# Effective provider/model/reasoning_effort resolve per field, highest first:
 #
-#   1. task call `provider` / `model` / `reasoningEffort`
-#   2. `[agents.<name>]` in this file
-#   3. the selected agent definition's frontmatter
-#   4. `[defaults]` in this file
-#   5. the parent session's active provider, model, and thinking level
+#   1. `[agents.<name>]` in this file
+#   2. the selected agent definition's frontmatter
+#   3. `[defaults]` in this file
+#   4. the parent session's active provider, model, and thinking level
 #
 # With this file absent or empty, every subagent that pins nothing inherits
 # the parent session's model and thinking effort by default.
@@ -28,21 +27,21 @@
 [defaults]
 # provider = "openai"
 # model = "gpt-5.6-sol"
-# reasoningEffort = "medium"   # off | minimal | low | medium | high | xhigh
+# reasoning_effort = "medium"   # off | minimal | low | medium | high | xhigh
 
 # Per-agent overrides. Uncomment an agent section and its values to pin
-# provider, model, or reasoningEffort for that one agent.
+# provider, model, or reasoning_effort for that one agent.
 [agents.implementation]
 # provider = "openrouter"
 # model = "deepseek/deepseek-v4-flash-0731"
-# reasoningEffort = "xhigh"
+# reasoning_effort = "xhigh"
 
 [agents.code-review]
 # provider = "openrouter"
 # model = "z-ai/glm-5.3"
-# reasoningEffort = "medium"
+# reasoning_effort = "medium"
 
 [agents.document-review]
 # provider = "openrouter"
 # model = "z-ai/glm-5.3"
-# reasoningEffort = "medium"
+# reasoning_effort = "medium"

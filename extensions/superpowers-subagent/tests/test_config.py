@@ -31,7 +31,8 @@ def test_load_without_config_files_returns_empty_config(tmp_path: Path) -> None:
 
 
 def test_load_user_config_parses_defaults_and_agents(tmp_path: Path) -> None:
-    """Prove a user config file contributes defaults and per-agent overrides."""
+    """Prove a user config file resolves the snake_case `reasoning_effort` key
+    under `[defaults]` and `[agents.<name>]` alongside provider and model."""
 
     user_dir = tmp_path / ".tau"
     user_dir.mkdir()
@@ -39,15 +40,18 @@ def test_load_user_config_parses_defaults_and_agents(tmp_path: Path) -> None:
         "[defaults]\n"
         'provider = "openai"\n'
         'model = "gpt-5.6-sol"\n'
+        'reasoning_effort = " low "\n'
         "\n"
         "[agents.worker]\n"
-        'reasoningEffort = " XHIGH "\n',
+        'reasoning_effort = " XHIGH "\n',
         encoding="utf-8",
     )
 
     config = load_subagent_config(tmp_path, user_dir=user_dir)
 
-    assert config.defaults == AgentOverrides(provider="openai", model="gpt-5.6-sol")
+    assert config.defaults == AgentOverrides(
+        provider="openai", model="gpt-5.6-sol", reasoning_effort="low"
+    )
     assert config.overrides_for("worker") == AgentOverrides(reasoning_effort="xhigh")
     assert config.overrides_for("missing") == EMPTY_OVERRIDES
     assert config.paths == (user_dir / CONFIG_FILENAME,)
@@ -60,7 +64,7 @@ def test_project_config_overrides_user_config_per_key(tmp_path: Path) -> None:
     user_dir = tmp_path / ".tau"
     user_dir.mkdir()
     (user_dir / CONFIG_FILENAME).write_text(
-        '[defaults]\nmodel = "user-model"\n\n[agents.worker]\nreasoningEffort = "medium"\n',
+        '[defaults]\nmodel = "user-model"\n\n[agents.worker]\nreasoning_effort = "medium"\n',
         encoding="utf-8",
     )
     project_dir = tmp_path / "proj" / ".tau"
@@ -81,7 +85,7 @@ def test_project_config_overrides_user_config_per_key(tmp_path: Path) -> None:
     )
 
     assert config.defaults == AgentOverrides(provider="project-provider", model="project-model")
-    # reasoningEffort comes from the user file, model from the project file.
+    # reasoning_effort comes from the user file, model from the project file.
     assert config.overrides_for("worker") == AgentOverrides(
         model="project-worker-model", reasoning_effort="medium"
     )
@@ -146,7 +150,9 @@ def test_unknown_keys_and_invalid_values_are_dropped_with_diagnostics(
     tmp_path: Path,
 ) -> None:
     """Prove unknown keys and invalid values are ignored with actionable
-    diagnostics rather than silently accepted, mirroring agent discovery."""
+    diagnostics rather than silently accepted, mirroring agent discovery: the
+    stale camelCase `reasoningEffort` key is an unknown key that loses only its
+    pin while the other valid keys still resolve."""
 
     user_dir = tmp_path / ".tau"
     user_dir.mkdir()
@@ -156,22 +162,23 @@ def test_unknown_keys_and_invalid_values_are_dropped_with_diagnostics(
         'agents = "not-a-table"\n'
         "\n"
         "[defaults]\n"
+        'provider = "openai"\n'
+        'reasoningEffort = "high"\n'
+        'reasoning_effort = "max"\n'
         'model = ""\n'
-        'reasoningEffort = "max"\n'
-        "provider = 5\n"
         'typoed = "value"\n',
         encoding="utf-8",
     )
 
     config = load_subagent_config(tmp_path, user_dir=user_dir)
 
-    assert config.defaults == EMPTY_OVERRIDES
+    assert config.defaults == AgentOverrides(provider="openai")
     assert config.agents == ()
     messages = config.diagnostics
     assert any("unknown key 'unknownTop'" in message for message in messages)
+    assert any("ignoring unknown key defaults.reasoningEffort" in message for message in messages)
+    assert any("defaults.reasoning_effort must be one of" in message for message in messages)
     assert any("defaults.model" in message for message in messages)
-    assert any("defaults.reasoningEffort" in message for message in messages)
-    assert any("defaults.provider" in message for message in messages)
     assert any("defaults.typoed" in message for message in messages)
     assert any("`agents` must be a table" in message for message in messages)
 

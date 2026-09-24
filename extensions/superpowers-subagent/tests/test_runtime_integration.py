@@ -545,7 +545,7 @@ async def test_real_runtime_inherits_parent_thinking_level_and_config_overrides(
     config_user_dir.mkdir(parents=True)
     config_path = config_user_dir / "superpowers-subagent.toml"
     config_path.write_text(
-        '[agents.general-purpose]\nmodel = "cfg/model"\nreasoningEffort = "high"\n',
+        '[agents.general-purpose]\nmodel = "cfg/model"\nreasoning_effort = "high"\n',
         encoding="utf-8",
     )
     monkeypatch.setattr(Path, "home", classmethod(lambda _cls: config_home))

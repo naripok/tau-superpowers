@@ -22,7 +22,7 @@ from .models import THINKING_LEVELS
 
 CONFIG_FILENAME = "superpowers-subagent.toml"
 
-_VALID_KEYS = frozenset({"provider", "model", "reasoningEffort"})
+_VALID_KEYS = frozenset({"provider", "model", "reasoning_effort"})
 _VALID_SECTIONS = frozenset({"defaults", "agents"})
 
 
@@ -173,7 +173,7 @@ def _parse_overrides(
         provider=_parse_string(table.get("provider"), path, f"{section}.provider", diagnostics),
         model=_parse_string(table.get("model"), path, f"{section}.model", diagnostics),
         reasoning_effort=_parse_thinking_level(
-            table.get("reasoningEffort"), path, f"{section}.reasoningEffort", diagnostics
+            table.get("reasoning_effort"), path, f"{section}.reasoning_effort", diagnostics
         ),
     )
 
