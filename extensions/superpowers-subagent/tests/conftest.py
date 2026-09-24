@@ -6,6 +6,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+import pytest
+
 LOADER_PACKAGE = "tau_test_extension"
 IMPLEMENTATION_PACKAGE = f"{LOADER_PACKAGE}.superpowers_subagent"
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
@@ -24,3 +26,14 @@ if "superpowers_subagent" not in sys.modules:
         if name == IMPLEMENTATION_PACKAGE or name.startswith(f"{IMPLEMENTATION_PACKAGE}."):
             alias = name.removeprefix(f"{LOADER_PACKAGE}.")
             sys.modules[alias] = loaded
+
+
+@pytest.fixture
+def isolated_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Redirect HOME so same-id lock files and session-agent mapping writes land
+    outside the real session store."""
+
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    return home

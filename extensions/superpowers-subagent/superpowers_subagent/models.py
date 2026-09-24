@@ -38,8 +38,9 @@ class AgentConfig:
 class SessionSelection:
     """The Tau session a child run pins to.
 
-    ``resume`` False pins a new session whose ``id`` the caller generated; True
-    reconnects the existing session named by ``id`` exactly as recorded.
+    ``resume`` False runs a fresh child pinned to ``id``, which the dispatcher
+    generates and records in the session-agent mapping; True resumes the
+    session recorded under ``id``. The runner never generates a session id.
     """
 
     id: str
@@ -116,9 +117,6 @@ class ChildResult:
     #: The child's Tau session id. None means no Tau session exists, which is
     #: the pre-session failure case only.
     task_id: str | None = None
-    #: Repair notes for model-facing content; deliberately excluded from
-    #: ``to_dict`` because details are not the model-facing channel.
-    notes: tuple[str, ...] = ()
 
     @property
     def succeeded(self) -> bool:

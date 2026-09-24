@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Callable, Mapping, Sequence
 from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass
@@ -20,15 +21,22 @@ from .catalog import CatalogSnapshot, provider_model_override_error
 from .config import AgentOverrides, SubagentConfig
 from .discovery import discover_agents
 from .locking import same_id_lock
+from .mapping import (
+    MappingWriteError,
+    default_mapping_path,
+    read_mapping_entry,
+    write_mapping_entry,
+)
 from .models import (
     THINKING_LEVELS,
     AgentConfig,
     AgentScope,
     ChildResult,
     DiscoveryResult,
+    SessionSelection,
     details_dict,
 )
-from .runner import TauChildRunner
+from .runner import ResumeFailure, TauChildRunner
 from .utils import (
     effective_provider_model,
     final_output,
@@ -80,7 +88,8 @@ class ParsedRequest:
     #: Effective agent name after trimming; omission resolves to general-purpose.
     subagent_type: str
     description: str | None
-    #: Trimmed effective id for session lookup, the same-id lock, and repair notes.
+    #: Trimmed effective id for the session-agent mapping lookup, the session
+    #: selection, and the same-id lock.
     task_id: str | None
     cwd: str | None
     agent_scope: AgentScope
@@ -89,8 +98,8 @@ class ParsedRequest:
     model: str | None
     reasoning_effort: str | None
     timeout_seconds: float
-    #: Repair notes surfaced to the controller, one line per tolerated mistake
-    #: (for example placeholders coerced to omitted).
+    #: Coercion notices, one line per tolerated mistake (for example placeholders
+    #: coerced to omitted); no longer rendered into result content.
     notices: tuple[str, ...] = ()
 
 
@@ -141,7 +150,12 @@ class TaskDispatcher:
         signal: ToolCancellationToken | None = None,
         on_update: ToolUpdateCallback | None = None,
     ) -> AgentToolResult:
-        """Execute one validated Task invocation."""
+        """Execute one validated Task invocation.
+
+        A call carrying ``task_id`` resumes: the session-agent mapping lookup
+        runs first and names the agent, so the call's own ``subagent_type``
+        selects nothing on a resume.
+        """
 
         scope = _scope_for_discovery(arguments)
         discovery = self.discovery_fn(self.default_cwd)
@@ -152,20 +166,41 @@ class TaskDispatcher:
             return self._fail_closed(str(exc), scope=scope, discovery=discovery)
 
         agents = discovery.by_name()
-        agent = agents.get(request.subagent_type)
-        if agent is None:
-            return self._fail_closed(
-                f"unknown agent '{request.subagent_type}'",
-                scope=request.agent_scope,
-                discovery=discovery,
-            )
-        catalog_error = self._catalog_override_error(request, agent)
+        if request.task_id is None:
+            agent_name = request.subagent_type
+            agent = agents.get(agent_name)
+            if agent is None:
+                return self._fail_closed(
+                    f"unknown agent '{request.subagent_type}'",
+                    scope=request.agent_scope,
+                    discovery=discovery,
+                )
+        else:
+            mapped_name = read_mapping_entry(request.task_id)
+            if mapped_name is None:
+                return _resume_fail_closed(
+                    request.task_id,
+                    f"the session-agent mapping has no entry for task_id '{request.task_id}'",
+                    request.agent_scope,
+                    discovery,
+                )
+            agent_name = mapped_name
+            agent = agents.get(mapped_name)
+            if agent is None:
+                return _resume_fail_closed(
+                    request.task_id,
+                    f"the mapping entry names agent '{mapped_name}', which no discoverable "
+                    "agent provides",
+                    request.agent_scope,
+                    discovery,
+                )
+        catalog_error = self._catalog_override_error(request, agent_name, agent)
         if catalog_error is not None:
             return self._fail_closed(catalog_error, scope=request.agent_scope, discovery=discovery)
         denial = await self._project_approval(request, agent, discovery)
         if denial is not None:
             return denial
-        return await self._run_locked(request, agent, discovery, signal, on_update)
+        return await self._run_locked(request, agent, agent_name, discovery, signal, on_update)
 
     def _fail_closed(
         self,
@@ -212,12 +247,15 @@ class TaskDispatcher:
             return None, None
         return self.config.overrides_for(agent_name), self.config.defaults
 
-    def _catalog_override_error(self, request: ParsedRequest, agent: AgentConfig) -> str | None:
+    def _catalog_override_error(
+        self, request: ParsedRequest, agent_name: str, agent: AgentConfig
+    ) -> str | None:
         """Fail fast on literal overrides the provider catalog cannot honor.
 
         Without a catalog the check is skipped. The resolution mirrors
         ``_dispatch_child`` exactly, so an accepted pair is the pair the child
-        would actually receive.
+        would actually receive. On a resume, ``agent_name`` is the mapped name,
+        so the mapped agent's config section keys the check.
         """
 
         if self.catalog_fn is None:
@@ -225,7 +263,7 @@ class TaskDispatcher:
         snapshot = self.catalog_fn()
         if snapshot is None:
             return None
-        config_overrides, config_defaults = self._config_layers(request.subagent_type)
+        config_overrides, config_defaults = self._config_layers(agent_name)
         provider, model = effective_provider_model(
             agent,
             request.provider,
@@ -284,7 +322,7 @@ class TaskDispatcher:
             status="BLOCKED",
         )
         return _tool_result(
-            _call_content(request, result),
+            build_envelope(result),
             scope=request.agent_scope,
             discovery=discovery,
             config=self.config,
@@ -297,6 +335,7 @@ class TaskDispatcher:
         self,
         request: ParsedRequest,
         agent: AgentConfig,
+        agent_name: str,
         discovery: DiscoveryResult,
         signal: ToolCancellationToken | None,
         on_update: ToolUpdateCallback | None,
@@ -317,18 +356,25 @@ class TaskDispatcher:
                 )
             lock = acquired
         with lock:
-            return await self._dispatch_child(request, agent, discovery, signal, on_update)
+            return await self._dispatch_child(
+                request, agent, agent_name, discovery, signal, on_update
+            )
 
     async def _dispatch_child(
         self,
         request: ParsedRequest,
         agent: AgentConfig,
+        agent_name: str,
         discovery: DiscoveryResult,
         signal: ToolCancellationToken | None,
         on_update: ToolUpdateCallback | None,
     ) -> AgentToolResult:
         """Run the one child and build its envelope result.
 
+        A fresh run generates the session id and writes its session-agent
+        mapping entry before the runner call, so a write failure fails the
+        dispatch closed with no child. A resume run pins the requested id and
+        surfaces the runner's ``ResumeFailure`` under the fail-closed contract.
         Partial updates stream after each accepted child message and again on
         completion; the envelope appears only on the final result.
         """
@@ -345,30 +391,42 @@ class TaskDispatcher:
                 usage_observer=self.usage_observer,
             )
 
-        config_overrides, config_defaults = self._config_layers(request.subagent_type)
-        result = await self.runner.run(
-            default_cwd=self.default_cwd,
-            agent=agent,
-            task=request.prompt,
-            cwd_override=request.cwd,
-            provider_override=request.provider,
-            model_override=request.model,
-            reasoning_effort_override=request.reasoning_effort,
-            config_overrides=config_overrides,
-            config_defaults=config_defaults,
-            parent_provider=self.parent_provider,
-            parent_model=self.parent_model,
-            parent_reasoning_effort=self.parent_reasoning_effort,
-            timeout_seconds=request.timeout_seconds,
-            signal=signal,
-            on_message=emit,
-            resume_session_id=request.task_id,
-        )
+        config_overrides, config_defaults = self._config_layers(agent_name)
+        if request.task_id is None:
+            fresh_id = uuid.uuid4().hex
+            try:
+                write_mapping_entry(fresh_id, agent.name)
+            except MappingWriteError as exc:
+                return _resume_fail_closed(None, str(exc), request.agent_scope, discovery)
+            session = SessionSelection(id=fresh_id)
+        else:
+            session = SessionSelection(id=request.task_id, resume=True)
+        try:
+            result = await self.runner.run(
+                default_cwd=self.default_cwd,
+                agent=agent,
+                task=request.prompt,
+                cwd_override=request.cwd,
+                provider_override=request.provider,
+                model_override=request.model,
+                reasoning_effort_override=request.reasoning_effort,
+                config_overrides=config_overrides,
+                config_defaults=config_defaults,
+                parent_provider=self.parent_provider,
+                parent_model=self.parent_model,
+                parent_reasoning_effort=self.parent_reasoning_effort,
+                timeout_seconds=request.timeout_seconds,
+                signal=signal,
+                on_message=emit,
+                session=session,
+            )
+        except ResumeFailure as exc:
+            return _resume_fail_closed(request.task_id, str(exc), request.agent_scope, discovery)
         emit(result)
         if self.usage_observer is not None:
             self.usage_observer([result], True)
         return _tool_result(
-            _call_content(request, result),
+            build_envelope(result),
             scope=request.agent_scope,
             discovery=discovery,
             config=self.config,
@@ -584,20 +642,48 @@ def build_envelope(result: ChildResult) -> str:
     return f"{opening}{inner}</task>"
 
 
-def _result_content(result: ChildResult, notes: tuple[str, ...] = ()) -> str:
-    """Render repair notes as ``Note:`` lines ahead of the envelope."""
+def _resume_fail_closed(
+    task_id: str | None,
+    reason: str,
+    scope: AgentScope,
+    discovery: DiscoveryResult,
+) -> AgentToolResult:
+    """Build the fail-closed result for a resume failure or a failed mapping
+    write: teach-back content, no envelope, empty results, and no ``planned``.
 
-    envelope = build_envelope(result)
-    if not notes:
-        return envelope
-    rendered = "".join(f"Note: {note}\n" for note in notes)
-    return f"{rendered}\n{envelope}"
+    On a resume, ``task_id`` is the requested id: the content preserves it,
+    states that no child started, states ``reason``, directs the caller to
+    ``task`` for a fresh child, names the call fields that exist on this
+    surface, and names the session-agent mapping as the source of the resumed
+    agent. On a fresh dispatch whose mapping write failed, ``task_id`` is
+    ``None`` and the content omits the id-preservation clause.
+    """
 
-
-def _call_content(request: ParsedRequest, result: ChildResult) -> str:
-    """Merge the two note sources in the one place that renders call content."""
-
-    return _result_content(result, (*request.notices, *result.notes))
+    mapping_path = default_mapping_path()
+    if task_id is None:
+        lines = [
+            "Task dispatch failed: the session-agent mapping write failed, so no child started.",
+            "",
+            f"Reason: {reason}",
+            "",
+            "No child started and no child session exists. Confirm the mapping file at "
+            f"{mapping_path} is writable, then retry the call.",
+        ]
+    else:
+        lines = [
+            f"Resume failed for task_id '{task_id}': no child started.",
+            "",
+            f"Reason: {reason}",
+            "",
+            f"task_id '{task_id}' is preserved and the session is unchanged. To start a "
+            "fresh child instead, call task with the agent and prompt you want.",
+            "",
+            "A continuation call pairs task_id with subagent_type: the resumed agent comes "
+            f"from the session-agent mapping at {mapping_path}, which records each child "
+            "session's agent name. Call fields: prompt (required), task_id (required), "
+            "timeoutSeconds (optional).",
+        ]
+    return _tool_result("\n".join(lines), scope=scope, discovery=discovery, results=[])
 
 
 def _is_terminal(result: ChildResult) -> bool:

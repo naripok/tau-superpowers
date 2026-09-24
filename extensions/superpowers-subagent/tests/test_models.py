@@ -7,7 +7,7 @@ unchanged, and the internal catalog_priced provenance flag never serializes.
 
 The taskId tests pin the "Pinned child sessions" requirement: ChildResult
 serialization gains exactly one key placed after agentSource only when a Tau
-session exists, and the internal notes repair channel never serializes.
+session exists.
 """
 
 from __future__ import annotations
@@ -130,19 +130,15 @@ def test_child_result_to_dict_omits_task_id_without_session() -> None:
     assert "taskId" not in details
 
 
-def test_child_result_to_dict_never_serializes_notes() -> None:
-    """Prove repair notes stay model-facing content: no notes key reaches the
-    details dict even when notes are recorded."""
+def test_child_result_has_no_notes_field() -> None:
+    """Prove the repair-note channel is removed from ChildResult: a result
+    carries no notes field, so no result can hold or render a repair note."""
     result = ChildResult(
         agent="implementation",
         agent_source="bundled",
         task="work",
         cwd="/workspace",
         task_id="b" * 32,
-        notes=("Session id matched no session.",),
     )
 
-    details = result.to_dict()
-
-    assert "notes" not in details
-    assert "task_id" not in details
+    assert not hasattr(result, "notes")

@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import asyncio
+import re
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
 import pytest
 from tau_agent.messages import AssistantMessage, TextContent
+from tau_coding.paths import TauPaths
+from tau_coding.session_manager import SUBAGENT_SESSION_ROLE, SessionManager
 
+from superpowers_subagent import dispatch as dispatch_module
 from superpowers_subagent.catalog import CatalogSnapshot
 from superpowers_subagent.config import AgentOverrides, SubagentConfig
 from superpowers_subagent.dispatch import (
@@ -20,11 +24,18 @@ from superpowers_subagent.dispatch import (
     build_envelope,
     validate_arguments,
 )
+from superpowers_subagent.mapping import (
+    MappingWriteError,
+    read_mapping_entry,
+    write_mapping_entry,
+)
 from superpowers_subagent.models import (
     AgentConfig,
     ChildResult,
     DiscoveryResult,
+    SessionSelection,
 )
+from superpowers_subagent.runner import ResumeFailure
 from superpowers_subagent.utils import parse_status, resolve_child_cwd
 
 
@@ -79,6 +90,7 @@ class FakeRunner:
 
     def _initial_result(self, kwargs: dict[str, Any]) -> ChildResult:
         agent = kwargs["agent"]
+        session = kwargs["session"]
         return ChildResult(
             agent=agent.name,
             agent_source=agent.source,
@@ -87,7 +99,7 @@ class FakeRunner:
             provider=self._resolved(kwargs, "provider"),
             model=self._resolved(kwargs, "model"),
             reasoning_effort=self._resolved(kwargs, "reasoning_effort"),
-            task_id=self.next_session_id(),
+            task_id=session.id if session.resume else self.next_session_id(),
         )
 
     def _collect_messages(self, result: ChildResult, task: str) -> None:
@@ -113,8 +125,6 @@ class FakeRunner:
         else:
             result.exit_code = 0
             result.status = parse_status(_final_text(task), failed=False)
-        if task == "fallback":
-            result.notes = ("task_id task-1 matched no session, so a fresh child started.",)
 
     def _resolved(self, kwargs: dict[str, Any], kind: str) -> Any:
         agent = kwargs["agent"]
@@ -253,13 +263,44 @@ def make_dispatcher(
     )
 
 
-@pytest.fixture
-def isolated_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Redirect HOME so same-id lock files land outside the real session store."""
-    home = tmp_path / "home"
-    home.mkdir()
-    monkeypatch.setenv("HOME", str(home))
-    return home
+class MappingCheckingRunner(FakeRunner):
+    """Fake runner that records the mapping entry visible when the child runs.
+
+    The dispatcher writes the mapping entry before calling the runner, so the
+    real mapping file must already contain the fresh id at run time; the
+    lookup uses the real mapping module under the redirected home.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.mapping_entries_at_run: list[str | None] = []
+
+    async def run(self, **kwargs: Any) -> ChildResult:
+        self.mapping_entries_at_run.append(read_mapping_entry(kwargs["session"].id))
+        return await super().run(**kwargs)
+
+
+class RecordVerifyingRunner(FakeRunner):
+    """Fake runner that mirrors the real runner's session-record verification
+    before emulating the child, so dispatch tests prove ordering without
+    spawning a process. Resume runs raise the real ``ResumeFailure`` when the
+    record is missing or carries a non-subagent role."""
+
+    def __init__(self, paths: TauPaths) -> None:
+        super().__init__()
+        self.paths = paths
+        self.verified: list[str] = []
+        self.started: list[str] = []
+
+    async def run(self, **kwargs: Any) -> ChildResult:
+        session = kwargs["session"]
+        if session.resume:
+            record = SessionManager(self.paths).get_session(session.id)
+            if record is None or record.role != SUBAGENT_SESSION_ROLE:
+                raise ResumeFailure(f"no session record exists for task_id '{session.id}'")
+            self.verified.append(session.id)
+        self.started.append(session.id)
+        return await super().run(**kwargs)
 
 
 class UsageCalls:
@@ -711,10 +752,8 @@ async def test_reserved_placeholders_dispatch_children_without_overrides(
     runner = FakeRunner()
     result = await make_dispatcher(tmp_path, runner).execute({"prompt": "work", field: value})
 
-    assert result.text.startswith("Note:")
-    assert f"{field}:" in result.text
-    assert "omitted" in result.text
-    assert result.text.index(f"Note: {field}") < result.text.index("<task ")
+    assert result.text.startswith("<task ")
+    assert "Note:" not in result.text
     assert len(runner.calls) == 1
     assert runner.calls[0]["provider_override"] is None
     assert runner.calls[0]["model_override"] is None
@@ -926,7 +965,8 @@ async def test_prompt_only_call_dispatches_one_general_purpose_child(tmp_path: P
     call = runner.calls[0]
     assert call["agent"].name == "general-purpose"
     assert call["task"] == "work"
-    assert call["resume_session_id"] is None
+    assert call["session"].resume is False
+    assert re.fullmatch(r"[0-9a-f]{32}", call["session"].id)
     assert call["cwd_override"] is None
     assert result.text.startswith('<task id="child-session-001" state="completed">')
     assert "<task_result>full output for work" in result.text
@@ -1050,31 +1090,190 @@ async def test_review_report_is_relayed_whole_inside_the_envelope(tmp_path: Path
 
 
 @pytest.mark.asyncio
-async def test_runner_notes_surface_as_note_lines_before_the_envelope(
+async def test_task_id_reaches_the_runner_as_a_resume_session_selection(
     tmp_path: Path, isolated_home: Path
 ) -> None:
-    del isolated_home
+    """Prove a call carrying task_id reaches the runner as a resume selection
+    pinned to the requested id, after the mapping entry resolves the agent."""
+    write_mapping_entry("task-9", "read-only")
     runner = FakeRunner()
-    result = await make_dispatcher(tmp_path, runner).execute(
-        {"prompt": "fallback", "subagent_type": "read-only", "task_id": "task-1"}
-    )
 
-    assert result.text.startswith("Note: task_id task-1 matched no session")
-    assert result.text.index("Note:") < result.text.index("<task ")
-    assert runner.calls[0]["resume_session_id"] == "task-1"
-
-
-@pytest.mark.asyncio
-async def test_task_id_reaches_the_runner_as_the_resume_session(
-    tmp_path: Path, isolated_home: Path
-) -> None:
-    del isolated_home
-    runner = FakeRunner()
     await make_dispatcher(tmp_path, runner).execute(
         {"prompt": "continue", "subagent_type": "read-only", "task_id": " task-9 "}
     )
 
-    assert runner.calls[0]["resume_session_id"] == "task-9"
+    assert runner.calls[0]["session"] == SessionSelection(id="task-9", resume=True)
+
+
+@pytest.mark.asyncio
+async def test_mapping_entry_exists_before_the_child_spawns(
+    tmp_path: Path, isolated_home: Path
+) -> None:
+    """Prove the dispatcher writes the mapping entry before the runner call: the
+    child sees its own fresh id mapped to the agent name in the real mapping
+    file at run time."""
+
+    runner = MappingCheckingRunner()
+    dispatcher = make_dispatcher(tmp_path, runner)
+
+    result = await dispatcher.execute({"prompt": "work", "subagent_type": "read-only"})
+
+    assert len(runner.calls) == 1
+    session = runner.calls[0]["session"]
+    assert not session.resume
+    assert runner.mapping_entries_at_run == ["read-only"]
+    assert read_mapping_entry(session.id) == "read-only"
+    assert result.text.startswith("<task ")
+    assert "Note:" not in result.text
+
+
+@pytest.mark.asyncio
+async def test_failed_mapping_write_fails_the_dispatch_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Prove a failed mapping write fails the dispatch closed with the runner
+    never called: the teach-back names the mapping file and states that no
+    child started."""
+
+    mapping_path = tmp_path / "mapping.json"
+
+    def failing_write(session_id: str, agent_name: str) -> None:
+        del agent_name
+        raise MappingWriteError(
+            f"cannot persist mapping entry for session {session_id!r} at {mapping_path}"
+        )
+
+    monkeypatch.setattr(dispatch_module, "write_mapping_entry", failing_write)
+    runner = FakeRunner()
+
+    result = await make_dispatcher(tmp_path, runner).execute({"prompt": "work"})
+
+    assert runner.calls == []
+    assert "mapping" in result.text
+    assert str(mapping_path) in result.text
+    assert "no child started" in result.text
+    assert "<task" not in result.text
+    assert "Note:" not in result.text
+    assert result.details["results"] == []
+    assert "planned" not in result.details
+
+
+@pytest.mark.asyncio
+async def test_resume_resolves_the_agent_from_the_mapping_and_ignores_subagent_type(
+    tmp_path: Path, isolated_home: Path
+) -> None:
+    """Prove the resume agent comes from the session-agent mapping: the call's
+    own subagent_type selects nothing on a resume."""
+
+    write_mapping_entry("task-1", "read-only")
+    runner = FakeRunner()
+
+    result = await make_dispatcher(tmp_path, runner).execute(
+        {"prompt": "continue", "subagent_type": "general-purpose", "task_id": "task-1"}
+    )
+
+    assert len(runner.calls) == 1
+    assert runner.calls[0]["agent"].name == "read-only"
+    assert runner.calls[0]["session"] == SessionSelection(id="task-1", resume=True)
+    assert result.text.startswith("<task ")
+
+
+@pytest.mark.asyncio
+async def test_missing_mapping_entry_fails_closed_with_the_id_preserved(
+    tmp_path: Path, isolated_home: Path
+) -> None:
+    """Prove a missing mapping entry fails closed with the requested id
+    preserved. The fixture pre-creates the session record for the id, so the
+    never-called runner proves the mapping lookup precedes the session-record
+    check."""
+
+    SessionManager(TauPaths()).create_session(
+        cwd=tmp_path,
+        model="fixture-model",
+        session_id="task-1",
+        role=SUBAGENT_SESSION_ROLE,
+    )
+    runner = FakeRunner()
+
+    result = await make_dispatcher(tmp_path, runner).execute(
+        {"prompt": "continue", "subagent_type": "read-only", "task_id": "task-1"}
+    )
+
+    assert runner.calls == []
+    assert "task-1" in result.text
+    assert "no child started" in result.text
+    assert "session-agent mapping" in result.text
+    assert "call task" in result.text  # directs the caller to task for a fresh child
+    assert "Available agents:" not in result.text  # lists no agents
+    assert "<task" not in result.text
+    assert result.details["results"] == []
+    assert "planned" not in result.details
+
+
+@pytest.mark.asyncio
+async def test_unmappable_mapped_name_fails_closed(tmp_path: Path, isolated_home: Path) -> None:
+    """Prove a mapped name no discoverable agent provides fails closed before
+    any child starts, with the requested id preserved."""
+
+    write_mapping_entry("task-1", "ghost-agent")
+    runner = FakeRunner()
+
+    result = await make_dispatcher(tmp_path, runner).execute(
+        {"prompt": "continue", "subagent_type": "read-only", "task_id": "task-1"}
+    )
+
+    assert runner.calls == []
+    assert "ghost-agent" in result.text
+    assert "task-1" in result.text
+    assert "<task" not in result.text
+    assert result.details["results"] == []
+    assert "planned" not in result.details
+
+
+@pytest.mark.asyncio
+async def test_resume_applies_the_mapped_agents_config_section(
+    tmp_path: Path, isolated_home: Path
+) -> None:
+    """Prove the resume keys the config layers by the mapped name: the child's
+    effective model pin comes from the mapped agent's config section, not from
+    the call's subagent_type."""
+
+    config = SubagentConfig(agents=(("read-only", AgentOverrides(model="config/model")),))
+    write_mapping_entry("task-1", "read-only")
+    runner = FakeRunner()
+
+    result = await make_dispatcher(tmp_path, runner, config=config).execute(
+        {"prompt": "continue", "subagent_type": "general-purpose", "task_id": "task-1"}
+    )
+
+    call = runner.calls[0]
+    assert call["agent"].name == "read-only"
+    assert call["config_overrides"] == AgentOverrides(model="config/model")
+    assert result.details["results"][0]["model"] == "config/model"
+
+
+@pytest.mark.asyncio
+async def test_mapping_entry_without_session_record_fails_closed_before_any_child(
+    tmp_path: Path, isolated_home: Path
+) -> None:
+    """Prove a stale mapping entry whose id has no session record fails closed
+    at the session-record check: the mapped agent resolves, the runner verifies
+    the record, and no child starts."""
+
+    store = TauPaths(home=tmp_path / "store")
+    write_mapping_entry("task-1", "read-only")
+    runner = RecordVerifyingRunner(store)
+
+    result = await make_dispatcher(tmp_path, runner).execute(
+        {"prompt": "continue", "subagent_type": "read-only", "task_id": "task-1"}
+    )
+
+    assert runner.calls == []
+    assert runner.started == []
+    assert "task-1" in result.text
+    assert "<task" not in result.text
+    assert result.details["results"] == []
+    assert "planned" not in result.details
 
 
 @pytest.mark.asyncio
@@ -1320,6 +1519,8 @@ async def test_concurrent_executes_run_children_in_parallel(
     runner = FakeRunner()
     calls = UsageCalls()
     dispatcher = make_dispatcher(tmp_path, runner, usage_observer=calls.record)
+    for index in range(3):
+        write_mapping_entry(f"task-{index}", "read-only")
 
     results = await asyncio.gather(
         *[
@@ -1338,7 +1539,7 @@ async def test_concurrent_executes_run_children_in_parallel(
     assert len(runner.calls) == 3
     assert "full output for call-0" in results[0].text
     assert 'state="completed"' in results[0].text
-    assert "Subagent failed (task_id: child-session-" in results[1].text
+    assert "Subagent failed (task_id: task-1)" in results[1].text
     assert 'state="error"' in results[1].text
     assert "full output for call-2" in results[2].text
     assert 'state="completed"' in results[2].text
@@ -1350,6 +1551,7 @@ async def test_same_task_id_calls_exclude_each_other(tmp_path: Path, isolated_ho
     """Prove two concurrent calls with one task_id produce one child result and
     one fail-closed teach-back, and that the lock is released afterwards."""
     del isolated_home
+    write_mapping_entry("shared-id", "read-only")
     runner = FakeRunner()
     dispatcher = make_dispatcher(tmp_path, runner)
     arguments: dict[str, Any] = {

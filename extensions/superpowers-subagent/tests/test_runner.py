@@ -21,9 +21,10 @@ from tau_coding.session_manager import (
 
 from superpowers_subagent import runner as runner_module
 from superpowers_subagent.config import AgentOverrides
-from superpowers_subagent.models import AgentConfig, ChildResult
+from superpowers_subagent.models import AgentConfig, ChildResult, SessionSelection
 from superpowers_subagent.runner import (
     _MAX_STDERR_EXCERPT_CODEPOINTS,
+    ResumeFailure,
     TauChildRunner,
     _child_exit_error,
     _process_json_line,
@@ -65,6 +66,12 @@ def make_store(tmp_path: Path) -> TauPaths:
     """Return a Tau session store redirected under the test directory."""
 
     return TauPaths(home=tmp_path / "tau-home")
+
+
+def fresh_session() -> SessionSelection:
+    """Return a fresh-run selection carrying a dispatcher-style generated id."""
+
+    return SessionSelection(id=uuid.uuid4().hex)
 
 
 def create_child_record(
@@ -203,11 +210,19 @@ def test_stderr_excerpt_keeps_final_bounded_unicode_codepoints() -> None:
     [
         (
             "uNkNoWn PrOvIdEr: typo-provider",
-            ("omit provider, model, and reasoningEffort", "tau providers", "exact provider name"),
+            (
+                "correct the provider pin in the config file or the agent definition",
+                "tau providers",
+                "exact provider name",
+            ),
         ),
         (
             "mOdEl Is NoT cOnFiGuReD fOr PrOvIdEr: bad-model",
-            ("omit model", "exact model ID", "supported by the provider"),
+            (
+                "correct the model pin in the config file or the agent definition",
+                "exact model ID",
+                "supported by the provider",
+            ),
         ),
     ],
 )
@@ -224,6 +239,8 @@ def test_child_exit_error_adds_recovery_for_recognized_diagnostics(
     assert "code 9" in error
     assert stderr in error
     assert all(item in error for item in guidance)
+    # Recovery directs to the durable pins only: no call-level parameter exists.
+    assert "omit" not in error.lower()
 
 
 def test_child_exit_error_uses_only_bounded_excerpt_for_recovery(tmp_path: Path) -> None:
@@ -259,6 +276,7 @@ raise SystemExit(9)
         reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
+        session=fresh_session(),
     )
 
     assert result.error_message == "Tau child exited with code 9.\n\nTau stderr:\nerror"
@@ -286,6 +304,7 @@ raise SystemExit(9)
         reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
+        session=fresh_session(),
     )
 
     assert result.error_message == f"Tau child exited with code 9.\n\nTau stderr:\n{raw_stderr}"
@@ -314,6 +333,7 @@ raise SystemExit(9)
         reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
+        session=fresh_session(),
     )
 
     assert result.error_message == f"Tau child exited with code 9.\n\nTau stderr:\n{excerpt}"
@@ -341,14 +361,21 @@ raise SystemExit(9)
         reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
+        session=fresh_session(),
     )
 
     assert result.error_message is not None
     assert raw_stderr in result.error_message
-    assert "omit provider, model, and reasoningEffort" in result.error_message
-    assert "exact provider name from that list" in result.error_message
-    assert "omit model" in result.error_message
+    assert (
+        "correct the provider pin in the config file or the agent definition"
+        in result.error_message
+    )
+    assert "exact provider name from `tau providers`" in result.error_message
+    assert (
+        "correct the model pin in the config file or the agent definition" in result.error_message
+    )
     assert "exact model ID supported by the provider" in result.error_message
+    assert "omit" not in result.error_message.lower()
     assert result.stderr == raw_stderr
 
 
@@ -379,6 +406,7 @@ raise SystemExit(9)
         reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
+        session=fresh_session(),
     )
 
     assert result.error_message == "existing child error"
@@ -438,6 +466,7 @@ print("warning", file=sys.stderr)
         reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
+        session=fresh_session(),
         on_message=lambda current: updates.append(len(current.messages)),
     )
 
@@ -605,6 +634,7 @@ print(json.dumps({"type": "message_end", "message": {
         reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
+        session=fresh_session(),
     )
 
     argv = json.loads(record_path.read_text())
@@ -654,6 +684,7 @@ print(json.dumps({"type": "message_end", "message": {
         parent_model="gpt-5.6-sol",
         timeout_seconds=2,
         signal=None,
+        session=fresh_session(),
     )
 
     argv = json.loads(record_path.read_text())
@@ -716,6 +747,7 @@ print(json.dumps({"type": "message_end", "message": {
         parent_model="gpt-5.6-sol",
         timeout_seconds=2,
         signal=None,
+        session=fresh_session(),
     )
 
     assert result.succeeded
@@ -766,6 +798,7 @@ print(json.dumps({"type": "message_end", "message": {
         parent_model="parent-model",
         timeout_seconds=2,
         signal=None,
+        session=fresh_session(),
     )
 
     # make_agent pins provider "agent-provider" and model "agent-model"; the
@@ -818,6 +851,7 @@ print(json.dumps({"type": "message_end", "message": {
         reasoning_effort_override="high",
         timeout_seconds=2,
         signal=None,
+        session=fresh_session(),
     )
 
     assert result.succeeded
@@ -873,6 +907,7 @@ print(json.dumps({"type": "message_end", "message": {
         reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
+        session=fresh_session(),
     )
 
     argv = json.loads(record_path.read_text())
@@ -899,6 +934,7 @@ async def test_runner_marks_zero_exit_without_assistant_as_protocol_failure(tmp_
         reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
+        session=fresh_session(),
     )
 
     assert not result.succeeded
@@ -920,6 +956,7 @@ async def test_runner_times_out_and_terminates_child(tmp_path: Path) -> None:
         reasoning_effort_override=None,
         timeout_seconds=0.05,
         signal=None,
+        session=fresh_session(),
     )
 
     assert result.timed_out
@@ -958,6 +995,7 @@ time.sleep(10)
         reasoning_effort_override=None,
         timeout_seconds=0.05,
         signal=None,
+        session=fresh_session(),
     )
 
     assert result.timed_out
@@ -982,6 +1020,7 @@ async def test_runner_observes_cancellation_before_and_during_spawn(tmp_path: Pa
         reasoning_effort_override=None,
         timeout_seconds=2,
         signal=token,
+        session=fresh_session(),
     )
     assert before.cancelled
     assert before.stop_reason == "aborted"
@@ -998,6 +1037,7 @@ async def test_runner_observes_cancellation_before_and_during_spawn(tmp_path: Pa
             reasoning_effort_override=None,
             timeout_seconds=2,
             signal=token,
+            session=fresh_session(),
         )
     )
     await asyncio.sleep(0.1)
@@ -1048,6 +1088,7 @@ async def test_runner_task_cancellation_terminates_live_child(
             reasoning_effort_override=None,
             timeout_seconds=30,
             signal=None,
+            session=fresh_session(),
         )
     )
     deadline = time.monotonic() + 10.0
@@ -1221,12 +1262,13 @@ async def test_generated_thinking_policy_skips_set_when_level_matches(
 async def test_runner_pins_every_fresh_child_to_a_new_subagent_session(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Prove a fresh run pins a generated 32-hex session id with the subagent
-    role and records that id as the result's task_id."""
+    """Prove a fresh run pins the dispatcher-supplied session id with the
+    subagent role and records that id as the result's task_id."""
 
     record_path = tmp_path / "record.json"
     monkeypatch.setenv("FAKE_TAU_RECORD", str(record_path))
     fake_tau = write_single_record_fake_tau(tmp_path, record_path)
+    session = fresh_session()
 
     result = await TauChildRunner(str(fake_tau)).run(
         default_cwd=tmp_path,
@@ -1238,11 +1280,12 @@ async def test_runner_pins_every_fresh_child_to_a_new_subagent_session(
         reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
+        session=session,
     )
 
     assert result.succeeded
-    assert result.task_id is not None
-    assert re.fullmatch(r"[0-9a-f]{32}", result.task_id)
+    assert result.task_id == session.id
+    assert re.fullmatch(r"[0-9a-f]{32}", result.task_id or "")
     argv = json.loads(record_path.read_text())["args"]
     assert argv[argv.index("--session-id") + 1] == result.task_id
     assert argv[argv.index("--session-role") + 1] == "subagent"
@@ -1274,7 +1317,7 @@ async def test_runner_resumes_verified_subagent_session_without_cwd_flag(
         reasoning_effort_override="high",
         timeout_seconds=2,
         signal=None,
-        resume_session_id=child.id,
+        session=SessionSelection(id=child.id, resume=True),
     )
 
     assert result.succeeded
@@ -1300,85 +1343,74 @@ async def test_runner_resumes_verified_subagent_session_without_cwd_flag(
 
 
 @pytest.mark.asyncio
-async def test_runner_missing_record_falls_back_to_a_fresh_child(
+async def test_runner_missing_record_raises_resume_failure_without_starting_a_child(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Prove a task_id matching no store record starts a fresh pinned child
-    carrying the unknown-session repair note."""
+    """Prove a task_id matching no store record raises ResumeFailure before any
+    child process starts: no fallback child runs and no invocation is logged."""
 
-    record_path = tmp_path / "record.json"
-    monkeypatch.setenv("FAKE_TAU_RECORD", str(record_path))
-    fake_tau = write_single_record_fake_tau(tmp_path, record_path)
+    log_path = tmp_path / "invocations.jsonl"
+    monkeypatch.setenv("FAKE_TAU_LOG", str(log_path))
+    fake_tau = write_fake_tau(tmp_path, _RECORD_INVOCATION + _SUCCESS_TURN)
     store = make_store(tmp_path)
 
-    result = await TauChildRunner(str(fake_tau), paths=store).run(
-        default_cwd=tmp_path,
-        agent=make_agent(tmp_path),
-        task="task",
-        cwd_override=None,
-        provider_override=None,
-        model_override=None,
-        reasoning_effort_override=None,
-        timeout_seconds=2,
-        signal=None,
-        resume_session_id="does-not-exist",
-    )
+    with pytest.raises(ResumeFailure) as excinfo:
+        await TauChildRunner(str(fake_tau), paths=store).run(
+            default_cwd=tmp_path,
+            agent=make_agent(tmp_path),
+            task="task",
+            cwd_override=None,
+            provider_override=None,
+            model_override=None,
+            reasoning_effort_override=None,
+            timeout_seconds=2,
+            signal=None,
+            session=SessionSelection(id="missing-id", resume=True),
+        )
 
-    assert result.succeeded
-    assert result.task_id is not None
-    assert re.fullmatch(r"[0-9a-f]{32}", result.task_id)
-    assert result.task_id != "does-not-exist"
-    argv = json.loads(record_path.read_text())["args"]
-    assert argv[argv.index("--session-id") + 1] == result.task_id
-    assert "--session" not in argv
-    assert result.notes == ("task_id does-not-exist matched no session, so a fresh child started.",)
+    assert "missing-id" in str(excinfo.value)
+    assert not log_path.exists()
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("role", [None, "user"], ids=["no-role", "other-role"])
-async def test_runner_wrong_role_record_falls_back_to_a_fresh_child(
+async def test_runner_wrong_role_record_raises_resume_failure_without_starting_a_child(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, role: str | None
 ) -> None:
-    """Prove a record whose role is not the subagent role starts a fresh pinned
-    child carrying the not-a-task-child repair note."""
+    """Prove a record whose role is not the subagent role raises ResumeFailure
+    before any child process starts: no fresh child runs."""
 
-    record_path = tmp_path / "record.json"
-    monkeypatch.setenv("FAKE_TAU_RECORD", str(record_path))
-    fake_tau = write_single_record_fake_tau(tmp_path, record_path)
+    log_path = tmp_path / "invocations.jsonl"
+    monkeypatch.setenv("FAKE_TAU_LOG", str(log_path))
+    fake_tau = write_fake_tau(tmp_path, _RECORD_INVOCATION + _SUCCESS_TURN)
     store = make_store(tmp_path)
     child = create_child_record(store, tmp_path / "recorded-cwd", role=role)
 
-    result = await TauChildRunner(str(fake_tau), paths=store).run(
-        default_cwd=tmp_path,
-        agent=make_agent(tmp_path),
-        task="task",
-        cwd_override=None,
-        provider_override=None,
-        model_override=None,
-        reasoning_effort_override=None,
-        timeout_seconds=2,
-        signal=None,
-        resume_session_id=child.id,
-    )
+    with pytest.raises(ResumeFailure) as excinfo:
+        await TauChildRunner(str(fake_tau), paths=store).run(
+            default_cwd=tmp_path,
+            agent=make_agent(tmp_path),
+            task="task",
+            cwd_override=None,
+            provider_override=None,
+            model_override=None,
+            reasoning_effort_override=None,
+            timeout_seconds=2,
+            signal=None,
+            session=SessionSelection(id=child.id, resume=True),
+        )
 
-    assert result.succeeded
-    assert result.task_id != child.id
-    assert re.fullmatch(r"[0-9a-f]{32}", result.task_id or "")
-    argv = json.loads(record_path.read_text())["args"]
-    assert "--session-id" in argv
-    assert "--session" not in argv
-    assert result.notes == (
-        f"task_id {child.id} is not a task child session, so a fresh child started.",
-    )
+    assert child.id in str(excinfo.value)
+    assert not log_path.exists()
 
 
 @pytest.mark.asyncio
-async def test_runner_resumed_run_uses_the_recorded_cwd_and_notes_it(
+async def test_runner_resumed_run_uses_the_recorded_cwd_without_a_note(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Prove a resume call with a cwd override still spawns in the recorded
-    creation cwd, notes the recorded cwd, and leaves the store record's cwd
-    unchanged."""
+    """Prove a resume call with a cwd override still spawns in the session's
+    recorded creation cwd, leaves the store record's cwd unchanged, and carries
+    no repair note: the note channel is removed from results."""
 
     record_path = tmp_path / "record.json"
     monkeypatch.setenv("FAKE_TAU_RECORD", str(record_path))
@@ -1400,48 +1432,22 @@ async def test_runner_resumed_run_uses_the_recorded_cwd_and_notes_it(
         reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
-        resume_session_id=child.id,
+        session=SessionSelection(id=child.id, resume=True),
     )
 
     assert result.cwd == str(child.cwd)
-    assert result.notes == ("The resumed run uses the session's recorded cwd.",)
     assert json.loads(record_path.read_text())["cwd"] == str(child.cwd)
     assert SessionManager(store).get_session(child.id).cwd == child.cwd
+    assert not hasattr(result, "notes")
 
 
 @pytest.mark.asyncio
-async def test_runner_resumed_run_without_cwd_override_carries_no_cwd_note(
+async def test_runner_unknown_session_diagnostic_raises_resume_failure_without_a_retry(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    record_path = tmp_path / "record.json"
-    monkeypatch.setenv("FAKE_TAU_RECORD", str(record_path))
-    fake_tau = write_single_record_fake_tau(tmp_path, record_path)
-    store = make_store(tmp_path)
-    child = create_child_record(store, tmp_path / "recorded-cwd")
-
-    result = await TauChildRunner(str(fake_tau), paths=store).run(
-        default_cwd=tmp_path,
-        agent=make_agent(tmp_path),
-        task="task",
-        cwd_override=None,
-        provider_override=None,
-        model_override=None,
-        reasoning_effort_override=None,
-        timeout_seconds=2,
-        signal=None,
-        resume_session_id=child.id,
-    )
-
-    assert result.notes == ()
-
-
-@pytest.mark.asyncio
-async def test_runner_retries_once_as_a_fresh_child_on_unknown_session(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Prove a resumed child that fails with ``Unknown session:`` retries exactly
-    once as a fresh child in the call's cwd, and the retry result replaces the
-    failed attempt with only the unknown-session note."""
+    """Prove a resumed child that fails with tau's clean ``Unknown session:``
+    diagnostic raises ResumeFailure carrying that diagnostic, and no retry
+    child runs: exactly one invocation is logged."""
 
     log_path = tmp_path / "invocations.jsonl"
     monkeypatch.setenv("FAKE_TAU_LOG", str(log_path))
@@ -1456,37 +1462,26 @@ async def test_runner_retries_once_as_a_fresh_child_on_unknown_session(
     )
     store = make_store(tmp_path)
     child = create_child_record(store, tmp_path / "recorded-cwd")
-    elsewhere = tmp_path / "elsewhere"
-    elsewhere.mkdir()
 
-    result = await TauChildRunner(str(fake_tau), paths=store).run(
-        default_cwd=tmp_path,
-        agent=make_agent(tmp_path),
-        task="task",
-        cwd_override=str(elsewhere),
-        provider_override=None,
-        model_override=None,
-        reasoning_effort_override=None,
-        timeout_seconds=2,
-        signal=None,
-        resume_session_id=child.id,
-    )
+    with pytest.raises(ResumeFailure) as excinfo:
+        await TauChildRunner(str(fake_tau), paths=store).run(
+            default_cwd=tmp_path,
+            agent=make_agent(tmp_path),
+            task="task",
+            cwd_override=None,
+            provider_override=None,
+            model_override=None,
+            reasoning_effort_override=None,
+            timeout_seconds=2,
+            signal=None,
+            session=SessionSelection(id=child.id, resume=True),
+        )
 
+    assert "Unknown session:" in str(excinfo.value)
     invocations = read_invocations(log_path)
-    assert len(invocations) == 2
+    assert len(invocations) == 1
     first_args = invocations[0]["args"]
     assert first_args[first_args.index("--session") + 1] == child.id
-    second_args = invocations[1]["args"]
-    fresh_id = second_args[second_args.index("--session-id") + 1]
-    assert re.fullmatch(r"[0-9a-f]{32}", fresh_id)
-    assert fresh_id != child.id
-    assert "--session" not in second_args
-    assert second_args[second_args.index("--cwd") + 1] == str(elsewhere.resolve())
-    assert invocations[1]["cwd"] == str(elsewhere.resolve())
-    assert result.succeeded
-    assert result.task_id == fresh_id
-    assert result.cwd == str(elsewhere.resolve())
-    assert result.notes == (f"task_id {child.id} matched no session, so a fresh child started.",)
 
 
 @pytest.mark.asyncio
@@ -1519,14 +1514,13 @@ raise SystemExit(2)
         reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
-        resume_session_id=child.id,
+        session=SessionSelection(id=child.id, resume=True),
     )
 
     assert len(read_invocations(log_path)) == 1
     assert not result.succeeded
     assert result.exit_code == 2
     assert result.task_id == child.id
-    assert result.notes == ()
 
 
 @pytest.mark.asyncio
@@ -1560,7 +1554,7 @@ async def test_runner_resumed_run_uses_the_call_agents_prompt_and_policies(
         reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
-        resume_session_id=child.id,
+        session=SessionSelection(id=child.id, resume=True),
     )
 
     assert result.succeeded
@@ -1607,7 +1601,7 @@ print(json.dumps({"type": "message_end", "message": {
         reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
-        resume_session_id=child.id,
+        session=SessionSelection(id=child.id, resume=True),
     )
 
     assert result.usage.input == 7
@@ -1642,7 +1636,7 @@ async def test_runner_resumes_a_record_from_another_project(
         reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
-        resume_session_id=child.id,
+        session=SessionSelection(id=child.id, resume=True),
     )
 
     assert result.succeeded
@@ -1670,7 +1664,7 @@ async def test_runner_resumed_run_times_out_with_the_resumed_task_id(
         reasoning_effort_override=None,
         timeout_seconds=0.05,
         signal=None,
-        resume_session_id=child.id,
+        session=SessionSelection(id=child.id, resume=True),
     )
 
     assert result.timed_out
@@ -1696,6 +1690,7 @@ async def test_runner_fresh_pre_session_failures_leave_task_id_unset(
         reasoning_effort_override=None,
         timeout_seconds=2,
         signal=token,
+        session=fresh_session(),
     )
     assert cancelled.cancelled
     assert cancelled.task_id is None
@@ -1710,6 +1705,7 @@ async def test_runner_fresh_pre_session_failures_leave_task_id_unset(
         reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
+        session=fresh_session(),
     )
     assert missing.error_message is not None
     assert missing.error_message.startswith("Could not start Tau child")
@@ -1737,7 +1733,7 @@ async def test_runner_resumed_pre_spawn_failures_keep_the_verified_task_id(
         reasoning_effort_override=None,
         timeout_seconds=2,
         signal=token,
-        resume_session_id=child.id,
+        session=SessionSelection(id=child.id, resume=True),
     )
     assert cancelled.cancelled
     assert cancelled.task_id == child.id
@@ -1752,7 +1748,7 @@ async def test_runner_resumed_pre_spawn_failures_keep_the_verified_task_id(
         reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
-        resume_session_id=child.id,
+        session=SessionSelection(id=child.id, resume=True),
     )
     assert missing.error_message is not None
     assert missing.error_message.startswith("Could not start Tau child")
@@ -1764,13 +1760,14 @@ async def test_runner_resumed_pre_spawn_failures_keep_the_verified_task_id(
 async def test_runner_post_spawn_failures_keep_the_generated_task_id(
     tmp_path: Path,
 ) -> None:
-    """Prove every failure after the child process spawned keeps the generated
-    session id, so the attempt stays resumable."""
+    """Prove every failure after the child process spawned keeps the
+    dispatcher-generated session id, so the attempt stays resumable."""
 
     failing = write_fake_tau(
         tmp_path,
         'import sys\nsys.stderr.write("boom\\n")\nraise SystemExit(9)\n',
     )
+    failed_session = fresh_session()
     failed = await TauChildRunner(str(failing)).run(
         default_cwd=tmp_path,
         agent=make_agent(tmp_path),
@@ -1781,12 +1778,13 @@ async def test_runner_post_spawn_failures_keep_the_generated_task_id(
         reasoning_effort_override=None,
         timeout_seconds=2,
         signal=None,
+        session=failed_session,
     )
     assert not failed.succeeded
-    assert failed.task_id is not None
-    assert re.fullmatch(r"[0-9a-f]{32}", failed.task_id)
+    assert failed.task_id == failed_session.id
 
     sleeping = write_fake_tau(tmp_path, "import time\ntime.sleep(10)\n")
+    timed_out_session = fresh_session()
     timed_out = await TauChildRunner(str(sleeping)).run(
         default_cwd=tmp_path,
         agent=make_agent(tmp_path),
@@ -1797,10 +1795,10 @@ async def test_runner_post_spawn_failures_keep_the_generated_task_id(
         reasoning_effort_override=None,
         timeout_seconds=0.05,
         signal=None,
+        session=timed_out_session,
     )
     assert timed_out.timed_out
-    assert timed_out.task_id is not None
-    assert re.fullmatch(r"[0-9a-f]{32}", timed_out.task_id)
+    assert timed_out.task_id == timed_out_session.id
 
 
 def test_compose_prompt_resume_variant_replaces_only_the_isolation_sentence(

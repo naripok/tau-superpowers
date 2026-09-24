@@ -7,7 +7,6 @@ import json
 import os
 import re
 import tempfile
-import uuid
 from collections.abc import Callable
 from contextlib import suppress
 from pathlib import Path
@@ -34,9 +33,9 @@ from .utils import (
 RECURSION_GUARD = "TAU_SUPERPOWERS_SUBAGENT"
 _CSI_SEQUENCE: re.Pattern[str] = re.compile(r"\x1b\[[\x30-\x3f]*[\x20-\x2f]*[\x40-\x7e]")
 _MAX_STDERR_EXCERPT_CODEPOINTS = 2_000
-#: Tau's own clean-failure diagnostic for a resume of a missing session; the
-#: runner reuses stderr-excerpt matching, so the retry matches whatever tau
-#: prints regardless of surrounding formatting.
+#: Tau's own clean-failure diagnostic for a resume of a missing session. A
+#: resumed child whose bounded stderr excerpt matches it fails closed, so the
+#: outcome does not depend on tau's surrounding formatting.
 _UNKNOWN_SESSION_DIAGNOSTIC: re.Pattern[str] = re.compile(r"unknown session:", re.IGNORECASE)
 
 _FRESH_ISOLATION = (
@@ -73,16 +72,6 @@ End your final message with exactly one supported status marker:
 
 _SHARED_INSTRUCTIONS = _SHARED_INSTRUCTIONS_TEMPLATE.format(isolation=_FRESH_ISOLATION)
 _RESUMED_SHARED_INSTRUCTIONS = _SHARED_INSTRUCTIONS_TEMPLATE.format(isolation=_RESUMED_ISOLATION)
-
-_RECORDED_CWD_NOTE = "The resumed run uses the session's recorded cwd."
-
-
-def _unknown_session_note(task_id: str) -> str:
-    return f"task_id {task_id} matched no session, so a fresh child started."
-
-
-def _not_a_task_child_note(task_id: str) -> str:
-    return f"task_id {task_id} is not a task child session, so a fresh child started."
 
 
 _READ_ONLY_INSTRUCTIONS = """## Enforced Read-Only Profile
@@ -183,6 +172,10 @@ _MESSAGE_ADAPTER: TypeAdapter[AgentMessage] = TypeAdapter(AgentMessage)
 ChildUpdate = Callable[[ChildResult], None]
 
 
+class ResumeFailure(ValueError):
+    """A resume request that fails closed. ``str(exc)`` is the teach-back reason."""
+
+
 def _stderr_excerpt(stderr: str) -> str:
     """Remove CSI sequences and retain the final bounded diagnostic text."""
 
@@ -200,13 +193,13 @@ def _child_exit_error(result: ChildResult) -> str:
     error += f"\n\nTau stderr:\n{excerpt}"
     if re.search(r"unknown provider:", excerpt, re.IGNORECASE):
         error += (
-            "\nTo recover, omit provider, model, and reasoningEffort to inherit configured values. "
-            "Run `tau providers`, then use an exact provider name from that list."
+            "\nTo recover, correct the provider pin in the config file or the agent "
+            "definition, and use an exact provider name from `tau providers`."
         )
     if re.search(r"model is not configured for provider", excerpt, re.IGNORECASE):
         error += (
-            "\nTo recover, omit model to inherit it, or use an exact model ID supported by the "
-            "provider."
+            "\nTo recover, correct the model pin in the config file or the agent "
+            "definition, or use an exact model ID supported by the provider."
         )
     return error
 
@@ -237,18 +230,18 @@ class TauChildRunner:
         timeout_seconds: float,
         signal: ToolCancellationToken | None,
         on_message: ChildUpdate | None = None,
-        resume_session_id: str | None = None,
+        session: SessionSelection,
     ) -> ChildResult:
         """Launch and collect one child, retaining partial state on every exit path.
 
-        Without ``resume_session_id`` the child runs in a new session pinned by a
-        generated id, which ``task_id`` records for every attempt that spawned a
-        process; only a pre-spawn failure leaves it unset, because then no Tau
-        session exists. With ``resume_session_id`` the session store is verified
-        first: a missing record or a non-subagent role falls back to a fresh
-        child with the matching repair note, and a verified resume runs in the
-        session's recorded cwd, retrying once as a fresh child when tau reports
-        the session unknown.
+        With ``session.resume`` False the child runs in a new session pinned to
+        ``session.id``, which the dispatcher generated and recorded in the
+        session-agent mapping before calling the runner. With ``session.resume``
+        True the session store is verified first: a missing record or a
+        non-subagent role raises ``ResumeFailure`` before any child starts. A
+        resumed run whose process fails with tau's unknown-session diagnostic
+        raises ``ResumeFailure`` carrying the bounded stderr excerpt, so every
+        resume failure starts zero children.
         """
 
         resolved_cwd = resolve_child_cwd(default_cwd, cwd_override)
@@ -268,12 +261,11 @@ class TauChildRunner:
             config_defaults=config_defaults,
             parent_reasoning_effort=parent_reasoning_effort,
         )
-        fresh_id = uuid.uuid4().hex
 
-        async def fresh_child() -> ChildResult:
+        if not session.resume:
             return await self._run_child(
                 cwd=resolved_cwd,
-                session=SessionSelection(id=fresh_id),
+                session=session,
                 agent=agent,
                 task=task,
                 provider=provider,
@@ -284,19 +276,11 @@ class TauChildRunner:
                 on_message=on_message,
             )
 
-        if resume_session_id is None:
-            return await fresh_child()
-        record = SessionManager(self.paths).get_session(resume_session_id)
-        if record is None or record.role != SUBAGENT_SESSION_ROLE:
-            note = (
-                _unknown_session_note(resume_session_id)
-                if record is None
-                else _not_a_task_child_note(resume_session_id)
-            )
-            fallback = await fresh_child()
-            fallback.notes = (note,)
-            return fallback
-
+        record = SessionManager(self.paths).get_session(session.id)
+        if record is None:
+            raise ResumeFailure(f"no session record exists for task_id '{session.id}'")
+        if record.role != SUBAGENT_SESSION_ROLE:
+            raise ResumeFailure(f"session '{session.id}' is not a task child session")
         resumed = await self._run_child(
             cwd=record.cwd,
             session=SessionSelection(id=record.id, resume=True),
@@ -309,15 +293,13 @@ class TauChildRunner:
             signal=signal,
             on_message=on_message,
         )
-        if cwd_override is not None:
-            resumed.notes = (*resumed.notes, _RECORDED_CWD_NOTE)
         if resumed.succeeded or not _UNKNOWN_SESSION_DIAGNOSTIC.search(
             _stderr_excerpt(resumed.stderr)
         ):
             return resumed
-        retry = await fresh_child()
-        retry.notes = (_unknown_session_note(resume_session_id),)
-        return retry
+        raise ResumeFailure(
+            f"tau reported session '{session.id}' unknown: {_stderr_excerpt(resumed.stderr)}"
+        )
 
     async def _run_child(
         self,

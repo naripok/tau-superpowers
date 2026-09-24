@@ -25,8 +25,8 @@ from tau_coding.resources import TauResourcePaths
 from tau_coding.session import CodingSession, CodingSessionConfig
 from tau_coding.session_manager import SUBAGENT_SESSION_ROLE, SessionManager
 
-from superpowers_subagent.models import AgentConfig
-from superpowers_subagent.runner import RECURSION_GUARD, TauChildRunner
+from superpowers_subagent.models import AgentConfig, SessionSelection
+from superpowers_subagent.runner import RECURSION_GUARD, ResumeFailure, TauChildRunner
 
 EXTENSION_DIR = Path(__file__).resolve().parents[1]
 FAKE_TAU_SOURCE = Path(__file__).parent / "fixtures" / "fake_tau.py"
@@ -216,12 +216,25 @@ def test_real_tau_cli_loads_directory_extension_and_registers_task(tmp_path: Pat
     assert completed.stderr == ""
 
 
+@pytest.fixture
+def redirected_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Redirect HOME so session-agent mapping writes and same-id lock files land
+    inside the test tree instead of the real user home."""
+
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    return home
+
+
 @pytest.mark.asyncio
 async def test_real_runtime_executes_single_and_parallel_with_ordered_updates(
     tmp_path: Path,
     fake_tau_environment: tuple[Path, Path],
+    redirected_home: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    del redirected_home
     _executable, log_path = fake_tau_environment
     runtime, tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
     runtime.render_tool_call("task", {"prompt": "alpha", "subagent_type": "general-purpose"})
@@ -308,9 +321,10 @@ async def test_real_runtime_executes_single_and_parallel_with_ordered_updates(
 async def test_coding_session_propagates_task_partial_updates_and_final_message_content(
     tmp_path: Path,
     fake_tau_environment: tuple[Path, Path],
+    redirected_home: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    del fake_tau_environment
+    del fake_tau_environment, redirected_home
     # Same recursion-guard neutralization as load_task_tool: the session must
     # actually register the task tool from the explicit extension path.
     monkeypatch.delenv(RECURSION_GUARD, raising=False)
@@ -365,9 +379,10 @@ async def test_coding_session_propagates_task_partial_updates_and_final_message_
 async def test_runtime_exposes_actionable_unknown_provider_failure_and_retains_stderr(
     tmp_path: Path,
     fake_tau_environment: tuple[Path, Path],
+    redirected_home: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    del fake_tau_environment
+    del fake_tau_environment, redirected_home
     _runtime, tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
 
     result = await tool.execute(
@@ -378,7 +393,8 @@ async def test_runtime_exposes_actionable_unknown_provider_failure_and_retains_s
     child = child_results(result)[0]
     assert "Subagent failed (task_id: " in result.text
     assert "UnKnOwN PrOvIdEr: made-up-provider" in result.text
-    assert "omit provider, model, and reasoningEffort" in result.text
+    assert "correct the provider pin in the config file or the agent definition" in result.text
+    assert "exact provider name" in result.text
     assert "tau providers" in result.text
     assert child["stderr"] == "\x1b[31mUnKnOwN PrOvIdEr: made-up-provider\x1b[0m\n"
 
@@ -387,9 +403,10 @@ async def test_runtime_exposes_actionable_unknown_provider_failure_and_retains_s
 async def test_runtime_retains_partial_data_for_nonzero_and_protocol_failures(
     tmp_path: Path,
     fake_tau_environment: tuple[Path, Path],
+    redirected_home: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    del fake_tau_environment
+    del fake_tau_environment, redirected_home
     _runtime, tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
 
     failed = await tool.execute("failed", {"prompt": "fail", "subagent_type": "general-purpose"})
@@ -418,9 +435,11 @@ async def test_runtime_retains_partial_data_for_nonzero_and_protocol_failures(
 async def test_runtime_terminates_child_on_timeout_or_cancellation_and_retains_partial_messages(
     tmp_path: Path,
     fake_tau_environment: tuple[Path, Path],
+    redirected_home: Path,
     cancel: bool,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    del redirected_home
     _executable, log_path = fake_tau_environment
     _runtime, tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
     token = CancellationToken()
@@ -452,8 +471,10 @@ async def test_runtime_terminates_child_on_timeout_or_cancellation_and_retains_p
 async def test_project_agent_approval_uses_headless_fail_closed_and_public_ui_confirmation(
     tmp_path: Path,
     fake_tau_environment: tuple[Path, Path],
+    redirected_home: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    del redirected_home
     _executable, log_path = fake_tau_environment
     project_agents = tmp_path / ".tau" / "agents"
     project_agents.mkdir(parents=True)
@@ -507,12 +528,14 @@ class ThinkingRecordingSession(RecordingSession):
 async def test_real_runtime_inherits_parent_thinking_level_and_config_overrides(
     tmp_path: Path,
     fake_tau_environment: tuple[Path, Path],
+    redirected_home: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Prove through the real extension runtime that an unpinned child inherits
     the parent session's thinking level by default, and that a per-agent config
     section overrides lower layers, end to end into the child argv and back."""
 
+    del redirected_home
     _executable, log_path = fake_tau_environment
     monkeypatch.delenv(RECURSION_GUARD, raising=False)
     runtime = ExtensionRuntime()
@@ -625,7 +648,7 @@ async def run_resumed(
         reasoning_effort_override=None,
         timeout_seconds=timeout_seconds,
         signal=None,
-        resume_session_id=resume_session_id,
+        session=SessionSelection(id=resume_session_id, resume=True),
     )
 
 
@@ -673,7 +696,6 @@ async def test_runtime_pins_a_session_and_resumes_it(
     assert result.succeeded
     assert result.task_id == task_id
     assert result.cwd == str(recorded_cwd.resolve())
-    assert result.notes == ()
     assert result.usage.turns == 1
     assert result.usage.input == 2
     assert result.usage.output == 3
@@ -699,13 +721,14 @@ async def test_runtime_pins_a_session_and_resumes_it(
 
 
 @pytest.mark.asyncio
-async def test_runtime_resumed_unknown_session_falls_back_to_a_fresh_child(
+async def test_runtime_resumed_unknown_id_fails_closed_without_starting_a_child(
     tmp_path: Path,
     fake_tau_environment: tuple[Path, Path],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Prove a verified resume whose child reports tau's clean ``Unknown
-    session:`` failure retries once as a fresh child running the call's prompt."""
+    """Prove a resume of an id matching no session record raises ResumeFailure
+    with zero child starts: no fresh fallback child runs and no session is
+    created."""
 
     _executable, log_path = fake_tau_environment
     home = tmp_path / "home"
@@ -714,26 +737,13 @@ async def test_runtime_resumed_unknown_session_falls_back_to_a_fresh_child(
     _runtime, _tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
 
     orphan_id = uuid.uuid4().hex
-    create_store_record(orphan_id, tmp_path)
+    with pytest.raises(ResumeFailure) as excinfo:
+        await run_resumed(
+            tmp_path,
+            agent=resume_agent(tmp_path),
+            task="unknown-id",
+            resume_session_id=orphan_id,
+        )
 
-    result = await run_resumed(
-        tmp_path,
-        agent=resume_agent(tmp_path),
-        task="unknown-session",
-        resume_session_id=orphan_id,
-    )
-
-    starts = [item for item in read_log(log_path) if item["event"] == "start"]
-    assert len(starts) == 2
-    assert starts[0]["resumeSession"] == orphan_id
-    retry_argv = starts[1]["argv"]
-    fresh_id = retry_argv[retry_argv.index("--session-id") + 1]
-    assert re.fullmatch(r"[0-9a-f]{32}", fresh_id)
-    assert fresh_id != orphan_id
-    assert "--session" not in retry_argv
-    assert "--cwd" in retry_argv
-    assert starts[1]["task"] == "unknown-session"
-    assert result.succeeded
-    assert result.task_id == fresh_id
-    assert result.cwd == str(tmp_path.resolve())
-    assert result.notes == (f"task_id {orphan_id} matched no session, so a fresh child started.",)
+    assert orphan_id in str(excinfo.value)
+    assert read_log(log_path) == []
