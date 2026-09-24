@@ -1,9 +1,10 @@
-"""Prove the same-task_id lock behaviors of ``locking.py``.
+"""Prove the file-lock behaviors of ``locking.py``.
 
 Each test exercises real ``flock`` semantics: same-process exclusion, release
 through the ``with`` exit, distinct-id independence, cross-process exclusion
-with a real subprocess, portable file naming for arbitrary task id text, and
-the default locks directory under the session store.
+with a real subprocess, portable file naming for arbitrary task id text, the
+default locks directory under the session store, and the blocking exclusive
+file lock that creates its file and blocks until the lock is held.
 """
 
 from __future__ import annotations
@@ -12,12 +13,13 @@ import hashlib
 import os
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
 import pytest
 
-from superpowers_subagent.locking import same_id_lock
+from superpowers_subagent.locking import exclusive_lock, same_id_lock
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 
@@ -122,6 +124,41 @@ def test_arbitrary_text_maps_to_one_hex_name(tmp_path: Path) -> None:
     assert [path.name for path in locks_dir.iterdir()] == [expected]
     with lock:
         pass
+
+
+def test_exclusive_lock_blocks_until_held_and_releases(tmp_path: Path) -> None:
+    """A second ``exclusive_lock`` acquire from another thread stays blocked
+    until the first with block exits, so the helper blocks until the lock is
+    held, creates the file when missing, and releases on context exit."""
+    lock_path = tmp_path / "mapping.lock"
+    holder_acquired = threading.Event()
+    release_holder = threading.Event()
+
+    def hold() -> None:
+        with exclusive_lock(lock_path):
+            holder_acquired.set()
+            release_holder.wait(timeout=30.0)
+
+    holder = threading.Thread(target=hold, daemon=True)
+    holder.start()
+    assert holder_acquired.wait(timeout=30.0)
+    assert lock_path.exists()
+
+    contender_acquired = threading.Event()
+
+    def contend() -> None:
+        with exclusive_lock(lock_path):
+            contender_acquired.set()
+
+    contender = threading.Thread(target=contend, daemon=True)
+    contender.start()
+    assert not contender_acquired.wait(timeout=0.2), (
+        "the second acquire succeeded while the first still held the lock"
+    )
+    release_holder.set()
+    holder.join(timeout=30.0)
+    assert contender_acquired.wait(timeout=30.0)
+    contender.join(timeout=30.0)
 
 
 def test_default_locks_dir_follows_session_store(
