@@ -142,10 +142,10 @@ Acceptance examples 1 to 14 map to Tasks 3 to 6 and Task 8: example 1 (minimal f
 
 **Check:** the four Commands-section commands. Expected: all pass.
 
-- [ ] Write the failing tests for the behaviors above. Run them and check that each fails for the expected reason
-- [ ] Implement the interface and behavior
-- [ ] Run verification (tests, lint, type check)
-- [ ] Commit: `git add extensions/superpowers-subagent/superpowers_subagent/mapping.py extensions/superpowers-subagent/superpowers_subagent/locking.py extensions/superpowers-subagent/tests/test_mapping.py extensions/superpowers-subagent/tests/test_locking.py && git commit -m "feat: add session-agent mapping module"`
+- [x] Write the failing tests for the behaviors above. Run them and check that each fails for the expected reason
+- [x] Implement the interface and behavior
+- [x] Run verification (tests, lint, type check)
+- [x] Commit: `git add extensions/superpowers-subagent/superpowers_subagent/mapping.py extensions/superpowers-subagent/superpowers_subagent/locking.py extensions/superpowers-subagent/tests/test_mapping.py extensions/superpowers-subagent/tests/test_locking.py && git commit -m "feat: add session-agent mapping module"`
 
 ### Task 2: Config-file reasoning-effort key rename
 
