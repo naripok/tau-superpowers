@@ -254,8 +254,8 @@ class TaskDispatcher:
 
         Without a catalog the check is skipped. The resolution mirrors
         ``_dispatch_child`` exactly, so an accepted pair is the pair the child
-        would actually receive. On a resume, ``agent_name`` is the mapped name,
-        so the mapped agent's config section keys the check.
+        receives. On a resume, ``agent_name`` is the mapped name, so the mapped
+        agent's config section keys the check.
         """
 
         if self.catalog_fn is None:

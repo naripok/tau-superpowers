@@ -39,6 +39,19 @@ from superpowers_subagent.runner import ResumeFailure
 from superpowers_subagent.utils import parse_status, resolve_child_cwd
 
 
+@pytest.fixture(autouse=True)
+def _redirect_home(isolated_home: Path) -> None:
+    """Redirect HOME for every test in this module.
+
+    A fresh dispatch through the real ``TaskDispatcher`` writes the session-agent
+    mapping under ``$HOME`` before the child spawns, so no test here may run
+    against the developer's real home. Tests that need the home path declare
+    ``isolated_home`` themselves and receive the same instance.
+    """
+
+    del isolated_home
+
+
 class FakeUi:
     def __init__(self, *, has_ui: bool = False, answer: bool = False) -> None:
         self.has_ui = has_ui
