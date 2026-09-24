@@ -289,10 +289,10 @@ This task replaces the named fallback and note tests above (`test_runner_missing
 
 **Check:** the four Commands-section commands. Expected: all pass.
 
-- [ ] Write the failing tests for the behaviors above. Run them and check that each fails for the expected reason
-- [ ] Implement the interface and behavior
-- [ ] Run verification (tests, lint, type check)
-- [ ] Commit: `git add extensions/superpowers-subagent/superpowers_subagent/runner.py extensions/superpowers-subagent/superpowers_subagent/models.py extensions/superpowers-subagent/superpowers_subagent/dispatch.py extensions/superpowers-subagent/tests/ && git commit -m "feat: wire the session-agent mapping and fail closed on resume"`
+- [x] Write the failing tests for the behaviors above. Run them and check that each fails for the expected reason
+- [x] Implement the interface and behavior
+- [x] Run verification (tests, lint, type check)
+- [x] Commit: `git add extensions/superpowers-subagent/superpowers_subagent/runner.py extensions/superpowers-subagent/superpowers_subagent/models.py extensions/superpowers-subagent/superpowers_subagent/dispatch.py extensions/superpowers-subagent/tests/ && git commit -m "feat: wire the session-agent mapping and fail closed on resume"`
 
 ### Task 5: Call-level parameters and per-call environment control removed
 
