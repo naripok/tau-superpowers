@@ -66,6 +66,21 @@ def render_task_call(arguments: Mapping[str, JSONValue]) -> str:
     return f"▸ Task · {escape(label)}"
 
 
+def render_resume_call(arguments: Mapping[str, JSONValue]) -> str:
+    """Render one concise task_resume invocation line for Tau frontends.
+
+    The label names the resume operation and the requested ``task_id``, and
+    never names an agent: the mapped agent is not a call argument. Tau
+    frontends render tool invocations as plain text, so this line must not
+    contain markup tags.
+    """
+
+    task_id = arguments.get("task_id")
+    if isinstance(task_id, str) and task_id:
+        return f"▸ Task · resume {escape(task_id)}"
+    return "▸ Task · resume"
+
+
 def _effective_subagent_type(arguments: Mapping[str, JSONValue]) -> str:
     """Resolve the label's agent name the way dispatch does: trimmed
     ``subagent_type`` when the caller supplied one, else ``general-purpose``."""

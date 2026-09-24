@@ -1,4 +1,4 @@
-"""Flat single-object task surface: validation, envelope, and single-child dispatch."""
+"""Two-tool task surface: per-tool validation, envelope, and single-child dispatch."""
 
 from __future__ import annotations
 
@@ -26,6 +26,7 @@ from superpowers_subagent.dispatch import (
 )
 from superpowers_subagent.mapping import (
     MappingWriteError,
+    default_mapping_path,
     read_mapping_entry,
     write_mapping_entry,
 )
@@ -334,18 +335,33 @@ def make_result(**overrides: Any) -> ChildResult:
 
 
 # ---------------------------------------------------------------------------
-# Validation: the flat field surface
+# Validation: the per-tool field surfaces
 # ---------------------------------------------------------------------------
 
 
 def test_validation_rejects_unknown_fields() -> None:
     with pytest.raises(ValidationFailure) as single:
-        validate_arguments({"prompt": "work", "mode": "fast"})
+        validate_arguments({"prompt": "work", "mode": "fast"}, "fresh")
     assert str(single.value) == "unknown field(s): mode"
 
     with pytest.raises(ValidationFailure) as several:
-        validate_arguments({"prompt": "work", "zzz": 1, "aaa": 2})
+        validate_arguments({"prompt": "work", "zzz": 1, "aaa": 2}, "fresh")
     assert str(several.value) == "unknown field(s): aaa, zzz"
+
+
+def test_validation_rejects_task_only_fields_on_resume() -> None:
+    """Prove a task_resume call that carries a task-only or removed field fails
+    closed as an unknown field: the resume surface is exactly its three fields."""
+
+    for field in ("subagent_type", "description"):
+        with pytest.raises(ValidationFailure) as excinfo:
+            validate_arguments({"prompt": "work", field: "x"}, "resume")
+        assert str(excinfo.value) == f"unknown field(s): {field}"
+    for field in ("cwd", "agentScope"):
+        with pytest.raises(ValidationFailure) as excinfo:
+            validate_arguments({"prompt": "work", field: "x"}, "resume")
+        assert str(excinfo.value).startswith(f"unknown field(s): {field}. ")
+        assert "capability is removed" in str(excinfo.value)
 
 
 def test_validation_rejects_the_tasks_array_surface_as_unknown() -> None:
@@ -355,112 +371,165 @@ def test_validation_rejects_the_tasks_array_surface_as_unknown() -> None:
         {"prompt": "work", "chain": [{"agent": "a", "task": "x"}]},
     ):
         with pytest.raises(ValidationFailure) as excinfo:
-            validate_arguments(arguments)
+            validate_arguments(arguments, "fresh")
         assert "unknown field(s)" in str(excinfo.value)
 
 
 def test_validation_rejects_background_with_the_dedicated_message() -> None:
-    with pytest.raises(ValidationFailure) as excinfo:
-        validate_arguments({"prompt": "work", "background": True})
+    for mode in ("fresh", "resume"):
+        with pytest.raises(ValidationFailure) as excinfo:
+            validate_arguments({"prompt": "work", "background": True}, mode)
 
-    message = str(excinfo.value)
-    assert message.startswith("background dispatch is not supported in this harness")
-    assert (
-        "The result of a task call arrives when the child finishes; use several "
-        "task calls in one message to run children in parallel." in message
-    )
+        message = str(excinfo.value)
+        assert message.startswith("background dispatch is not supported in this harness")
+        assert (
+            "The result arrives when the child finishes; several calls of the same tool "
+            "in one message run children in parallel." in message
+        )
 
 
+@pytest.mark.parametrize("mode", ["fresh", "resume"])
 @pytest.mark.parametrize("prompt", [None, 5, "", "   "])
-def test_validation_requires_a_non_empty_string_prompt(prompt: Any) -> None:
+def test_validation_requires_a_non_empty_string_prompt(mode: str, prompt: Any) -> None:
     arguments = {} if prompt is None else {"prompt": prompt}
     with pytest.raises(ValidationFailure) as excinfo:
-        validate_arguments(arguments)
+        validate_arguments(arguments, mode)
     assert str(excinfo.value) == "prompt requires a non-empty string"
 
 
 def test_validation_preserves_the_prompt_verbatim() -> None:
-    request = validate_arguments({"prompt": "  keep my  spacing "})
+    request = validate_arguments({"prompt": "  keep my  spacing "}, "fresh")
     assert request.prompt == "  keep my  spacing "
 
 
+def test_validation_records_the_mode_on_the_parsed_request() -> None:
+    """Prove the parsed request carries the calling tool's mode explicitly, so
+    every downstream step keys on the mode instead of inferring it."""
+
+    assert validate_arguments({"prompt": "work"}, "fresh").mode == "fresh"
+    resume = validate_arguments({"prompt": "work", "task_id": "task-1"}, "resume")
+    assert resume.mode == "resume"
+
+
 def test_validation_trims_subagent_type_and_defaults_to_general_purpose() -> None:
-    trimmed = validate_arguments({"prompt": "work", "subagent_type": " read-only "})
+    trimmed = validate_arguments({"prompt": "work", "subagent_type": " read-only "}, "fresh")
     assert trimmed.subagent_type == "read-only"
 
-    omitted = validate_arguments({"prompt": "work"})
+    omitted = validate_arguments({"prompt": "work"}, "fresh")
     assert omitted.subagent_type == "general-purpose"
 
 
 @pytest.mark.parametrize("value", [5, "   "])
 def test_validation_rejects_whitespace_or_non_string_subagent_type(value: Any) -> None:
     with pytest.raises(ValidationFailure) as excinfo:
-        validate_arguments({"prompt": "work", "subagent_type": value})
+        validate_arguments({"prompt": "work", "subagent_type": value}, "fresh")
     assert str(excinfo.value) == "subagent_type requires a non-empty string when present"
 
 
+def test_validation_task_call_rejects_task_id_and_names_the_resume_tool() -> None:
+    """Prove a task call carrying task_id fails closed with a reason that names
+    task_resume as the tool that continues a child session and shows a
+    task_resume example carrying prompt and task_id."""
+
+    with pytest.raises(ValidationFailure) as excinfo:
+        validate_arguments({"prompt": "work", "task_id": "task-7"}, "fresh")
+
+    message = str(excinfo.value)
+    assert message.startswith("task_id is not a task parameter")
+    assert "task_resume" in message
+    assert '"prompt"' in message and '"task_id"' in message
+
+
+def test_validation_background_precedes_the_task_id_rejection() -> None:
+    """Prove the background check runs before the cross-tool task_id check: a
+    task call carrying both gets the background teach-back, not the resume one."""
+
+    with pytest.raises(ValidationFailure) as excinfo:
+        validate_arguments({"prompt": "work", "background": True, "task_id": "task-7"}, "fresh")
+
+    assert str(excinfo.value).startswith("background dispatch is not supported in this harness")
+
+
 def test_validation_trims_task_id() -> None:
-    request = validate_arguments(
-        {"prompt": "work", "subagent_type": "read-only", "task_id": " task-7 "}
-    )
+    request = validate_arguments({"prompt": "work", "task_id": " task-7 "}, "resume")
     assert request.task_id == "task-7"
 
 
-@pytest.mark.parametrize("value", [5, "   "])
-def test_validation_rejects_whitespace_or_non_string_task_id(value: Any) -> None:
+@pytest.mark.parametrize("task_id", [None, 5, "   "])
+def test_validation_resume_requires_a_non_empty_task_id(task_id: Any) -> None:
+    """Prove a task_resume call without task_id, with a non-string task_id, or
+    with a whitespace-only task_id fails closed with the required-field reason."""
+
+    arguments: dict[str, Any] = {"prompt": "work"}
+    if task_id is not None:
+        arguments["task_id"] = task_id
     with pytest.raises(ValidationFailure) as excinfo:
-        validate_arguments({"prompt": "work", "subagent_type": "read-only", "task_id": value})
-    assert str(excinfo.value) == "task_id requires a non-empty string when present"
-
-
-def test_validation_task_id_requires_subagent_type_and_names_both_fields() -> None:
-    with pytest.raises(ValidationFailure) as excinfo:
-        validate_arguments({"prompt": "work", "task_id": "task-7"})
-
-    message = str(excinfo.value)
-    assert "task_id" in message
-    assert "subagent_type" in message
+        validate_arguments(arguments, "resume")
+    assert str(excinfo.value) == "task_id is required and requires a non-empty string"
 
 
 def test_validation_description_is_an_optional_string() -> None:
-    request = validate_arguments({"prompt": "work", "description": "  brief  "})
+    request = validate_arguments({"prompt": "work", "description": "  brief  "}, "fresh")
     assert request.description == "  brief  "
-    assert validate_arguments({"prompt": "work"}).description is None
+    assert validate_arguments({"prompt": "work"}, "fresh").description is None
 
     with pytest.raises(ValidationFailure) as description:
-        validate_arguments({"prompt": "work", "description": 5})
+        validate_arguments({"prompt": "work", "description": 5}, "fresh")
     assert str(description.value) == "description must be a string"
 
 
+@pytest.mark.parametrize("mode", ["fresh", "resume"])
 @pytest.mark.parametrize("value", [0, -1, -0.5, 10801, "soon", True])
-def test_validation_rejects_out_of_range_or_non_numeric_timeout(value: Any) -> None:
+def test_validation_rejects_out_of_range_or_non_numeric_timeout(mode: str, value: Any) -> None:
+    arguments: dict[str, Any] = {"prompt": "work", "timeout_seconds": value}
+    if mode == "resume":
+        arguments["task_id"] = "task-1"
     with pytest.raises(ValidationFailure) as excinfo:
-        validate_arguments({"prompt": "work", "timeoutSeconds": value})
-    assert str(excinfo.value) == "timeoutSeconds must be greater than 0 and at most 10800"
+        validate_arguments(arguments, mode)
+    assert str(excinfo.value) == "timeout_seconds must be greater than 0 and at most 10800"
 
 
+@pytest.mark.parametrize("mode", ["fresh", "resume"])
 @pytest.mark.parametrize("seconds", [MAX_TIMEOUT_SECONDS, DEFAULT_TIMEOUT_SECONDS, 90, 0.5])
-def test_validation_accepts_timeout_within_the_cap(seconds: float) -> None:
-    request = validate_arguments({"prompt": "work", "timeoutSeconds": seconds})
+def test_validation_accepts_timeout_within_the_cap(mode: str, seconds: float) -> None:
+    arguments: dict[str, Any] = {"prompt": "work", "timeout_seconds": seconds}
+    if mode == "resume":
+        arguments["task_id"] = "task-1"
+    request = validate_arguments(arguments, mode)
     assert request.timeout_seconds == seconds
-    assert validate_arguments({"prompt": "work"}).timeout_seconds == DEFAULT_TIMEOUT_SECONDS
 
 
-def test_validation_accepts_a_fully_populated_flat_call() -> None:
-    request = validate_arguments(
+@pytest.mark.parametrize("mode", ["fresh", "resume"])
+def test_validation_defaults_the_timeout_to_3600(mode: str) -> None:
+    arguments: dict[str, Any] = {"prompt": "work"}
+    if mode == "resume":
+        arguments["task_id"] = "task-1"
+    assert validate_arguments(arguments, mode).timeout_seconds == DEFAULT_TIMEOUT_SECONDS
+
+
+def test_validation_accepts_fully_populated_calls_on_both_tools() -> None:
+    task_request = validate_arguments(
         {
             "prompt": "  keep my  spacing ",
             "subagent_type": " read-only ",
             "description": "  brief  ",
-            "task_id": " task-7 ",
-            "timeoutSeconds": 2.5,
-        }
+            "timeout_seconds": 2.5,
+        },
+        "fresh",
     )
-    assert request.prompt == "  keep my  spacing "
-    assert request.subagent_type == "read-only"
-    assert request.description == "  brief  "
-    assert request.task_id == "task-7"
-    assert request.timeout_seconds == 2.5
+    assert task_request.mode == "fresh"
+    assert task_request.prompt == "  keep my  spacing "
+    assert task_request.subagent_type == "read-only"
+    assert task_request.description == "  brief  "
+    assert task_request.timeout_seconds == 2.5
+
+    resume_request = validate_arguments(
+        {"prompt": "continue", "task_id": " task-7 ", "timeout_seconds": 2.5},
+        "resume",
+    )
+    assert resume_request.mode == "resume"
+    assert resume_request.task_id == "task-7"
+    assert resume_request.timeout_seconds == 2.5
 
 
 # ---------------------------------------------------------------------------
@@ -469,9 +538,10 @@ def test_validation_accepts_a_fully_populated_flat_call() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("mode", ["fresh", "resume"])
 @pytest.mark.parametrize("field", ("provider", "model", "reasoningEffort"))
 async def test_removed_override_fields_fail_closed_with_the_pin_sentence(
-    tmp_path: Path, field: str
+    tmp_path: Path, mode: str, field: str
 ) -> None:
     """Prove a removed call-level override field fails closed, starts no child,
     and the teach-back names the removal of the call-level override and directs
@@ -479,7 +549,9 @@ async def test_removed_override_fields_fail_closed_with_the_pin_sentence(
     [agents.<name>]) or the agent definition's frontmatter."""
 
     runner = FakeRunner()
-    result = await make_dispatcher(tmp_path, runner).execute({"prompt": "work", field: "x"})
+    result = await make_dispatcher(tmp_path, runner).execute(
+        {"prompt": "work", field: "x"}, mode=mode
+    )
 
     assert result.text.startswith(f"Invalid parameters: unknown field(s): {field}")
     assert "override is removed" in result.text
@@ -493,9 +565,10 @@ async def test_removed_override_fields_fail_closed_with_the_pin_sentence(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("mode", ["fresh", "resume"])
 @pytest.mark.parametrize("field", ("cwd", "agentScope", "confirmProjectAgents"))
 async def test_removed_environment_fields_fail_closed_with_the_fixed_behavior_sentence(
-    tmp_path: Path, field: str
+    tmp_path: Path, mode: str, field: str
 ) -> None:
     """Prove a removed environment or approval field fails closed, starts no
     child, and the teach-back names the removal of the call-level capability and
@@ -503,7 +576,9 @@ async def test_removed_environment_fields_fail_closed_with_the_fixed_behavior_se
     directory and discovery covers all agent layers."""
 
     runner = FakeRunner()
-    result = await make_dispatcher(tmp_path, runner).execute({"prompt": "work", field: "x"})
+    result = await make_dispatcher(tmp_path, runner).execute(
+        {"prompt": "work", field: "x"}, mode=mode
+    )
 
     assert result.text.startswith(f"Invalid parameters: unknown field(s): {field}")
     assert "capability is removed" in result.text
@@ -515,8 +590,9 @@ async def test_removed_environment_fields_fail_closed_with_the_fixed_behavior_se
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("mode", ["fresh", "resume"])
 async def test_removed_field_teach_back_wins_over_other_invalid_arguments(
-    tmp_path: Path,
+    tmp_path: Path, mode: str
 ) -> None:
     """Prove a removed field alongside another invalid argument still gets the
     removed-field teach-back: the unknown-field check runs before the value
@@ -524,12 +600,32 @@ async def test_removed_field_teach_back_wins_over_other_invalid_arguments(
 
     runner = FakeRunner()
     result = await make_dispatcher(tmp_path, runner).execute(
-        {"prompt": "work", "agentScope": "both", "timeoutSeconds": 0}
+        {"prompt": "work", "agentScope": "both", "timeout_seconds": 0}, mode=mode
     )
 
     assert result.text.startswith("Invalid parameters: unknown field(s): agentScope")
     assert "capability is removed" in result.text
-    assert "timeoutSeconds must be greater than 0" not in result.text
+    assert "timeout_seconds must be greater than 0" not in result.text
+    assert runner.calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode", ["fresh", "resume"])
+async def test_camelcase_timeout_teach_back_names_the_snake_case_field(
+    tmp_path: Path, mode: str
+) -> None:
+    """Prove the camelCase timeoutSeconds remnant fails closed as an unknown
+    field whose teach-back shows the snake_case timeout_seconds field."""
+
+    runner = FakeRunner()
+    arguments: dict[str, Any] = {"prompt": "work", "timeoutSeconds": 60}
+    if mode == "resume":
+        arguments["task_id"] = "task-1"
+    result = await make_dispatcher(tmp_path, runner).execute(arguments, mode=mode)
+
+    assert result.text.startswith("Invalid parameters: unknown field(s): timeoutSeconds")
+    assert "timeout_seconds" in result.text
+    assert result.details["results"] == []
     assert runner.calls == []
 
 
@@ -636,53 +732,70 @@ def test_envelope_inner_content_is_verbatim() -> None:
 # Fail-closed dispatch: teach-backs
 # ---------------------------------------------------------------------------
 
-TEACH_BACK_CASES: list[tuple[dict[str, Any], str]] = [
-    ({"prompt": "work", "mode": "fast"}, "unknown field(s): mode"),
+TEACH_BACK_CASES: list[tuple[str, dict[str, Any], str]] = [
+    ("fresh", {"prompt": "work", "mode": "fast"}, "unknown field(s): mode"),
+    ("resume", {"prompt": "work", "subagent_type": "read-only"}, "unknown field(s): subagent_type"),
+    ("resume", {"prompt": "work", "description": "label"}, "unknown field(s): description"),
+    ("resume", {"prompt": "work", "cwd": "/tmp"}, "unknown field(s): cwd"),
     (
+        "fresh",
         {"prompt": "work", "background": True},
         "background dispatch is not supported in this harness",
     ),
-    ({}, "prompt requires a non-empty string"),
-    ({"prompt": "   "}, "prompt requires a non-empty string"),
     (
+        "resume",
+        {"prompt": "work", "background": True},
+        "background dispatch is not supported in this harness",
+    ),
+    ("fresh", {}, "prompt requires a non-empty string"),
+    ("resume", {}, "prompt requires a non-empty string"),
+    ("fresh", {"prompt": "   "}, "prompt requires a non-empty string"),
+    (
+        "fresh",
         {"prompt": "work", "subagent_type": "   "},
         "subagent_type requires a non-empty string when present",
     ),
     (
+        "fresh",
         {"prompt": "work", "subagent_type": 5},
         "subagent_type requires a non-empty string when present",
     ),
+    ("resume", {"prompt": "work"}, "task_id is required and requires a non-empty string"),
     (
+        "resume",
         {"prompt": "work", "task_id": "   "},
-        "task_id requires a non-empty string when present",
+        "task_id is required and requires a non-empty string",
     ),
     (
+        "resume",
         {"prompt": "work", "task_id": 5},
-        "task_id requires a non-empty string when present",
-    ),
-    ({"prompt": "work", "task_id": "task-1"}, "task_id requires subagent_type"),
-    (
-        {"prompt": "work", "timeoutSeconds": 0},
-        "timeoutSeconds must be greater than 0 and at most 10800",
+        "task_id is required and requires a non-empty string",
     ),
     (
-        {"prompt": "work", "timeoutSeconds": -0.5},
-        "timeoutSeconds must be greater than 0 and at most 10800",
+        "fresh",
+        {"prompt": "work", "timeout_seconds": 0},
+        "timeout_seconds must be greater than 0 and at most 10800",
     ),
     (
-        {"prompt": "work", "timeoutSeconds": 10801},
-        "timeoutSeconds must be greater than 0 and at most 10800",
+        "fresh",
+        {"prompt": "work", "timeout_seconds": -0.5},
+        "timeout_seconds must be greater than 0 and at most 10800",
+    ),
+    (
+        "resume",
+        {"prompt": "work", "task_id": "task-1", "timeout_seconds": 10801},
+        "timeout_seconds must be greater than 0 and at most 10800",
     ),
 ]
 
 
-@pytest.mark.parametrize(["arguments", "message"], TEACH_BACK_CASES)
+@pytest.mark.parametrize(["mode", "arguments", "message"], TEACH_BACK_CASES)
 @pytest.mark.asyncio
 async def test_invalid_calls_fail_closed_with_teach_back(
-    tmp_path: Path, arguments: dict[str, Any], message: str
+    tmp_path: Path, mode: str, arguments: dict[str, Any], message: str
 ) -> None:
     runner = FakeRunner()
-    result = await make_dispatcher(tmp_path, runner).execute(arguments)
+    result = await make_dispatcher(tmp_path, runner).execute(arguments, mode=mode)
 
     assert result.text.startswith("Invalid parameters: ")
     assert message in result.text
@@ -695,12 +808,15 @@ async def test_invalid_calls_fail_closed_with_teach_back(
 @pytest.mark.asyncio
 async def test_fail_closed_result_carries_the_teach_back_contract(tmp_path: Path) -> None:
     runner = FakeRunner()
-    result = await make_dispatcher(tmp_path, runner).execute({"prompt": "work", "mode": "fast"})
+    result = await make_dispatcher(tmp_path, runner).execute(
+        {"prompt": "work", "mode": "fast"}, mode="fresh"
+    )
 
     assert result.text.startswith("Invalid parameters: unknown field(s): mode")
     assert "Available agents:" in result.text
     assert "general-purpose (bundled)" in result.text
     assert 'Example: {"prompt": "Find caching options"}' in result.text
+    assert "provider, model, and thinking level" in result.text
     assert "<task" not in result.text
     assert result.details["schemaVersion"] == 2
     assert "mode" not in result.details
@@ -710,28 +826,95 @@ async def test_fail_closed_result_carries_the_teach_back_contract(tmp_path: Path
 
 
 @pytest.mark.asyncio
-async def test_background_teach_back_names_the_parallel_alternative(tmp_path: Path) -> None:
-    runner = FakeRunner()
-    result = await make_dispatcher(tmp_path, runner).execute({"prompt": "work", "background": True})
+async def test_resume_teach_back_names_the_fields_and_the_mapping_without_a_roster(
+    tmp_path: Path,
+) -> None:
+    """Prove a resume teach-back names the three task_resume fields and the
+    session-agent mapping and lists no agents: the resume caller cannot select
+    an agent, and a roster re-creates the removed agent-invention surface."""
 
-    assert "The result of a task call arrives when the child finishes" in result.text
-    assert "use several task calls in one message to run children in parallel" in result.text
-    assert "Available agents:" in result.text
-    assert 'Example: {"prompt": "Find caching options"}' in result.text
+    runner = FakeRunner()
+    result = await make_dispatcher(tmp_path, runner).execute(
+        {"prompt": "work", "subagent_type": "read-only"}, mode="resume"
+    )
+
+    assert result.text.startswith("Invalid parameters: unknown field(s): subagent_type")
+    assert "prompt (required), task_id (required), timeout_seconds (optional)" in result.text
+    assert "session-agent mapping" in result.text
+    assert str(default_mapping_path()) in result.text
+    assert "Available agents:" not in result.text
+    assert "read-only (bundled)" not in result.text
+    assert "<task" not in result.text
+    assert result.details["results"] == []
+    assert "planned" not in result.details
     assert runner.calls == []
 
 
 @pytest.mark.asyncio
-async def test_task_id_without_subagent_type_teach_back_names_both_fields(
-    tmp_path: Path,
+@pytest.mark.parametrize("mode", ["fresh", "resume"])
+async def test_background_teach_back_names_the_parallel_alternative(
+    tmp_path: Path, mode: str
 ) -> None:
+    """Prove the dedicated background teach-back fires on both tools, bypassing
+    the composer: it carries no roster and no example on either tool."""
+
     runner = FakeRunner()
     result = await make_dispatcher(tmp_path, runner).execute(
-        {"prompt": "work", "task_id": "task-1"}
+        {"prompt": "work", "background": True}, mode=mode
     )
 
-    assert "task_id requires subagent_type" in result.text
-    assert "task_id" in result.text and "subagent_type" in result.text
+    assert result.text == (
+        "Invalid parameters: background dispatch is not supported in this harness. The "
+        "result arrives when the child finishes; several calls of the same tool in one "
+        "message run children in parallel."
+    )
+    assert "Available agents:" not in result.text
+    assert "Example:" not in result.text
+    assert "timeout_seconds" not in result.text
+    assert result.details["results"] == []
+    assert "planned" not in result.details
+    assert runner.calls == []
+
+
+@pytest.mark.asyncio
+async def test_task_call_with_task_id_fails_closed_naming_the_resume_tool(
+    tmp_path: Path,
+) -> None:
+    """Prove a task call carrying task_id fails closed with the task_resume
+    teach-back before any other argument validation, and the composed context
+    still carries the task roster and example."""
+
+    runner = FakeRunner()
+    result = await make_dispatcher(tmp_path, runner).execute(
+        {"prompt": "work", "task_id": "task-1", "timeout_seconds": 0}, mode="fresh"
+    )
+
+    assert result.text.startswith("Invalid parameters: task_id is not a task parameter")
+    assert "task_resume" in result.text
+    assert '"prompt"' in result.text and '"task_id"' in result.text
+    assert "timeout_seconds must be greater than 0" not in result.text
+    assert "Available agents:" in result.text
+    assert 'Example: {"prompt": "Find caching options"}' in result.text
+    assert result.details["results"] == []
+    assert "planned" not in result.details
+    assert runner.calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode", ["fresh", "resume"])
+async def test_background_check_precedes_the_task_id_rejection_on_execute(
+    tmp_path: Path, mode: str
+) -> None:
+    """Prove a call carrying both background and task_id gets the background
+    teach-back on either tool."""
+
+    runner = FakeRunner()
+    result = await make_dispatcher(tmp_path, runner).execute(
+        {"prompt": "work", "background": True, "task_id": "task-1"}, mode=mode
+    )
+
+    assert "background dispatch is not supported in this harness" in result.text
+    assert "task_id is not a task parameter" not in result.text
     assert runner.calls == []
 
 
@@ -762,7 +945,7 @@ async def test_unknown_provider_fails_fast_before_children(tmp_path: Path) -> No
         runner,
         config=config,
         catalog_fn=lambda: _FAKE_CATALOG,
-    ).execute({"prompt": "work", "subagent_type": "read-only"})
+    ).execute({"prompt": "work", "subagent_type": "read-only"}, mode="fresh")
 
     assert "not a configured Tau provider" in result.text
     assert "openai, openrouter" in result.text
@@ -790,7 +973,7 @@ async def test_unsupported_model_fails_fast_before_children(tmp_path: Path) -> N
         runner,
         config=config,
         catalog_fn=lambda: _FAKE_CATALOG,
-    ).execute({"prompt": "work", "subagent_type": "read-only"})
+    ).execute({"prompt": "work", "subagent_type": "read-only"}, mode="fresh")
 
     assert "not configured for provider 'openrouter'" in result.text
     assert "z-ai/glm-5.3" in result.text
@@ -818,7 +1001,7 @@ async def test_parent_running_pair_passes_catalog_validation(tmp_path: Path) -> 
         parent_provider="session-provider",
         parent_model="session-model",
         catalog_fn=lambda: _FAKE_CATALOG,
-    ).execute({"prompt": "work", "subagent_type": "read-only"})
+    ).execute({"prompt": "work", "subagent_type": "read-only"}, mode="fresh")
 
     assert len(runner.calls) == 1
     assert not result.text.startswith("Invalid parameters")
@@ -832,7 +1015,7 @@ async def test_missing_catalog_skips_validation(tmp_path: Path) -> None:
     runner = FakeRunner()
     config = SubagentConfig(agents=(("read-only", AgentOverrides(provider="bogus-provider")),))
     await make_dispatcher(tmp_path, runner, config=config, catalog_fn=lambda: None).execute(
-        {"prompt": "work", "subagent_type": "read-only"}
+        {"prompt": "work", "subagent_type": "read-only"}, mode="fresh"
     )
 
     assert len(runner.calls) == 1
@@ -850,7 +1033,7 @@ async def test_unknown_agent_never_reaches_catalog_validation(tmp_path: Path) ->
     )
     result = await make_dispatcher(
         tmp_path, runner, config=config, catalog_fn=lambda: _FAKE_CATALOG
-    ).execute({"prompt": "work", "subagent_type": "missing"})
+    ).execute({"prompt": "work", "subagent_type": "missing"}, mode="fresh")
 
     assert result.text.startswith("Invalid parameters: unknown agent 'missing'")
     assert "not a configured Tau provider" not in result.text
@@ -867,7 +1050,7 @@ async def test_catalog_validates_resolved_agent_pins(tmp_path: Path) -> None:
         runner,
         parent_provider="openai",
         catalog_fn=lambda: _FAKE_CATALOG,
-    ).execute({"prompt": "work", "subagent_type": "general-purpose"})
+    ).execute({"prompt": "work", "subagent_type": "general-purpose"}, mode="fresh")
 
     # make_discovery pins general-purpose to provider 'agent-provider': unresolvable.
     assert "not a configured Tau provider" in result.text
@@ -884,7 +1067,7 @@ async def test_catalog_validates_resolved_agent_pins(tmp_path: Path) -> None:
 async def test_unknown_agent_fails_closed_with_roster(tmp_path: Path) -> None:
     runner = FakeRunner()
     result = await make_dispatcher(tmp_path, runner).execute(
-        {"prompt": "work", "subagent_type": "missing"}
+        {"prompt": "work", "subagent_type": "missing"}, mode="fresh"
     )
 
     assert result.text.startswith("Invalid parameters: unknown agent 'missing'")
@@ -905,7 +1088,7 @@ async def test_unknown_agent_teach_back_names_project_agents(tmp_path: Path) -> 
     roster = "general-purpose (bundled): general-purpose; project-worker (project): Project worker"
     dispatcher = make_dispatcher(tmp_path, runner, roster_text=roster)
 
-    result = await dispatcher.execute({"prompt": "work", "subagent_type": "missing"})
+    result = await dispatcher.execute({"prompt": "work", "subagent_type": "missing"}, mode="fresh")
 
     assert result.text.startswith("Invalid parameters: unknown agent 'missing'")
     assert "Available agents:" in result.text
@@ -922,7 +1105,7 @@ async def test_unknown_agent_teach_back_names_project_agents(tmp_path: Path) -> 
 @pytest.mark.asyncio
 async def test_prompt_only_call_dispatches_one_general_purpose_child(tmp_path: Path) -> None:
     runner = FakeRunner()
-    result = await make_dispatcher(tmp_path, runner).execute({"prompt": "work"})
+    result = await make_dispatcher(tmp_path, runner).execute({"prompt": "work"}, mode="fresh")
 
     assert len(runner.calls) == 1
     call = runner.calls[0]
@@ -944,8 +1127,9 @@ async def test_completed_envelope_relays_the_complete_final_message(tmp_path: Pa
         {
             "prompt": "implement",
             "subagent_type": "general-purpose",
-            "timeoutSeconds": 120,
-        }
+            "timeout_seconds": 120,
+        },
+        mode="fresh",
     )
 
     assert result.text == (
@@ -972,7 +1156,7 @@ async def test_completed_envelope_relays_the_complete_final_message(tmp_path: Pa
 async def test_failed_child_without_final_message_wraps_opencode_form(tmp_path: Path) -> None:
     runner = FakeRunner()
     result = await make_dispatcher(tmp_path, runner).execute(
-        {"prompt": "fail", "subagent_type": "general-purpose"}
+        {"prompt": "fail", "subagent_type": "general-purpose"}, mode="fresh"
     )
 
     assert result.text == (
@@ -989,7 +1173,7 @@ async def test_failed_child_with_final_message_wraps_the_message(tmp_path: Path)
     task_error instead of the OpenCode failure form."""
     runner = FakeRunner()
     result = await make_dispatcher(tmp_path, runner).execute(
-        {"prompt": "error-final", "subagent_type": "general-purpose"}
+        {"prompt": "error-final", "subagent_type": "general-purpose"}, mode="fresh"
     )
 
     assert result.text == (
@@ -1004,7 +1188,7 @@ async def test_failed_child_with_final_message_wraps_the_message(tmp_path: Path)
 async def test_completed_textless_final_message_wraps_placeholder(tmp_path: Path) -> None:
     runner = FakeRunner()
     result = await make_dispatcher(tmp_path, runner).execute(
-        {"prompt": "textless-final", "subagent_type": "general-purpose"}
+        {"prompt": "textless-final", "subagent_type": "general-purpose"}, mode="fresh"
     )
 
     assert result.text == (
@@ -1017,7 +1201,7 @@ async def test_completed_textless_final_message_wraps_placeholder(tmp_path: Path
 async def test_blocked_marker_stays_inside_completed_envelope(tmp_path: Path) -> None:
     runner = FakeRunner()
     result = await make_dispatcher(tmp_path, runner).execute(
-        {"prompt": "semantic-blocked", "subagent_type": "general-purpose"}
+        {"prompt": "semantic-blocked", "subagent_type": "general-purpose"}, mode="fresh"
     )
 
     assert result.text.startswith('<task id="child-session-001" state="completed">')
@@ -1032,7 +1216,7 @@ async def test_review_report_is_relayed_whole_inside_the_envelope(tmp_path: Path
 
     runner = FakeRunner()
     result = await make_dispatcher(tmp_path, runner).execute(
-        {"prompt": "review", "subagent_type": "code-review"}
+        {"prompt": "review", "subagent_type": "code-review"}, mode="fresh"
     )
 
     assert result.text == (
@@ -1058,7 +1242,7 @@ async def test_task_id_reaches_the_runner_as_a_resume_session_selection(
     runner = FakeRunner()
 
     await make_dispatcher(tmp_path, runner).execute(
-        {"prompt": "continue", "subagent_type": "read-only", "task_id": " task-9 "}
+        {"prompt": "continue", "task_id": " task-9 "}, mode="resume"
     )
 
     assert runner.calls[0]["session"] == SessionSelection(id="task-9", resume=True)
@@ -1075,7 +1259,9 @@ async def test_mapping_entry_exists_before_the_child_spawns(
     runner = MappingCheckingRunner()
     dispatcher = make_dispatcher(tmp_path, runner)
 
-    result = await dispatcher.execute({"prompt": "work", "subagent_type": "read-only"})
+    result = await dispatcher.execute(
+        {"prompt": "work", "subagent_type": "read-only"}, mode="fresh"
+    )
 
     assert len(runner.calls) == 1
     session = runner.calls[0]["session"]
@@ -1105,7 +1291,7 @@ async def test_failed_mapping_write_fails_the_dispatch_closed(
     monkeypatch.setattr(dispatch_module, "write_mapping_entry", failing_write)
     runner = FakeRunner()
 
-    result = await make_dispatcher(tmp_path, runner).execute({"prompt": "work"})
+    result = await make_dispatcher(tmp_path, runner).execute({"prompt": "work"}, mode="fresh")
 
     assert runner.calls == []
     assert "mapping" in result.text
@@ -1118,17 +1304,17 @@ async def test_failed_mapping_write_fails_the_dispatch_closed(
 
 
 @pytest.mark.asyncio
-async def test_resume_resolves_the_agent_from_the_mapping_and_ignores_subagent_type(
+async def test_resume_resolves_the_agent_from_the_mapping(
     tmp_path: Path, isolated_home: Path
 ) -> None:
-    """Prove the resume agent comes from the session-agent mapping: the call's
-    own subagent_type selects nothing on a resume."""
+    """Prove the resume agent comes from the session-agent mapping: the call
+    carries no agent name, so the mapped name is the only agent source."""
 
     write_mapping_entry("task-1", "read-only")
     runner = FakeRunner()
 
     result = await make_dispatcher(tmp_path, runner).execute(
-        {"prompt": "continue", "subagent_type": "general-purpose", "task_id": "task-1"}
+        {"prompt": "continue", "task_id": "task-1"}, mode="resume"
     )
 
     assert len(runner.calls) == 1
@@ -1155,7 +1341,7 @@ async def test_missing_mapping_entry_fails_closed_with_the_id_preserved(
     runner = FakeRunner()
 
     result = await make_dispatcher(tmp_path, runner).execute(
-        {"prompt": "continue", "subagent_type": "read-only", "task_id": "task-1"}
+        {"prompt": "continue", "task_id": "task-1"}, mode="resume"
     )
 
     assert runner.calls == []
@@ -1178,7 +1364,7 @@ async def test_unmappable_mapped_name_fails_closed(tmp_path: Path, isolated_home
     runner = FakeRunner()
 
     result = await make_dispatcher(tmp_path, runner).execute(
-        {"prompt": "continue", "subagent_type": "read-only", "task_id": "task-1"}
+        {"prompt": "continue", "task_id": "task-1"}, mode="resume"
     )
 
     assert runner.calls == []
@@ -1202,7 +1388,7 @@ async def test_resume_applies_the_mapped_agents_config_section(
     runner = FakeRunner()
 
     result = await make_dispatcher(tmp_path, runner, config=config).execute(
-        {"prompt": "continue", "subagent_type": "general-purpose", "task_id": "task-1"}
+        {"prompt": "continue", "task_id": "task-1"}, mode="resume"
     )
 
     call = runner.calls[0]
@@ -1224,7 +1410,7 @@ async def test_mapping_entry_without_session_record_fails_closed_before_any_chil
     runner = RecordVerifyingRunner(store)
 
     result = await make_dispatcher(tmp_path, runner).execute(
-        {"prompt": "continue", "subagent_type": "read-only", "task_id": "task-1"}
+        {"prompt": "continue", "task_id": "task-1"}, mode="resume"
     )
 
     assert runner.calls == []
@@ -1236,10 +1422,18 @@ async def test_mapping_entry_without_session_record_fails_closed_before_any_chil
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("mode", ["fresh", "resume"])
 @pytest.mark.parametrize("seconds", [MAX_TIMEOUT_SECONDS, DEFAULT_TIMEOUT_SECONDS, 90])
-async def test_timeout_within_the_cap_reaches_the_child(tmp_path: Path, seconds: float) -> None:
+async def test_timeout_within_the_cap_reaches_the_child(
+    tmp_path: Path, isolated_home: Path, mode: str, seconds: float
+) -> None:
+    del isolated_home
     runner = FakeRunner()
-    await make_dispatcher(tmp_path, runner).execute({"prompt": "work", "timeoutSeconds": seconds})
+    arguments: dict[str, Any] = {"prompt": "work", "timeout_seconds": seconds}
+    if mode == "resume":
+        write_mapping_entry("task-cap", "read-only")
+        arguments["task_id"] = "task-cap"
+    await make_dispatcher(tmp_path, runner).execute(arguments, mode=mode)
 
     assert runner.calls[0]["timeout_seconds"] == seconds
 
@@ -1263,7 +1457,9 @@ async def test_project_agent_dispatches_without_confirmation_or_ui_call(
         discovery_fn=lambda _cwd: make_all_layer_discovery(tmp_path),
     )
 
-    result = await dispatcher.execute({"prompt": "work", "subagent_type": "project-worker"})
+    result = await dispatcher.execute(
+        {"prompt": "work", "subagent_type": "project-worker"}, mode="fresh"
+    )
 
     assert result.text.startswith('<task id="child-session-001" state="completed">')
     assert len(runner.calls) == 1
@@ -1281,7 +1477,7 @@ async def test_project_agent_dispatches_without_confirmation_or_ui_call(
 async def test_details_carry_schema_v2_planned_and_task_id(tmp_path: Path) -> None:
     runner = FakeRunner()
     result = await make_dispatcher(tmp_path, runner).execute(
-        {"prompt": "work", "subagent_type": "read-only", "description": "label"}
+        {"prompt": "work", "subagent_type": "read-only", "description": "label"}, mode="fresh"
     )
 
     details = result.details
@@ -1326,6 +1522,7 @@ async def test_single_dispatch_feeds_usage_observer(tmp_path: Path) -> None:
         {"prompt": "task-one", "subagent_type": "general-purpose"},
         signal=None,
         on_update=None,
+        mode="fresh",
     )
 
     assert calls.calls, "observer was never fed"
@@ -1351,7 +1548,7 @@ async def test_validation_failure_never_feeds_usage_observer(tmp_path: Path) -> 
     runner = FakeRunner()
     dispatcher = make_dispatcher(tmp_path, runner, usage_observer=calls.record)
 
-    await dispatcher.execute({"mode": "fast"}, signal=None, on_update=None)
+    await dispatcher.execute({"mode": "fast"}, signal=None, on_update=None, mode="fresh")
 
     assert calls.calls == []
 
@@ -1374,6 +1571,7 @@ async def test_usage_observation_precedes_update_delivery(tmp_path: Path) -> Non
         {"prompt": "task-one", "subagent_type": "general-purpose"},
         signal=None,
         on_update=lambda _report: events.append("update"),
+        mode="fresh",
     )
 
     assert events[0] == "observer"
@@ -1393,6 +1591,7 @@ async def test_partial_updates_carry_progress_and_the_final_carries_the_envelope
     result = await make_dispatcher(tmp_path, runner).execute(
         {"prompt": "implement", "subagent_type": "general-purpose"},
         on_update=updates.append,
+        mode="fresh",
     )
 
     assert [update.text for update in updates] == ["0/1 done", "0/1 done", "1/1 done"]
@@ -1423,13 +1622,7 @@ async def test_concurrent_executes_run_children_in_parallel(
 
     results = await asyncio.gather(
         *[
-            dispatcher.execute(
-                {
-                    "prompt": prompt,
-                    "subagent_type": "read-only",
-                    "task_id": f"task-{index}",
-                }
-            )
+            dispatcher.execute({"prompt": prompt, "task_id": f"task-{index}"}, mode="resume")
             for index, prompt in enumerate(("call-0", "fail", "call-2"))
         ]
     )
@@ -1453,14 +1646,11 @@ async def test_same_task_id_calls_exclude_each_other(tmp_path: Path, isolated_ho
     write_mapping_entry("shared-id", "read-only")
     runner = FakeRunner()
     dispatcher = make_dispatcher(tmp_path, runner)
-    arguments: dict[str, Any] = {
-        "prompt": "shared work",
-        "subagent_type": "read-only",
-        "task_id": "shared-id",
-    }
+    arguments: dict[str, Any] = {"prompt": "shared work", "task_id": "shared-id"}
 
     first, second = await asyncio.gather(
-        dispatcher.execute(arguments), dispatcher.execute(arguments)
+        dispatcher.execute(arguments, mode="resume"),
+        dispatcher.execute(arguments, mode="resume"),
     )
 
     envelopes = [result for result in (first, second) if "<task " in result.text]
@@ -1472,11 +1662,14 @@ async def test_same_task_id_calls_exclude_each_other(tmp_path: Path, isolated_ho
         "Invalid parameters: another running task call already holds task_id 'shared-id'."
     )
     assert "Wait for that call to finish or use a different task_id." in loser.text
+    assert "prompt (required), task_id (required), timeout_seconds (optional)" in loser.text
+    assert "session-agent mapping" in loser.text
+    assert "Available agents:" not in loser.text
     assert loser.details["results"] == []
     assert "planned" not in loser.details
     assert len(runner.calls) == 1
 
-    released = await dispatcher.execute(arguments)
+    released = await dispatcher.execute(arguments, mode="resume")
     assert "<task " in released.text
 
 
@@ -1496,7 +1689,9 @@ async def test_single_uses_parent_provider_and_model_when_agent_is_unpinned(
         tmp_path, runner, parent_provider="openai", parent_model="gpt-5.6-sol"
     )
 
-    result = await dispatcher.execute({"prompt": "work", "subagent_type": "read-only"})
+    result = await dispatcher.execute(
+        {"prompt": "work", "subagent_type": "read-only"}, mode="fresh"
+    )
 
     call = runner.calls[0]
     assert call["parent_provider"] == "openai"
@@ -1517,7 +1712,9 @@ async def test_single_inherits_parent_thinking_level_by_default(tmp_path: Path) 
         parent_reasoning_effort="medium",
     )
 
-    result = await dispatcher.execute({"prompt": "work", "subagent_type": "read-only"})
+    result = await dispatcher.execute(
+        {"prompt": "work", "subagent_type": "read-only"}, mode="fresh"
+    )
 
     call = runner.calls[0]
     assert call["parent_reasoning_effort"] == "medium"
@@ -1540,7 +1737,9 @@ async def test_config_agent_overrides_shadow_agent_definition(tmp_path: Path) ->
     )
     dispatcher = make_dispatcher(tmp_path, runner, config=config)
 
-    result = await dispatcher.execute({"prompt": "work", "subagent_type": "general-purpose"})
+    result = await dispatcher.execute(
+        {"prompt": "work", "subagent_type": "general-purpose"}, mode="fresh"
+    )
 
     call = runner.calls[0]
     # make_discovery pins provider "agent-provider" and model "agent-model" on
@@ -1570,7 +1769,9 @@ async def test_config_defaults_apply_to_unpinned_agents_before_parent(
         parent_model="gpt-5.6-sol",
     )
 
-    result = await dispatcher.execute({"prompt": "work", "subagent_type": "read-only"})
+    result = await dispatcher.execute(
+        {"prompt": "work", "subagent_type": "read-only"}, mode="fresh"
+    )
 
     child = result.details["results"][0]
     assert child["provider"] == "openai"
@@ -1587,7 +1788,9 @@ async def test_bundled_agent_pins_survive_empty_config(tmp_path: Path) -> None:
     config = SubagentConfig(defaults=AgentOverrides(model="default/model", reasoning_effort="low"))
     dispatcher = make_dispatcher(tmp_path, runner, config=config)
 
-    result = await dispatcher.execute({"prompt": "work", "subagent_type": "general-purpose"})
+    result = await dispatcher.execute(
+        {"prompt": "work", "subagent_type": "general-purpose"}, mode="fresh"
+    )
 
     # The agent definition pins provider/model on general-purpose, which must
     # beat config defaults (reasoning falls to the default layer).
@@ -1609,7 +1812,7 @@ async def test_details_carry_config_paths_and_diagnostics(tmp_path: Path) -> Non
     )
 
     result = await make_dispatcher(tmp_path, runner, config=config).execute(
-        {"prompt": "work", "subagent_type": "read-only"}
+        {"prompt": "work", "subagent_type": "read-only"}, mode="fresh"
     )
 
     assert result.details["configPaths"] == [str(tmp_path / ".tau" / "superpowers-subagent.toml")]
@@ -1629,7 +1832,7 @@ async def test_config_section_for_unknown_agent_name_adds_diagnostic(
     config = SubagentConfig(agents=(("typo-agent", AgentOverrides(model="never-used")),))
 
     result = await make_dispatcher(tmp_path, runner, config=config).execute(
-        {"prompt": "work", "subagent_type": "general-purpose"}
+        {"prompt": "work", "subagent_type": "general-purpose"}, mode="fresh"
     )
 
     assert result.details["configDiagnostics"] == [
@@ -1653,6 +1856,8 @@ async def test_config_section_matching_project_agent_is_not_diagnosed(
         discovery_fn=lambda _cwd: make_all_layer_discovery(tmp_path),
     )
 
-    result = await dispatcher.execute({"prompt": "work", "subagent_type": "general-purpose"})
+    result = await dispatcher.execute(
+        {"prompt": "work", "subagent_type": "general-purpose"}, mode="fresh"
+    )
 
     assert result.details.get("configDiagnostics") is None

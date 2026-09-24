@@ -1,4 +1,4 @@
-"""Task validation and single-child dispatch."""
+"""Task validation and single-child dispatch for the two-tool surface."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from collections.abc import Callable, Mapping, Sequence
 from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from tau_agent.messages import AssistantMessage, TextContent
 from tau_agent.tools import (
@@ -38,15 +39,29 @@ from .utils import effective_provider_model, final_output
 
 DEFAULT_TIMEOUT_SECONDS = 3600.0
 MAX_TIMEOUT_SECONDS = 10800.0
-#: The exact flat field surface; anything else fails closed.
-_ALLOWED_FIELDS = frozenset(
-    {
-        "prompt",
-        "subagent_type",
-        "description",
-        "task_id",
-        "timeoutSeconds",
-    }
+
+#: The calling tool. ``fresh`` dispatches a new child; ``resume`` continues an
+#: existing child session and never names an agent.
+RequestMode = Literal["fresh", "resume"]
+
+#: The exact per-tool field surfaces; anything else fails closed. Each tool's
+#: unknown-field check rejects the other tool's fields automatically.
+_TASK_FIELDS = frozenset({"prompt", "subagent_type", "description", "timeout_seconds"})
+_RESUME_FIELDS = frozenset({"prompt", "task_id", "timeout_seconds"})
+
+#: The dedicated background reason, shared by both tools. ``execute`` returns
+#: the teach-back built from this text directly, so the background rejection
+#: carries no roster and no field list.
+_BACKGROUND_REASON = (
+    "background dispatch is not supported in this harness. The result arrives when the "
+    "child finishes; several calls of the same tool in one message run children in parallel."
+)
+
+#: The reason for the cross-tool rejection: ``task`` never carries ``task_id``.
+_TASK_ID_ON_TASK_REASON = (
+    "task_id is not a task parameter. task_resume continues an existing child session: "
+    "call it with the task_id from the earlier task result, for example "
+    '{"prompt": "Continue the work.", "task_id": "<task_id>"}.'
 )
 #: Teach-back sentence per removed call-level field. Override fields direct the
 #: caller to the durable pins; environment and approval fields state the fixed
@@ -81,6 +96,9 @@ _REMOVED_FIELD_SENTENCES: dict[str, str] = {
         "spawns in this session's working directory, and discovery covers all agent "
         "layers."
     ),
+    "timeoutSeconds": (
+        "The camelCase timeoutSeconds field is removed: pass timeout_seconds instead."
+    ),
 }
 
 UsageObserver = Callable[[Sequence[ChildResult], bool], None]
@@ -88,15 +106,20 @@ UsageObserver = Callable[[Sequence[ChildResult], bool], None]
 
 @dataclass(frozen=True, slots=True)
 class ParsedRequest:
-    """One validated flat task call: exactly one prompt for exactly one child."""
+    """One validated task call: exactly one prompt for exactly one child, on
+    the tool the ``mode`` names."""
 
+    #: The calling tool: ``fresh`` dispatches a new child, ``resume`` continues
+    #: an existing child session.
+    mode: RequestMode
     #: The call's prompt, preserved verbatim; it is the child's task.
     prompt: str
     #: Effective agent name after trimming; omission resolves to general-purpose.
+    #: Fresh calls only: a resume never names an agent.
     subagent_type: str
     description: str | None
     #: Trimmed effective id for the session-agent mapping lookup, the session
-    #: selection, and the same-id lock.
+    #: selection, and the same-id lock. Resume calls only.
     task_id: str | None
     timeout_seconds: float
 
@@ -143,33 +166,40 @@ class TaskDispatcher:
     async def execute(
         self,
         arguments: Mapping[str, JSONValue],
+        *,
+        mode: RequestMode,
         signal: ToolCancellationToken | None = None,
         on_update: ToolUpdateCallback | None = None,
     ) -> AgentToolResult:
-        """Execute one validated Task invocation.
+        """Execute one validated Task invocation on the tool ``mode`` names.
 
-        A call carrying ``task_id`` resumes: the session-agent mapping lookup
-        runs first and names the agent, so the call's own ``subagent_type``
-        selects nothing on a resume.
+        A ``resume`` call resolves the mapped agent from the session-agent
+        mapping and pins the requested session. A ``fresh`` call dispatches a
+        new child and writes its mapping entry before the spawn.
         """
 
         discovery = self.discovery_fn(self.default_cwd)
         self._config_diagnostics = self._merged_config_diagnostics(discovery.by_name())
+        if "background" in arguments:
+            return self._background_fail_closed(discovery=discovery)
         try:
-            request = validate_arguments(arguments)
+            request = validate_arguments(arguments, mode)
         except ValidationFailure as exc:
-            return self._fail_closed(str(exc), discovery=discovery)
+            return self._fail_closed(str(exc), discovery=discovery, mode=mode)
 
         agents = discovery.by_name()
-        if request.task_id is None:
+        if request.mode == "fresh":
             agent_name = request.subagent_type
             agent = agents.get(agent_name)
             if agent is None:
                 return self._fail_closed(
                     f"unknown agent '{request.subagent_type}'",
                     discovery=discovery,
+                    mode=mode,
                 )
         else:
+            # Validation guarantees a resume request carries a trimmed id.
+            assert request.task_id is not None
             mapped_name = read_mapping_entry(request.task_id)
             if mapped_name is None:
                 return _resume_fail_closed(
@@ -188,20 +218,31 @@ class TaskDispatcher:
                 )
         catalog_error = self._catalog_pin_error(agent_name, agent)
         if catalog_error is not None:
-            return self._fail_closed(catalog_error, discovery=discovery)
+            return self._fail_closed(catalog_error, discovery=discovery, mode=mode)
         return await self._run_locked(request, agent, agent_name, discovery, signal, on_update)
+
+    def _background_fail_closed(self, *, discovery: DiscoveryResult) -> AgentToolResult:
+        """Return the dedicated background teach-back without the composer: the
+        background rejection carries no roster and no field list on either tool."""
+
+        return _tool_result(
+            f"Invalid parameters: {_BACKGROUND_REASON}",
+            discovery=discovery,
+            results=[],
+        )
 
     def _fail_closed(
         self,
         error: str,
         *,
         discovery: DiscoveryResult,
+        mode: RequestMode,
     ) -> AgentToolResult:
         """Return the fail-closed contract: teach-back content, empty results,
         no ``planned``, and no child started."""
 
         return _tool_result(
-            _invalid_parameters_content(error, self),
+            _invalid_parameters_content(error, self, mode),
             discovery=discovery,
             config=self.config,
             config_diagnostics=self._config_diagnostics,
@@ -273,18 +314,21 @@ class TaskDispatcher:
         signal: ToolCancellationToken | None,
         on_update: ToolUpdateCallback | None,
     ) -> AgentToolResult:
-        """Run the single child under the same-id lock when the call carries a
-        ``task_id``; a lost race fails closed with the conflict teach-back."""
+        """Run the single child under the same-id lock in resume mode only: a
+        fresh call never locks. A lost race fails closed with the conflict
+        teach-back instead of waiting for the winner."""
 
-        if request.task_id is None:
-            lock: AbstractContextManager[None] = nullcontext()
-        else:
+        lock: AbstractContextManager[None] = nullcontext()
+        if request.mode == "resume":
+            # Validation guarantees a resume request carries a trimmed id.
+            assert request.task_id is not None
             acquired = same_id_lock(request.task_id)
             if acquired is None:
                 return self._fail_closed(
                     f"another running task call already holds task_id '{request.task_id}'. "
                     "Wait for that call to finish or use a different task_id.",
                     discovery=discovery,
+                    mode=request.mode,
                 )
             lock = acquired
         with lock:
@@ -323,7 +367,7 @@ class TaskDispatcher:
             )
 
         config_overrides, config_defaults = self._config_layers(agent_name)
-        if request.task_id is None:
+        if request.mode == "fresh":
             fresh_id = uuid.uuid4().hex
             try:
                 write_mapping_entry(fresh_id, agent.name)
@@ -331,6 +375,8 @@ class TaskDispatcher:
                 return _resume_fail_closed(None, str(exc), discovery)
             session = SessionSelection(id=fresh_id)
         else:
+            # Validation guarantees a resume request carries a trimmed id.
+            assert request.task_id is not None
             session = SessionSelection(id=request.task_id, resume=True)
         try:
             result = await self.runner.run(
@@ -362,16 +408,22 @@ class TaskDispatcher:
         )
 
 
-def validate_arguments(arguments: Mapping[str, JSONValue]) -> ParsedRequest:
-    """Validate and normalize one flat single-object Task call."""
+def validate_arguments(arguments: Mapping[str, JSONValue], mode: RequestMode) -> ParsedRequest:
+    """Validate and normalize one single-object call on the tool ``mode`` names.
+
+    The checks run in a fixed order: the ``background`` check first, then on
+    ``task`` only the cross-tool ``task_id`` rejection, then the unknown-field
+    check against that tool's field set, then ``prompt``, then the mode-specific
+    fields, then ``timeout_seconds``. The raised ``ValidationFailure`` carries
+    the reason text only: the composer appends the mode context.
+    """
 
     if "background" in arguments:
-        raise ValidationFailure(
-            "background dispatch is not supported in this harness. The result of a task "
-            "call arrives when the child finishes; use several task calls in one message "
-            "to run children in parallel."
-        )
-    unknown = sorted(set(arguments) - _ALLOWED_FIELDS)
+        raise ValidationFailure(_BACKGROUND_REASON)
+    if mode == "fresh" and "task_id" in arguments:
+        raise ValidationFailure(_TASK_ID_ON_TASK_REASON)
+    fields = _TASK_FIELDS if mode == "fresh" else _RESUME_FIELDS
+    unknown = sorted(set(arguments) - fields)
     if unknown:
         raise ValidationFailure(_unknown_field_error(unknown))
 
@@ -379,36 +431,32 @@ def validate_arguments(arguments: Mapping[str, JSONValue]) -> ParsedRequest:
     if not isinstance(prompt, str) or not prompt.strip():
         raise ValidationFailure("prompt requires a non-empty string")
 
-    subagent_present = "subagent_type" in arguments
     subagent_type = "general-purpose"
-    if subagent_present:
-        value = arguments["subagent_type"]
-        if not isinstance(value, str) or not value.strip():
-            raise ValidationFailure("subagent_type requires a non-empty string when present")
-        subagent_type = value.strip()
-
-    description = _optional_string(arguments, "description", nonempty=False)
-
+    description: str | None = None
     task_id: str | None = None
-    if "task_id" in arguments:
-        value = arguments["task_id"]
+    if mode == "fresh":
+        if "subagent_type" in arguments:
+            value = arguments["subagent_type"]
+            if not isinstance(value, str) or not value.strip():
+                raise ValidationFailure("subagent_type requires a non-empty string when present")
+            subagent_type = value.strip()
+        description = _optional_string(arguments, "description", nonempty=False)
+    else:
+        value = arguments.get("task_id")
         if not isinstance(value, str) or not value.strip():
-            raise ValidationFailure("task_id requires a non-empty string when present")
-        if not subagent_present:
-            raise ValidationFailure(
-                "task_id requires subagent_type: pass the agent whose prompt the resumed run uses"
-            )
+            raise ValidationFailure("task_id is required and requires a non-empty string")
         task_id = value.strip()
 
-    timeout_value = arguments.get("timeoutSeconds", DEFAULT_TIMEOUT_SECONDS)
+    timeout_value = arguments.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS)
     if (
         isinstance(timeout_value, bool)
         or not isinstance(timeout_value, (int, float))
         or not 0 < timeout_value <= MAX_TIMEOUT_SECONDS
     ):
-        raise ValidationFailure("timeoutSeconds must be greater than 0 and at most 10800")
+        raise ValidationFailure("timeout_seconds must be greater than 0 and at most 10800")
 
     return ParsedRequest(
+        mode=mode,
         prompt=prompt,
         subagent_type=subagent_type,
         description=description,
@@ -530,10 +578,10 @@ def _resume_fail_closed(
             f"task_id '{task_id}' is preserved and the session is unchanged. To start a "
             "fresh child instead, call task with the agent and prompt you want.",
             "",
-            "A continuation call pairs task_id with subagent_type: the resumed agent comes "
-            f"from the session-agent mapping at {mapping_path}, which records each child "
-            "session's agent name. Call fields: prompt (required), task_id (required), "
-            "timeoutSeconds (optional).",
+            f"The resumed agent comes from the session-agent mapping at {mapping_path}, "
+            "which records each child session's agent name, so the call carries no agent "
+            "name. Call fields: prompt (required), task_id (required), timeout_seconds "
+            "(optional).",
         ]
     return _tool_result("\n".join(lines), discovery=discovery, results=[])
 
@@ -585,25 +633,35 @@ def _teach_back_roster(dispatcher: TaskDispatcher) -> str:
     return dispatcher.roster_text
 
 
-def _invalid_parameters_content(error: str, dispatcher: TaskDispatcher) -> str:
-    """Teach back the call surface: roster, the pin resolution chain, and an
-    example.
+def _invalid_parameters_content(error: str, dispatcher: TaskDispatcher, mode: RequestMode) -> str:
+    """Compose every validation teach-back with its mode context.
 
-    Without the bundled workflow skills, this failure content is the only
-    place a struggling controller learns the full call contract, so it must
-    name the valid values, not just reject the call.
+    On ``task`` the content carries the static session-start roster, the pin
+    resolution chain, and one valid ``task`` example. On ``resume`` it names
+    the three ``task_resume`` fields and the session-agent mapping, and lists
+    no agents: the resume caller cannot select one, and a roster re-creates
+    the removed agent-invention surface.
     """
 
-    return "\n".join(
-        (
-            f"Invalid parameters: {error}",
-            "",
-            f"Available agents: {_teach_back_roster(dispatcher)}",
-            "Children resolve provider, model, and thinking level per field from, highest "
-            "first: the config file's [agents.<name>] section, the agent definition's "
-            "frontmatter, the config file's [defaults] section, then this session's "
-            "provider, model, and thinking level. Durable pins belong in the config file "
-            "or an agent definition.",
-            'Example: {"prompt": "Find caching options"}',
+    lines = [f"Invalid parameters: {error}", ""]
+    if mode == "fresh":
+        lines.extend(
+            (
+                f"Available agents: {_teach_back_roster(dispatcher)}",
+                "Children resolve provider, model, and thinking level per field from, highest "
+                "first: the config file's [agents.<name>] section, the agent definition's "
+                "frontmatter, the config file's [defaults] section, then this session's "
+                "provider, model, and thinking level. Durable pins belong in the config file "
+                "or an agent definition.",
+                'Example: {"prompt": "Find caching options"}',
+            )
         )
-    )
+    else:
+        lines.extend(
+            (
+                "Call fields: prompt (required), task_id (required), timeout_seconds (optional).",
+                "The resumed agent comes from the session-agent mapping at "
+                f"{default_mapping_path()}, which records each child session's agent name.",
+            )
+        )
+    return "\n".join(lines)

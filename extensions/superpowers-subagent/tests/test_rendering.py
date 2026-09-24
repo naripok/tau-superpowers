@@ -14,7 +14,7 @@ from __future__ import annotations
 from tau_agent.messages import TextContent
 from tau_agent.tools import AgentToolResult
 
-from superpowers_subagent.rendering import render_task_call, render_task_result
+from superpowers_subagent.rendering import render_resume_call, render_task_call, render_task_result
 
 
 def child_details(
@@ -104,6 +104,21 @@ def test_call_label_never_derives_from_task_count() -> None:
 
     assert rendered == "▸ Task · reviewer"
     assert "child" not in rendered
+
+
+def test_resume_call_renderer_names_the_operation_and_the_requested_id() -> None:
+    """Prove the resume call label names the resume operation and the requested
+    task_id, escaped like the task label, and never names an agent: the mapped
+    agent is not a call argument."""
+
+    assert render_resume_call({"task_id": "task-9 [x]"}) == "▸ Task · resume task-9 \\[x]"
+    assert render_resume_call({"task_id": "task-9"}) == "▸ Task · resume task-9"
+    assert render_resume_call({}) == "▸ Task · resume"
+    assert render_resume_call({"task_id": 5}) == "▸ Task · resume"
+
+    rendered = render_resume_call({"task_id": "task-9", "subagent_type": "code-review"})
+    assert rendered == "▸ Task · resume task-9"
+    assert "code-review" not in rendered
 
 
 # ---------------------------------------------------------------------------

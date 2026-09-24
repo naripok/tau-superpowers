@@ -25,8 +25,7 @@ from tau_coding.resources import TauResourcePaths
 from tau_coding.session import CodingSession, CodingSessionConfig
 from tau_coding.session_manager import SUBAGENT_SESSION_ROLE, SessionManager
 
-from superpowers_subagent.models import AgentConfig, SessionSelection
-from superpowers_subagent.runner import RECURSION_GUARD, ResumeFailure, TauChildRunner
+from superpowers_subagent.runner import RECURSION_GUARD
 
 EXTENSION_DIR = Path(__file__).resolve().parents[1]
 FAKE_TAU_SOURCE = Path(__file__).parent / "fixtures" / "fake_tau.py"
@@ -89,7 +88,7 @@ def load_task_tool(
     tmp_path: Path,
     *,
     monkeypatch: pytest.MonkeyPatch,
-) -> tuple[ExtensionRuntime, AgentTool]:
+) -> tuple[ExtensionRuntime, AgentTool, AgentTool]:
     # The suite deliberately loads the real extension, so neutralize the
     # recursion guard inherited when the suite itself runs inside a
     # superpowers child (the guard makes setup() register no tools).
@@ -106,8 +105,8 @@ def load_task_tool(
     )
     runtime.bind(RecordingSession(tmp_path))
     assert runtime.extension_names == ("superpowers-subagent",)
-    assert [tool.name for tool in runtime.extension_tools] == ["task"]
-    return runtime, runtime.extension_tools[0]
+    assert [tool.name for tool in runtime.extension_tools] == ["task", "task_resume"]
+    return runtime, runtime.extension_tools[0], runtime.extension_tools[1]
 
 
 def child_results(result: AgentToolResult) -> list[dict[str, Any]]:
@@ -214,7 +213,7 @@ async def test_real_runtime_executes_single_and_parallel_with_ordered_updates(
 ) -> None:
     del redirected_home
     _executable, log_path = fake_tau_environment
-    runtime, tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
+    runtime, tool, _resume_tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
     runtime.render_tool_call("task", {"prompt": "alpha", "subagent_type": "general-purpose"})
 
     single_updates: list[AgentToolResult] = []
@@ -361,7 +360,7 @@ async def test_runtime_exposes_actionable_unknown_provider_failure_and_retains_s
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     del fake_tau_environment, redirected_home
-    _runtime, tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
+    _runtime, tool, _resume_tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
 
     result = await tool.execute(
         "unknown-provider",
@@ -385,7 +384,7 @@ async def test_runtime_retains_partial_data_for_nonzero_and_protocol_failures(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     del fake_tau_environment, redirected_home
-    _runtime, tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
+    _runtime, tool, _resume_tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
 
     failed = await tool.execute("failed", {"prompt": "fail", "subagent_type": "general-purpose"})
     failed_child = child_results(failed)[0]
@@ -419,12 +418,12 @@ async def test_runtime_terminates_child_on_timeout_or_cancellation_and_retains_p
 ) -> None:
     del redirected_home
     _executable, log_path = fake_tau_environment
-    _runtime, tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
+    _runtime, tool, _resume_tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
     token = CancellationToken()
     arguments: dict[str, JSONValue] = {
         "prompt": "sleep",
         "subagent_type": "general-purpose",
-        "timeoutSeconds": 2 if cancel else 0.1,
+        "timeout_seconds": 2 if cancel else 0.1,
     }
 
     execution = asyncio.create_task(tool.execute("stop", arguments, signal=token))
@@ -529,20 +528,6 @@ async def test_real_runtime_inherits_parent_thinking_level_and_config_overrides(
     assert unpinned_child["reasoningEffort"] == "medium"
 
 
-def resume_agent(tmp_path: Path) -> AgentConfig:
-    """A read-only agent distinct from the fresh call's agent, so a resume test
-    can prove the resumed run regenerates the call agent's prompt and policy."""
-
-    return AgentConfig(
-        name="resume-worker",
-        description="Resume worker",
-        system_prompt="Resumed integration body",
-        source="user",
-        file_path=tmp_path / "resume-worker.md",
-        profile="read-only",
-    )
-
-
 def create_store_record(session_id: str, cwd: Path) -> None:
     """Pre-create one subagent-role record in the default (HOME-redirected)
     session store, so a resume call's verification finds it."""
@@ -552,28 +537,6 @@ def create_store_record(session_id: str, cwd: Path) -> None:
         model="fixture-model",
         session_id=session_id,
         role=SUBAGENT_SESSION_ROLE,
-    )
-
-
-async def run_resumed(
-    tmp_path: Path,
-    *,
-    agent: AgentConfig,
-    task: str,
-    resume_session_id: str,
-    timeout_seconds: float = 2,
-) -> Any:
-    """Drive one resumed child through the extension-constructed runner against
-    the redirected store. The dispatch wiring (tool.execute → lock → runner)
-    is covered by the dispatch tests with a fake runner."""
-
-    return await TauChildRunner().run(
-        default_cwd=tmp_path,
-        agent=agent,
-        task=task,
-        timeout_seconds=timeout_seconds,
-        signal=None,
-        session=SessionSelection(id=resume_session_id, resume=True),
     )
 
 
@@ -591,7 +554,7 @@ async def test_runtime_pins_a_session_and_resumes_it(
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
-    _runtime, tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
+    _runtime, tool, resume_tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
 
     pinned = await tool.execute(
         "pinned", {"prompt": "pinned work", "subagent_type": "general-purpose"}
@@ -611,19 +574,14 @@ async def test_runtime_pins_a_session_and_resumes_it(
     recorded_cwd.mkdir()
     create_store_record(task_id, recorded_cwd)
 
-    result = await run_resumed(
-        tmp_path,
-        agent=resume_agent(tmp_path),
-        task="continue the pinned work",
-        resume_session_id=task_id,
+    result = await resume_tool.execute(
+        "resumed", {"prompt": "continue the pinned work", "task_id": task_id}
     )
 
-    assert result.succeeded
-    assert result.task_id == task_id
-    assert result.cwd == str(recorded_cwd.resolve())
-    assert result.usage.turns == 1
-    assert result.usage.input == 2
-    assert result.usage.output == 3
+    resumed_child = child_results(result)[0]
+    assert result.text.startswith(f'<task id="{task_id}" state="completed">')
+    assert resumed_child["taskId"] == task_id
+    assert resumed_child["cwd"] == str(recorded_cwd.resolve())
     starts = [item for item in read_log(log_path) if item["event"] == "start"]
     assert len(starts) == 2
     resumed_start = starts[1]
@@ -636,12 +594,12 @@ async def test_runtime_pins_a_session_and_resumes_it(
     assert "--no-approve" in argv
     assert resumed_start["resumeSession"] == task_id
     assert resumed_start["cwd"] == str(recorded_cwd.resolve())
-    assert resumed_start["prompt"].startswith("Resumed integration body")
+    # The mapped agent is the fresh call's general-purpose agent, re-discovered
+    # and re-prompted with the resume variant of the isolation sentence.
     assert "This session continues an earlier delegated task" in resumed_start["prompt"]
-    assert "Enforced Read-Only Profile" in resumed_start["prompt"]
-    assert resumed_start["policyPath"] is not None
+    assert "This is an isolated delegated task" not in resumed_start["prompt"]
+    assert resumed_start["policyPath"] is None
     assert not Path(resumed_start["promptPath"]).exists()
-    assert not Path(resumed_start["policyPath"]).exists()
     assert SessionManager(TauPaths()).get_session(task_id).cwd == recorded_cwd.resolve()
 
 
@@ -651,24 +609,22 @@ async def test_runtime_resumed_unknown_id_fails_closed_without_starting_a_child(
     fake_tau_environment: tuple[Path, Path],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Prove a resume of an id matching no session record raises ResumeFailure
-    with zero child starts: no fresh fallback child runs and no session is
-    created."""
+    """Prove a task_resume call whose task_id matches no session fails closed
+    through the resume tool with zero child starts: no fresh fallback child runs
+    and no session is created."""
 
     _executable, log_path = fake_tau_environment
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
-    _runtime, _tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
+    _runtime, _tool, resume_tool = load_task_tool(tmp_path, monkeypatch=monkeypatch)
 
     orphan_id = uuid.uuid4().hex
-    with pytest.raises(ResumeFailure) as excinfo:
-        await run_resumed(
-            tmp_path,
-            agent=resume_agent(tmp_path),
-            task="unknown-id",
-            resume_session_id=orphan_id,
-        )
+    result = await resume_tool.execute("orphan", {"prompt": "Report status.", "task_id": orphan_id})
 
-    assert orphan_id in str(excinfo.value)
+    assert orphan_id in result.text
+    assert "no child started" in result.text
+    assert "<task" not in result.text
+    assert result.details["results"] == []
+    assert "planned" not in result.details
     assert read_log(log_path) == []

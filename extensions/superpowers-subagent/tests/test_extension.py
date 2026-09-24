@@ -12,6 +12,7 @@ from tau_agent.tools import AgentToolResult
 import superpowers_subagent.extension as extension_module
 from superpowers_subagent.extension import setup
 from superpowers_subagent.models import AgentConfig, DiscoveryResult
+from superpowers_subagent.rendering import render_resume_call, render_task_call, render_task_result
 from superpowers_subagent.runner import RECURSION_GUARD
 
 #: The five bundled roster lines in sorted-name order with their profile
@@ -69,13 +70,18 @@ class FakeTau:
         return handler
 
 
-def _installed_tool(monkeypatch: Any, tau: FakeTau) -> Any:
-    """Set up the extension without the sidebar and return the registered task tool."""
+def _installed_tools(monkeypatch: Any, tau: FakeTau) -> tuple[Any, Any]:
+    """Set up the extension without the sidebar and return both registered tools."""
     monkeypatch.delenv(RECURSION_GUARD, raising=False)
     monkeypatch.setattr(extension_module, "install_sidebar_section", lambda _tracker: None)
     setup(tau)  # type: ignore[arg-type]
-    assert len(tau.tools) == 1
-    return tau.tools[0]
+    assert [tool.name for tool in tau.tools] == ["task", "task_resume"]
+    return tau.tools[0], tau.tools[1]
+
+
+def _installed_tool(monkeypatch: Any, tau: FakeTau) -> Any:
+    """Return the registered task tool; the resume tool is the second registration."""
+    return _installed_tools(monkeypatch, tau)[0]
 
 
 def _pin_discovery_to_user_dir(monkeypatch: Any, user_dir: Path) -> None:
@@ -98,44 +104,40 @@ def _agent_definition(name: str, description: str, profile: str) -> str:
     return f"---\nname: {name}\ndescription: {description}\nprofile: {profile}\n---\n\nBody.\n"
 
 
-def test_setup_registers_exactly_one_task(monkeypatch: Any) -> None:
-    """Prove the task tool registers once with the flat single-object schema:
-    exactly the five surviving fields, one required `prompt`, no `tasks`
-    property, the 10800-second timeout cap, and unknown fields rejected by
-    declaration. The removed cwd, agentScope, confirmProjectAgents, provider,
-    model, and reasoningEffort properties advertise nowhere."""
+def test_setup_registers_the_two_tool_surface(monkeypatch: Any) -> None:
+    """Prove exactly two task tools register, named task and task_resume, each
+    with its own label, snippet, schema, and renderer wiring, and no third tool."""
 
     tau = FakeTau()
-    tool = _installed_tool(monkeypatch, tau)
+    task_tool, resume_tool = _installed_tools(monkeypatch, tau)
 
-    assert [registered.name for registered in tau.tools] == ["task"]
-    assert tool.label == "task"
-    assert tool.prompt_snippet == "Dispatch substantive work to an isolated Tau subagent."
-    assert tool.execution_mode == "parallel"
-    assert tool.render_call is not None
-    assert tool.render_result is not None
-    parameters = tool.parameters
+    assert [registered.name for registered in tau.tools] == ["task", "task_resume"]
+    assert task_tool.label == "task"
+    assert task_tool.prompt_snippet == "Dispatch substantive work to an isolated Tau subagent."
+    assert task_tool.execution_mode == "parallel"
+    assert task_tool.render_call is render_task_call
+    assert task_tool.render_result is render_task_result
+    assert resume_tool.label == "task_resume"
+    assert (
+        resume_tool.prompt_snippet == "Continue an existing child session with a task_resume call."
+    )
+    assert resume_tool.execution_mode == "parallel"
+    assert resume_tool.render_call is render_resume_call
+    assert resume_tool.render_result is render_task_result
+
+
+def test_task_schema_carries_exactly_the_four_task_fields(monkeypatch: Any) -> None:
+    """Prove the task schema is exactly the four-field snake_case surface: one
+    required prompt, no task_id, no camelCase timeoutSeconds, and unknown
+    fields rejected by declaration."""
+
+    task_tool, _resume_tool = _installed_tools(monkeypatch, FakeTau())
+    parameters = task_tool.parameters
     assert parameters["type"] == "object"
     assert parameters["additionalProperties"] is False
     assert parameters["required"] == ["prompt"]
     properties = parameters["properties"]
-    assert set(properties) == {
-        "prompt",
-        "subagent_type",
-        "description",
-        "task_id",
-        "timeoutSeconds",
-    }
-    assert "tasks" not in properties
-    for removed in (
-        "cwd",
-        "agentScope",
-        "confirmProjectAgents",
-        "provider",
-        "model",
-        "reasoningEffort",
-    ):
-        assert removed not in properties
+    assert set(properties) == {"prompt", "subagent_type", "description", "timeout_seconds"}
     assert properties["prompt"]["minLength"] == 1
     assert (
         properties["prompt"]["description"] == "The child's task. The prompt is preserved verbatim."
@@ -144,13 +146,35 @@ def test_setup_registers_exactly_one_task(monkeypatch: Any) -> None:
     assert properties["description"]["description"] == (
         "Short orchestration label for display. No behavioral effect."
     )
+    assert properties["timeout_seconds"] == {
+        "type": "number",
+        "exclusiveMinimum": 0,
+        "maximum": 10800,
+        "default": 3600,
+        "description": "Per-child timeout in seconds.",
+    }
+
+
+def test_resume_schema_carries_exactly_the_three_resume_fields(monkeypatch: Any) -> None:
+    """Prove the task_resume schema is exactly the three-field snake_case
+    surface and requires both prompt and task_id."""
+
+    _task_tool, resume_tool = _installed_tools(monkeypatch, FakeTau())
+    parameters = resume_tool.parameters
+    assert parameters["type"] == "object"
+    assert parameters["additionalProperties"] is False
+    assert parameters["required"] == ["prompt", "task_id"]
+    properties = parameters["properties"]
+    assert set(properties) == {"prompt", "task_id", "timeout_seconds"}
+    assert properties["prompt"]["minLength"] == 1
+    assert (
+        properties["prompt"]["description"] == "The child's task. The prompt is preserved verbatim."
+    )
     assert properties["task_id"]["minLength"] == 1
     assert properties["task_id"]["description"] == (
-        "Resume a previous child session: pass the task_id from an earlier task result to "
-        "continue the same subagent session instead of starting a fresh one. Requires "
-        "subagent_type."
+        "The child session id from an earlier task result to continue."
     )
-    assert properties["timeoutSeconds"] == {
+    assert properties["timeout_seconds"] == {
         "type": "number",
         "exclusiveMinimum": 0,
         "maximum": 10800,
@@ -160,9 +184,10 @@ def test_setup_registers_exactly_one_task(monkeypatch: Any) -> None:
 
 
 def test_task_description_carries_opencode_layout(monkeypatch: Any, tmp_path: Path) -> None:
-    """Prove the description renders the OpenCode layout in order: one-liner, the
-    annotated bundled roster, the default rule, when-not-to-use, and usage notes
-    for multi-call parallelism, task_id reuse, and verification."""
+    """Prove the task description renders the contract in order: one-liner, the
+    minimal example, the inheritance default, the fixed environment, the
+    annotated bundled roster, the default rule, when-not-to-use, usage notes,
+    and the task_resume pointer."""
 
     _pin_discovery_to_user_dir(monkeypatch, tmp_path / "absent-user-agents")
     description = _installed_tool(monkeypatch, FakeTau()).description
@@ -171,6 +196,16 @@ def test_task_description_carries_opencode_layout(monkeypatch: Any, tmp_path: Pa
         "Dispatch work to an isolated Tau subagent. Delegate substantive multi-step work "
         "that benefits from an isolated context window, or long-running work that must not "
         "block this session."
+    )
+    minimal_example = 'Minimal call: {"prompt": "Find caching options"}'
+    inheritance = (
+        "An unpinned child resolves to this session's provider, model, and thinking level; "
+        "durable pins live in the superpowers-subagent.toml config file or in an agent "
+        "definition."
+    )
+    fixed_environment = (
+        "The child spawns in this session's working directory, and agent discovery covers "
+        "all layers: bundled, user, and project definitions."
     )
     default_rule = "Omit subagent_type to select general-purpose."
     when_not_to_use = (
@@ -184,26 +219,58 @@ def test_task_description_carries_opencode_layout(monkeypatch: Any, tmp_path: Pa
         "Delegated work is not duplicated.",
         "Make each prompt self-contained: children run in isolated sessions with no access "
         "to this conversation.",
-        "The result names the task_id that a later call can reuse to continue the same "
-        "subagent session.",
+        "The result names the task_id that a later task_resume call can reuse to continue "
+        "the same subagent session.",
         "State whether the child writes code or does research and how to verify the result.",
-        "Project-controlled agent prompts require explicit approval.",
     )
+    resume_pointer = "To continue an existing child session, call task_resume with its task_id."
     assert description.startswith(one_liner)
     for line in BUNDLED_ROSTER_LINES:
         assert line in description
     for note in usage_notes:
         assert note in description
 
-    markers = (one_liner, *BUNDLED_ROSTER_LINES, default_rule, when_not_to_use, "Usage notes:")
+    markers = (
+        one_liner,
+        minimal_example,
+        inheritance,
+        fixed_environment,
+        *BUNDLED_ROSTER_LINES,
+        default_rule,
+        when_not_to_use,
+        "Usage notes:",
+        resume_pointer,
+    )
     positions = [description.find(marker) for marker in markers]
     assert all(position >= 0 for position in positions)
     assert positions == sorted(positions)
 
 
+def test_resume_description_carries_the_continuation_shape_and_the_mapping(
+    monkeypatch: Any,
+) -> None:
+    """Prove the task_resume description shows the continuation example with
+    task_id and timeout_seconds, names the session-agent mapping as the agent
+    source, and carries no roster line: its caller cannot select an agent."""
+
+    _task_tool, resume_tool = _installed_tools(monkeypatch, FakeTau())
+    description = resume_tool.description
+
+    assert description.startswith("Continue an existing child session")
+    assert '"prompt"' in description and '"task_id"' in description
+    assert "timeout_seconds" in description
+    assert "~/.tau/superpowers-subagent-sessions.json" in description
+    assert "no agent name" in description
+    for line in BUNDLED_ROSTER_LINES:
+        assert line not in description
+    assert "- general-purpose:" not in description
+    assert "Omit subagent_type" not in description
+
+
 def test_subagent_type_description_carries_discovered_roster(monkeypatch: Any) -> None:
-    """Prove the subagent_type description embeds the discovered roster, so the
-    parameter alone teaches which agents exist and what each is for."""
+    """Prove the task schema's subagent_type description embeds the discovered
+    roster, so the parameter alone teaches which agents exist and what each is
+    for."""
 
     agents = (
         AgentConfig(
@@ -219,13 +286,23 @@ def test_subagent_type_description_carries_discovered_roster(monkeypatch: Any) -
         "discover_agents",
         lambda _cwd: DiscoveryResult(agents=agents, diagnostics=()),
     )
-    subagent_type = _installed_tool(monkeypatch, FakeTau()).parameters["properties"][
-        "subagent_type"
-    ]
+    task_tool, _resume_tool = _installed_tools(monkeypatch, FakeTau())
+    subagent_type = task_tool.parameters["properties"]["subagent_type"]
 
     assert "Omit subagent_type to select general-purpose." in subagent_type["description"]
     assert "- alpha: Alpha investigates named files." in subagent_type["description"]
     assert "(Tools: all)" in subagent_type["description"]
+
+
+def test_resume_schema_descriptions_carry_no_roster(monkeypatch: Any) -> None:
+    """Prove no task_resume schema description carries a roster or an agent
+    list: the resumed agent comes from the mapping, never from caller choice."""
+
+    _task_tool, resume_tool = _installed_tools(monkeypatch, FakeTau())
+
+    for parameter in resume_tool.parameters["properties"].values():
+        assert "Available agents" not in parameter["description"]
+        assert "- " not in parameter["description"]
 
 
 def test_roster_annotation_follows_shadowing_user_definition(
@@ -302,50 +379,58 @@ def test_fallback_roster_matches_bundled_definitions(monkeypatch: Any, tmp_path:
     assert extension_module._agent_roster(tmp_path) == extension_module._BUNDLED_ROSTER
 
 
-def test_prompt_guidelines_carry_flat_surface_rules(monkeypatch: Any) -> None:
-    """Prove the guidelines teach one task per call, task_id reuse, verification,
-    and placeholder coercion with a repair note, and never mention the tasks array."""
+def test_task_guidelines_reference_only_the_task_surface(monkeypatch: Any) -> None:
+    """Prove the task guidelines keep the dispatch threshold, the prohibitions,
+    the single-task rule, the verification statement, and the agent selection,
+    teach task_resume as the continuation tool, and state the inheritance
+    default instead of any call-level override."""
 
     guidelines = _installed_tool(monkeypatch, FakeTau()).prompt_guidelines
     joined = "\n".join(guidelines)
 
-    assert "Pass exactly one task per call" in joined
-    assert "The result carries the child's task_id" in joined
-    assert "State whether the child writes code or does research" in joined
-    assert "treats them as omitted with a repair note" in joined
+    assert "delegate only substantive multi-step work" in joined
+    assert "simple reads, searches, commands, or small edits" in joined
     assert any(
-        "isolated context window" in guideline and "long-running" in guideline
-        for guideline in guidelines
+        "never dispatch a task and then do the same work" in guideline for guideline in guidelines
     )
-    assert any("replaces your own tool calls" in guideline for guideline in guidelines)
-    assert any("self-contained" in guideline for guideline in guidelines)
+    assert "Pass exactly one task per call" in joined
+    assert "in one message" in joined and "parallel" in joined
+    assert "self-contained" in joined
+    assert "task_resume" in joined
+    assert "with the same subagent_type" not in joined
+    assert "State whether the child writes code or does research" in joined
     assert any(
         "`implementation`" in guideline and "`code-review`" in guideline for guideline in guidelines
     )
+    assert "inherit this session's provider, model, and thinking level" in joined
+    assert "no call-level override" in joined
     assert any(
-        "BLOCKED means" in guideline and "NEEDS_CONTEXT means" in guideline
-        for guideline in guidelines
+        "BLOCKED" in guideline and "fresh task call" in guideline for guideline in guidelines
     )
-    assert "`tasks`" not in joined
-    assert "tasks array" not in joined
+    assert any(
+        "NEEDS_CONTEXT" in guideline and "task_resume" in guideline for guideline in guidelines
+    )
 
 
-def test_task_prompt_requires_omitted_or_exact_literal_overrides(monkeypatch: Any) -> None:
-    """Prove always-visible guidance prefers omission and teaches exact overrides."""
+def test_resume_guidelines_reference_only_the_resume_surface(monkeypatch: Any) -> None:
+    """Prove the task_resume guidelines teach resuming only the same subagent's
+    work, the same-id conflict, the new-user-turn prompt, the returned task_id,
+    and the timeout, and never name an agent parameter."""
 
-    guidance = " ".join(_installed_tool(monkeypatch, FakeTau()).prompt_guidelines).lower()
-    assert "omit all three on normal calls" in guidance
-    assert "this session's provider, model, and thinking level" in guidance
-    assert "placeholder values" in guidance
-    for placeholder in ("`default`", "`inherit`", "`auto`"):
-        assert placeholder in guidance
-    assert "treats them as omitted with a repair note" in guidance
-    assert "exact configured provider name" in guidance
-    assert "tau providers" in guidance
-    assert "exact model id supported by that provider" in guidance
-    for level in ("`off`", "`minimal`", "`low`", "`medium`", "`high`", "`xhigh`"):
-        assert level in guidance
-    assert "superpowers-subagent.toml" in guidance
+    _task_tool, resume_tool = _installed_tools(monkeypatch, FakeTau())
+    guidelines = resume_tool.prompt_guidelines
+    joined = "\n".join(guidelines)
+
+    assert "subagent_type" not in joined
+    assert "Pass exactly one task per call" in joined
+    assert "parallel" in joined
+    assert "same task_id" in joined
+    assert "self-contained" in joined
+    assert "new user turn" in joined
+    assert "timeout_seconds" in joined
+    assert "simple reads, searches, commands, or small edits" in joined
+    assert "BLOCKED" in joined and "NEEDS_CONTEXT" in joined
+    assert "task_resume" in joined
 
 
 def test_extension_version_stays_0_1_0() -> None:
@@ -414,10 +499,12 @@ async def test_execute_task_loads_config_per_call(monkeypatch: Any) -> None:
         async def execute(
             self,
             arguments: Mapping[str, Any],
+            *,
+            mode: str,
             signal: Any = None,
             on_update: Any = None,
         ) -> AgentToolResult:
-            del arguments, signal, on_update
+            del arguments, mode, signal, on_update
             return AgentToolResult(content=[])
 
     class FakeConfig:
@@ -459,10 +546,12 @@ async def test_execute_task_passes_parent_session_provider_and_model(
         async def execute(
             self,
             arguments: Mapping[str, Any],
+            *,
+            mode: str,
             signal: Any = None,
             on_update: Any = None,
         ) -> AgentToolResult:
-            del arguments, signal, on_update
+            del arguments, mode, signal, on_update
             return AgentToolResult(content=[])
 
     monkeypatch.setattr(extension_module, "TaskDispatcher", FakeDispatcher)
@@ -479,6 +568,10 @@ async def test_execute_task_passes_parent_session_provider_and_model(
     assert captured["parent_model"] == "gpt-5.6-sol"
     assert captured["parent_reasoning_effort"] is None
     assert captured["default_cwd"] == Path.cwd()
+    # The teach-back roster the dispatcher carries is the session-start roster
+    # the description was built from, so the two surfaces cannot drift apart.
+    expected_roster = extension_module._agent_roster(Path.cwd()) or extension_module._BUNDLED_ROSTER
+    assert captured["roster_text"] == expected_roster
 
     tau.context.provider_name = ""
     tau.context.model = ""
@@ -504,10 +597,12 @@ async def test_execute_task_reads_parent_session_thinking_level(monkeypatch: Any
         async def execute(
             self,
             arguments: Mapping[str, Any],
+            *,
+            mode: str,
             signal: Any = None,
             on_update: Any = None,
         ) -> AgentToolResult:
-            del arguments, signal, on_update
+            del arguments, mode, signal, on_update
             return AgentToolResult(content=[])
 
     monkeypatch.setattr(extension_module, "TaskDispatcher", FakeDispatcher)
@@ -547,10 +642,12 @@ async def test_execute_task_wires_tracker_as_usage_observer(monkeypatch: Any) ->
         async def execute(
             self,
             arguments: Mapping[str, Any],
+            *,
+            mode: str,
             signal: Any = None,
             on_update: Any = None,
         ) -> AgentToolResult:
-            del arguments, signal, on_update
+            del arguments, mode, signal, on_update
             return AgentToolResult(content=[])
 
     def fake_install(tracker: Any) -> None:
@@ -647,10 +744,12 @@ async def test_execute_task_discards_pending_on_hard_cancellation(monkeypatch: A
         async def execute(
             self,
             arguments: Mapping[str, Any],
+            *,
+            mode: str,
             signal: Any = None,
             on_update: Any = None,
         ) -> AgentToolResult:
-            del arguments, signal, on_update
+            del arguments, mode, signal, on_update
             nonlocal calls
             calls += 1
             if calls > 1:
