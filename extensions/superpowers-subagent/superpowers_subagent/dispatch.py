@@ -440,7 +440,7 @@ def validate_arguments(arguments: Mapping[str, JSONValue], mode: RequestMode) ->
             if not isinstance(value, str) or not value.strip():
                 raise ValidationFailure("subagent_type requires a non-empty string when present")
             subagent_type = value.strip()
-        description = _optional_string(arguments, "description", nonempty=False)
+        description = _optional_string(arguments, "description")
     else:
         value = arguments.get("task_id")
         if not isinstance(value, str) or not value.strip():
@@ -478,14 +478,12 @@ def _unknown_field_error(unknown: list[str]) -> str:
     return f"unknown field(s): {names}. " + " ".join(sentences)
 
 
-def _optional_string(arguments: Mapping[str, JSONValue], key: str, *, nonempty: bool) -> str | None:
+def _optional_string(arguments: Mapping[str, JSONValue], key: str) -> str | None:
     if key not in arguments:
         return None
     value = arguments[key]
     if not isinstance(value, str):
         raise ValidationFailure(f"{key} must be a string")
-    if nonempty and not value.strip():
-        raise ValidationFailure(f"{key} must be a non-empty string")
     return value
 
 

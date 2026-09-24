@@ -120,8 +120,8 @@ def render_task_result(result: AgentToolResult, *, expanded: bool) -> str | None
 def _empty_render(result: AgentToolResult) -> str:
     """Render the update/final content when details carry no child results.
 
-    Live updates sometimes precede the first child result, and validation or
-    approval failures never produce children; in both cases ``content`` is the
+    Live updates sometimes precede the first child result, and validation
+    failures never produce children; in both cases ``content`` is the
     authoritative text.
     """
 
