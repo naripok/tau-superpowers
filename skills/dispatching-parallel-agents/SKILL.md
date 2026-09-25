@@ -72,7 +72,7 @@ Omit `subagent_type` to select `general-purpose`, or name the agent the domain n
 
 When agents return:
 - Read each result. The content is one `task` envelope that names the child's `taskId`, and `details.results` holds the status and process fields
-- Resolve `DONE_WITH_CONCERNS`, `BLOCKED`, and `NEEDS_CONTEXT` explicitly. If an agent needs more context, re-dispatch it with a complete prompt. To continue the same child session, pass its result's `task_id` with `subagent_type`
+- Resolve `DONE_WITH_CONCERNS`, `BLOCKED`, and `NEEDS_CONTEXT` explicitly. If an agent needs more context, re-dispatch it with a complete prompt. To continue the same child session, pass its result's `task_id` to a `task_resume` call with the new prompt
 - Check that fixes do not conflict
 - Run the full test suite
 - Spot check the changes because agents can make systematic errors

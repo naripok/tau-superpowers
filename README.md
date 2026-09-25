@@ -1,6 +1,6 @@
 # Tau Superpowers
 
-Tau Superpowers is a collection of Agent Skills for spec-driven development, TDD, debugging, planning, and review, plus a Python Tau extension that registers an isolated-subagent `task` tool.
+Tau Superpowers is a collection of Agent Skills for spec-driven development, TDD, debugging, planning, and review, plus a Python Tau extension that registers the isolated-subagent `task` and `task_resume` tools.
 
 The project combines ideas and material from [obra/superpowers](https://github.com/obra/superpowers) and [Fission-AI/OpenSpec](https://github.com/Fission-AI/OpenSpec), adapted for [Tau](https://github.com/earendil-works/tau).
 
@@ -50,12 +50,12 @@ The main flow is:
 ## What You Get
 
 - 23 Tau-discoverable Agent Skills covering the full design-to-delivery workflow.
-- A `task` tool that dispatches one isolated Tau subprocess per call into a pinned session that a later call can resume by `task_id`.
-- A self-describing call surface: discovered agents and their descriptions appear in the tool schema. Placeholder overrides (`default`/`inherit`/`auto`) are tolerated as omitted with a repair note. Literal provider and model overrides are validated before any child starts. Validation considers only the providers and models the harness can actually run: credentials, scoped models, pins, and the session's own pair. The error lists the valid options.
-- Bundled child agents: `general-purpose`, tool-enforced `read-only`, `implementation`, `code-review`, and `document-review` (`read` + read-only `bash`, strict `## Code Review`/`## Document Review` reports). Children inherit the parent session's active provider, model, and thinking effort by default, after call-level, config-file, and agent-definition values.
-- User and project agent definitions with deterministic precedence and explicit project-agent approval.
-- A per-subagent config file (`~/.tau/superpowers-subagent.toml` and `<project>/.tau/superpowers-subagent.toml`) that pins provider, model, and `reasoningEffort` globally or per agent; an example file ships as `superpowers-subagent.example.toml`.
-- Per-child `reasoningEffort` at call or config-file level, applied as the child's Tau thinking level.
+- Two tools: `task` dispatches one isolated Tau subprocess per call into a pinned session, and `task_resume` continues that session by its `task_id`. The call surface is snake_case: `prompt`, `subagent_type`, `description`, `task_id`, and `timeout_seconds`.
+- Fail-closed validation before any child starts. A rejected call returns the teach-back as the result content, with no task envelope, an empty `results` array, and no `planned` field. Validation considers only the providers and models the harness can actually run: credentials, scoped models, pins, and the session's own pair. The error lists the valid options.
+- Bundled child agents: `general-purpose`, tool-enforced `read-only`, `implementation`, `code-review`, and `document-review` (`read` + read-only `bash`, strict `## Code Review`/`## Document Review` reports). Children inherit the parent session's provider, model, and thinking level unless the config file or the agent definition pins one.
+- User and project agent definitions with deterministic precedence. Discovery always covers the bundled, user, and nearest-ancestor project layers, and project-layer definitions dispatch without per-call approval.
+- A session-agent mapping file (`~/.tau/superpowers-subagent-sessions.json`) that records each child session's agent name, so a `task_resume` call carries no agent name.
+- A per-subagent config file (`~/.tau/superpowers-subagent.toml` and `<project>/.tau/superpowers-subagent.toml`) that pins provider, model, and `reasoning_effort` globally or per agent; an example file ships as `superpowers-subagent.example.toml`.
 - Parent-model content is one task envelope wrapping the child's complete final assistant message, with the complete wire messages retained in structured result details.
 
 ## Included Skills
@@ -124,7 +124,7 @@ Start Tau normally and explicitly invoke the bootstrap skill if desired:
 /skill:using-superpowers
 ```
 
-Tau discovers the installed user extension by default, so the `task` tool is available without an `-e` option.
+Tau discovers the installed user extension by default, so the `task` and `task_resume` tools are available without an `-e` option.
 
 ## Use Directly from a Checkout
 
@@ -148,13 +148,12 @@ Dispatch a subagent only for substantive multi-step work that benefits from an i
 
 ### One task per call
 
-A `task` call carries exactly one task as one flat object. The snippets below are tool argument objects. `prompt` is required. `subagent_type` is optional, and omission selects `general-purpose`. `cwd` is optional and resolves relative to the parent session's working directory:
+A `task` call carries exactly one task. The snippets below are tool argument objects. `prompt` is required. `subagent_type` is optional, and omission selects `general-purpose`. The child spawns in the parent session's working directory:
 
 ```json
 {
   "prompt": "Implement the cache behavior described below, run the named tests, and report changed files.\n\n[COMPLETE REQUIREMENTS]",
-  "subagent_type": "general-purpose",
-  "cwd": "/path/to/worktree"
+  "subagent_type": "general-purpose"
 }
 ```
 
@@ -176,34 +175,41 @@ Dispatch independent work with several `task` calls in one message. The calls ru
 
 Conditional sequences require separate calls so the controller can inspect each result. This applies to implement → review → fix if needed → re-review, and to any loop where a later step depends on an earlier result.
 
-A call can continue a previous child session instead of starting a fresh one. Pass the earlier result's `task_id` with `subagent_type`. The child keeps its earlier context, and a resumed run ignores the call's `cwd`:
+### `task` parameters
+
+| Field | Meaning |
+| --- | --- |
+| `prompt` | Required. The child's task, preserved verbatim. |
+| `subagent_type` | Optional agent name. Omission selects `general-purpose`. An unknown name fails closed and lists the available agents. |
+| `description` | Short orchestration label for display. No behavioral effect. |
+| `timeout_seconds` | Per-child timeout in seconds, greater than 0 and at most 10800. Omission selects 3600. |
+
+### Resume a child session
+
+A `task_resume` call continues a previous child session instead of starting a fresh one. Pass the earlier result's `task_id`. The child keeps its earlier context, and the call's `prompt` is the new turn:
 
 ```json
 {
   "prompt": "Now re-check the authz paths.",
-  "subagent_type": "code-review",
   "task_id": "<task_id from the earlier result>"
 }
 ```
 
-### Common Options
+The resumed agent comes from the session-agent mapping file, so the call carries no agent name. Every resume failure starts no child and directs the caller to `task` for a fresh child.
+
+### `task_resume` parameters
 
 | Field | Meaning |
 | --- | --- |
-| `subagent_type` | Optional agent name. Omission selects `general-purpose`. An unknown name fails closed and lists the available agents. |
-| `description` | Short orchestration label for display. No behavioral effect. |
-| `task_id` | Resume a previous child session. Pass the `task_id` from an earlier task result. It requires `subagent_type`. |
-| `cwd` | Working directory for a fresh child, resolved relative to the parent session's working directory. Ignored on a resumed run. |
-| `agentScope` | `user` (default), `project`, or `both` |
-| `confirmProjectAgents` | Require project-agent confirmation (default `true`). `false` is explicit per-call approval. |
-| `provider` | Optional literal provider override. Omit it to inherit configuration. Otherwise pass an exact configured provider name from `tau providers`. Invalid names fail before any child starts, listing the configured providers. |
-| `model` | Optional literal model override. Omit it to inherit configuration. Otherwise pass an exact model ID supported by the selected provider. Invalid IDs fail before any child starts, listing the provider's models. |
-| `reasoningEffort` | Optional literal reasoningEffort override. Omit it to inherit configuration. Otherwise pass exactly `off`, `minimal`, `low`, `medium`, `high`, or `xhigh`. A call value overrides the config file and agent definition. Otherwise the level falls back to the config file, then the agent definition, then the parent session's thinking level. |
-| `timeoutSeconds` | Per-child timeout in seconds, greater than 0 and at most 10800. Omission selects 3600. |
+| `prompt` | Required. The child's new turn, preserved verbatim. |
+| `task_id` | Required. The child session id from an earlier task result. The resumed agent comes from the session-agent mapping file. |
+| `timeout_seconds` | Per-child timeout in seconds, greater than 0 and at most 10800. Omission selects 3600. |
 
 ### Result content
 
-The model-facing result content is one task envelope for every result that starts a child: `<task id="<taskId>" state="completed|error">` wrapping `<task_result>` or `<task_error>`. The envelope `id` is the child's Tau session id. `completed` means the child finished and delivered a final assistant message. `error` means the child failed, was cancelled, timed out, or ended with no final assistant message. Child status markers (`DONE`, `DONE_WITH_CONCERNS`, `BLOCKED`, `NEEDS_CONTEXT`) stay inside the message text. Repair notes appear as `Note:` lines before the envelope.
+The model-facing result content is one task envelope for every result that starts a child: `<task id="<taskId>" state="completed|error">` wrapping `<task_result>` or `<task_error>`. The envelope `id` is the child's Tau session id. `completed` means the child finished and delivered a final assistant message. `error` means the child failed, was cancelled, timed out, or ended with no final assistant message. Child status markers (`DONE`, `DONE_WITH_CONCERNS`, `BLOCKED`, `NEEDS_CONTEXT`) stay inside the message text.
+
+A rejected call starts no child. The result content is the teach-back text with no task envelope. Its details carry an empty `results` array and no `planned` field.
 
 For every result that starts a child, structured details keep schemaVersion 2 with a one-element `results` array and `planned: 1`. Each result carries the child's `taskId`, and the array holds the complete wire messages.
 
@@ -213,13 +219,26 @@ While children run, the tool row refreshes after every child message so you can 
 
 ### Operator notes
 
-- Update an installation after an extension change: run `./install.sh` again and restart each Tau session. The change loads only after a restart, and the Tau session store needs no migration.
-- Every fresh child runs in a pinned Tau session that `tau sessions --all` lists and the default `tau sessions` listing omits. Child sessions accumulate in the Tau session store with no retention. Cleanup is the quiescent store-maintenance procedure in the [feature spec](docs/design/2026-09-18-opencode-task-interface-spec.md). Stop the tau processes that use the store. Delete the child's transcript file. Delete the child's line from the project `index.jsonl`.
+- Update an installation after an extension change: run `./install.sh` again and restart each Tau session. The change loads only after a restart, and the Tau session store needs no migration. Sessions created before this change have no session-agent mapping entries. A `task_resume` call on one of those sessions fails closed and directs the caller to `task` for a fresh child.
+- A config file or agent definition that still carries `reasoningEffort` keeps working. The extension reports a diagnostic, drops that pin, and applies the remaining configuration. Rename the key to `reasoning_effort` to restore the pin.
+- This change removed the call-level `cwd`, `agentScope`, `confirmProjectAgents`, `provider`, `model`, and `reasoningEffort` parameters, and it removed resuming a session under a different agent. A call that carries a removed parameter fails closed with a teach-back. The recovery for different work or a different agent is a fresh `task` call.
+- Project-layer agent definitions dispatch without per-call approval, and their names appear in the tool roster. Discovery always covers the bundled, user, and nearest-ancestor project layers.
+- A fresh child always spawns in the parent session's working directory. A child that needs another directory changes its own directory or receives absolute paths in its prompt.
+- Every fresh child runs in a pinned Tau session that `tau sessions --all` lists and the default `tau sessions` listing omits. Child sessions accumulate in the Tau session store with no retention. Cleanup is the quiescent store-maintenance procedure in the [feature spec](docs/design/2026-09-18-opencode-task-interface-spec.md):
+  1. Find the child's line by `id` in the project `index.jsonl` files under `~/.tau/sessions/`.
+  2. Stop the tau processes that use the store.
+  3. Delete the transcript file that the line's `path` names.
+  4. Delete the child's line from that `index.jsonl`.
+  5. Delete the child's entry from `~/.tau/superpowers-subagent-sessions.json`.
+  6. Verify with `tau sessions --all` that the child no longer lists.
 - One message can carry any number of `task` calls. The tool sets no cap, and an extreme burst can exhaust machine processes, memory, or provider quota. The operator accepts this residual risk.
+- A stale mapping entry for a deleted session is harmless. The next `task_resume` call on that id fails closed before any child starts, and the entry is inspectable in the mapping file.
 - Usage in details covers the resumed run only. Totals computed across resumed children undercount the earlier turns. This undercount is documented behavior, not a bug.
-- To roll back, revert the branch commits, re-install the prior extension and skills, and restart the session. The rolled-back surface never reads the pinned child sessions, and they need no cleanup.
-- The same-id lock coordinates `task` calls only. A direct `tau --session <id>` resume by another process bypasses that lock. The operator accepts that overlap.
-- Repository-controlled project agents enter execution only through the approval prompt or `confirmProjectAgents: false`. The approval prompt is the consent boundary: a repository that controls `.tau/agents` can inject through an approved agent's prompt at that moment.
+- The same-id lock applies to `task_resume` ids. Two `task_resume` calls that carry the same `task_id` produce one child and one fail-closed result for the loser.
+- A direct `tau --session <id>` resume of a child session overlaps with `task_resume` at the caller's own risk. The same-id lock does not coordinate that path.
+- The extension reads the resumed agent's definition at resume time. An edited definition drifts from the original dispatch.
+- A cross-project resume whose mapped agent is a project-layer definition fails closed. Re-discovery anchors at the resuming session's working directory. The recovery is a fresh `task` call in that project.
+- To roll back, revert the branch commits, re-install the prior extension and skills, and restart the session. The rolled-back surface never reads the pinned child sessions, and they need no cleanup. The mapping file survives rollback as inert state that the prior surface ignores.
 
 The complete argument, status, progress, and schema-v2 result contract is in [the Tau `task` tool reference](skills/using-superpowers/references/tau-tools.md).
 
@@ -244,17 +263,15 @@ model: gpt-5.3-codex
 Review only the named files and return findings by severity.
 ```
 
-`name` and `description` are required. `profile` is `general-purpose` (default), `read-only`, or `review`; `provider`, `model`, and `reasoningEffort` are optional independent strings.
+`name` and `description` are required. `profile` is `general-purpose` (default), `read-only`, or `review`; `provider`, `model`, and `reasoning_effort` are optional independent strings.
 
-`agentScope: "user"` includes bundled and user agents. `"project"` includes bundled and project agents. `"both"` includes all layers. Precedence is bundled, then user, then nearest project.
-
-When a selected definition resolves to project-controlled Markdown, the extension asks in the TUI by default and fails closed in headless mode. After inspecting it, `"confirmProjectAgents": false` explicitly approves that definition for one call. Tau's project trust decision does not approve these extension-managed agent prompts.
+Discovery always covers the bundled, user, and nearest-ancestor project layers, in that precedence. A higher layer replaces an agent with the same name. Project-layer definitions dispatch without per-call approval, and their names appear in the tool roster.
 
 The `read-only` profile loads a temporary public Tau hook that blocks every Tau tool except `read`. It cannot run commands, search unknown paths, or produce its own `git diff`; provide those inputs in the delegated prompt. The `review` profile (used by `code-review` and `document-review`) permits `read` plus `bash` for read-only operations — git read commands, grep/rg/find searches — and instructs the child to never change the state of the repository or environment. The hook cannot parse bash command semantics, so read-only bash usage is instruction-governed. Both profiles are tool-layer policies, **not** an OS, filesystem, network, credential, model, provider, or prompt-injection sandbox.
 
 ## Provider, Model, and Thinking Effort Selection
 
-Normally omit `provider`, `model`, and `reasoningEffort`. Omission inherits configuration: subagents use the parent session's active provider, model, and thinking effort unless a config file or agent definition pins one. Each field is an optional literal override. When you provide one, use the exact configured provider name from `tau providers`, exact model ID supported by the selected provider, or one of the exact reasoning levels below. `default`, `inherit`, and `auto` are placeholders, not values: the task call treats them as omitted and reports a repair note, so omit the field instead. Invalid provider names and unsupported model IDs fail before any child starts, and the failure lists the configured options.
+Children use the parent session's active provider, model, and thinking level unless a config file or agent definition pins one. No call-level `provider`, `model`, or reasoning-effort parameter exists. A pin must name the exact configured provider name from `tau providers`, an exact model ID supported by that provider, or one of the exact reasoning levels below. Invalid provider names and unsupported model IDs fail before any child starts, and the failure lists the configured options.
 
 Validation teaches back only what the harness can run, scoped per project: when the nearest ancestor project defines `.tau/catalog.toml`, its overlay replaces the user-level `~/.tau/catalog.toml`; otherwise the user overlay applies. A provider is listed only when it is configured — a stored credential, the entry's API-key environment variable, an operator scoped model (`scoped_models`), a dispatch pin in the subagent config or an agent definition, or the parent session's running provider. A configured builtin provider lists only the models the harness selects: the provider preference default, operator scoped models, dispatch pins, and the session model — Tau's packaged catalog defaults are not operator configuration and are never listed. A builtin provider with a credential but no selected model is not listed until one is scoped, e.g. via `/model`. Providers added through a catalog overlay list their full declared model set.
 
@@ -262,11 +279,10 @@ Run `tau providers` to discover configured providers and their exact supported m
 
 Per-field resolution, highest first:
 
-1. `task` call `provider` / `model` / `reasoningEffort`;
-2. the subagent config file `[agents.<name>]` section;
-3. the selected agent definition's frontmatter;
-4. the subagent config file `[defaults]` section;
-5. the parent session's active provider, model, and thinking level.
+1. the subagent config file `[agents.<name>]` section;
+2. the selected agent definition's frontmatter;
+3. the subagent config file `[defaults]` section;
+4. the parent session's active provider, model, and thinking level.
 
 The subagent config file is a TOML file named `superpowers-subagent.toml` in either `~/.tau/` or the nearest ancestor `<project>/.tau/`, the same directories Tau reads its other durable configs from. A project file shadows the user file per key. An example file ships at `extensions/superpowers-subagent/superpowers-subagent.example.toml`:
 
@@ -274,26 +290,15 @@ The subagent config file is a TOML file named `superpowers-subagent.toml` in eit
 [defaults]
 # provider = "openai"
 # model = "gpt-5.6-sol"
-# reasoningEffort = "medium"   # off | minimal | low | medium | high | xhigh
+# reasoning_effort = "medium"   # off | minimal | low | medium | high | xhigh
 
 [agents.code-review]
 # provider = "openrouter"
 # model = "z-ai/glm-5.3"
-# reasoningEffort = "medium"
+# reasoning_effort = "medium"
 ```
 
-Per-call overrides are separate and map directly to Tau's separate CLI settings:
-
-```json
-{
-  "prompt": "Complete the delegated task.",
-  "subagent_type": "general-purpose",
-  "provider": "openai-codex",
-  "model": "gpt-5.3-codex"
-}
-```
-
-A call value overrides only the corresponding lower layer. The extension never splits combined strings or infers a provider from a slash in a model identifier. An unpersisted model or thinking level selected only in the parent process is carried into children as the parent-session fallback for values pinned nowhere else.
+The pinned values map directly to Tau's separate provider and model settings. The extension never splits combined strings or infers a provider from a slash in a model identifier. A higher-layer value overrides only the corresponding lower-layer value. An unpersisted model or thinking level selected only in the parent process is carried into children as the parent-session fallback for values pinned nowhere else.
 
 ## Isolation and Security Boundaries
 
@@ -325,13 +330,13 @@ tau --mode text --approve --no-extensions \
   -e extensions/superpowers-subagent /system
 ```
 
-The printed system prompt lists the `task` tool. For a user installation, run this from another directory:
+The printed system prompt lists the `task` and `task_resume` tools. For a user installation, run this from another directory:
 
 ```bash
 tau --mode text --no-approve /system
 ```
 
-The printed system prompt lists the installed user skills and the `task` tool. Tau must have a configured provider even though `/system` itself does not call the model.
+The printed system prompt lists the installed user skills and the `task` and `task_resume` tools. Tau must have a configured provider even though `/system` itself does not call the model.
 
 Run the installer regression test:
 

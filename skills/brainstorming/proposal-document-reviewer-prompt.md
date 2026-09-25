@@ -15,7 +15,7 @@ This is a template for constructing the `prompt` value of a Tau `task` tool call
 }
 ```
 
-The child has no controller conversation history and receives no brainstorm history. Include the proposal path and its complete text, the selected depth, the candidate content identity, the named evidence paths, the baseline branch, and the review contract. The result content is one `task` envelope around the reviewer's complete final message: the `## Document Review` report (verdict + findings) ending in the status line. The envelope names the child session's `taskId`, so a follow-up call can resume that session with `task_id` and `subagent_type`.
+The child has no controller conversation history and receives no brainstorm history. Include the proposal path and its complete text, the selected depth, the candidate content identity, the named evidence paths, the baseline branch, and the review contract. The result content is one `task` envelope around the reviewer's complete final message: the `## Document Review` report (verdict + findings) ending in the status line. The envelope names the child session's `taskId`, so a follow-up `task_resume` call can resume that session with that `task_id` and a new prompt.
 
 ```markdown
     You are the cold proposal reviewer. You review the proposal before any operator review.

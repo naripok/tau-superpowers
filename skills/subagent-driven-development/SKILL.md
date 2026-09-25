@@ -14,8 +14,8 @@ Execute the plan by dispatching a fresh implementer subagent per task. Then disp
 
 - Subagents do not inherit this conversation. Every dispatch must be self-contained: full task text, file paths, context, expected report format
 - There is no mid-task conversation. A subagent reports DONE, DONE_WITH_CONCERNS, BLOCKED, or NEEDS_CONTEXT. You re-dispatch with a new complete prompt
-- Dispatch with the `task` tool: `subagent_type: "implementation"` for implementers, `subagent_type: "code-review"` for reviewers. Each call carries one flat task object. Unless the user requests an override, omit `provider`, `model`, and `reasoningEffort`
-- The result's `taskId` names the child session, and a later call can resume it by passing that `task_id` with the same `subagent_type`
+- Dispatch with the `task` tool: `subagent_type: "implementation"` for implementers, `subagent_type: "code-review"` for reviewers. Children inherit the session's provider, model, and thinking level unless a config file or agent definition pins one
+- The result's `taskId` names the child session, and a later `task_resume` call can resume it with a new prompt and that `task_id`
 - Call schema and result contract: [`../using-superpowers/references/tau-tools.md`](../using-superpowers/references/tau-tools.md)
 
 ## When to Use

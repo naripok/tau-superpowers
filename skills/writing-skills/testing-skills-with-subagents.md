@@ -40,7 +40,7 @@ A `task` child does not inherit this conversation. Tau disables discovered child
 }
 ```
 
-Use the same provider/model settings and the exact scenario in both calls. Give baseline and skill-present trials separate `task` calls so that they stay independent. The result content is a `task` envelope around the child's complete final message. The result's `taskId` names the child session, and a later call can resume it by passing that `task_id` with the same `subagent_type`. Inspect `details.results[0].messages` when you need tool calls or earlier messages. Check the process fields plus the semantic `status` before you count a trial. If the result is `NEEDS_CONTEXT`, re-dispatch a complete prompt. Do not continue an old child conversation.
+Use the same provider/model settings and the exact scenario in both calls. Give baseline and skill-present trials separate `task` calls so that they stay independent. The result content is a `task` envelope around the child's complete final message. The result's `taskId` names the child session, and a later `task_resume` call can resume it with a new prompt and that `task_id`. Inspect `details.results[0].messages` when you need tool calls or earlier messages. Check the process fields plus the semantic `status` before you count a trial. If the result is `NEEDS_CONTEXT`, re-dispatch a complete prompt. Do not continue an old child conversation.
 
 Before deployment, also check real Tau discovery in the parent TUI. Put the skill in one of Tau's discovery directories. Run `/reload`. Check that its metadata appears. Invoke `/skill:<name>` explicitly. This discovery smoke test complements behavior trials. It does not replace them.
 

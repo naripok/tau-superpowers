@@ -42,7 +42,7 @@ git diff "$BASE_SHA".."$HEAD_SHA"
 
 **3. Fill the template and dispatch** with the `task` tool: `subagent_type: "code-review"`, `prompt: <filled prompt>` (call schema: `../using-superpowers/references/tau-tools.md`).
 
-Embed the complete diff, verification output, and every relevant file path. The result content is one `task` envelope around the reviewer's complete final message: the strict `## Code Review` report (verdict + findings) that ends in the status line. The envelope names the child session's `taskId`, so a follow-up call can resume that session with `task_id` and `subagent_type`.
+Embed the complete diff, verification output, and every relevant file path. The result content is one `task` envelope around the reviewer's complete final message: the strict `## Code Review` report (verdict + findings) that ends in the status line. The envelope names the child session's `taskId`, so a follow-up `task_resume` call can resume that session with that `task_id` and a new prompt.
 
 **4. Act on feedback:**
 

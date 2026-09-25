@@ -441,39 +441,6 @@ def test_extension_version_stays_0_1_0() -> None:
     assert 'version = "0.1.0"' in pyproject
 
 
-def test_readme_documents_literal_override_contract() -> None:
-    """Prove relevant README sections define literal override relationships."""
-
-    readme = (Path(__file__).parents[3] / "README.md").read_text()
-    common_options = (
-        readme.split("### Common Options\n", maxsplit=1)[1].split("\n### ", maxsplit=1)[0].lower()
-    )
-    for field in ("provider", "model", "reasoningEffort"):
-        row = next(
-            line
-            for line in common_options.splitlines()
-            if line.startswith(f"| `{field.lower()}` |")
-        )
-        assert f"optional literal {field.lower()} override" in row
-        assert "omit it to inherit configuration" in row
-
-    selection = (
-        readme.split("## Provider, Model, and Thinking Effort Selection\n", maxsplit=1)[1]
-        .split("\n## ", maxsplit=1)[0]
-        .lower()
-    )
-    for placeholder in ("`default`", "`inherit`", "`auto`"):
-        assert placeholder in selection
-    assert "placeholders, not values" in selection
-    assert "treats them as omitted and reports a repair note" in selection
-    assert "fail before any child starts" in selection
-    provider_row = next(
-        line for line in common_options.splitlines() if line.startswith("| `provider` |")
-    )
-    assert "exact configured provider name from `tau providers`" in provider_row
-    assert "model id supported by the selected provider" in selection
-
-
 def test_setup_refuses_recursive_registration(monkeypatch: Any) -> None:
     monkeypatch.setenv(RECURSION_GUARD, "1")
     monkeypatch.setattr(extension_module, "install_sidebar_section", lambda _tracker: None)
