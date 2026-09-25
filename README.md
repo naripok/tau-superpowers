@@ -1,6 +1,6 @@
 # Tau Superpowers
 
-Tau Superpowers is a collection of Agent Skills for spec-driven development, TDD, debugging, planning, and review, plus a Python Tau extension that registers the isolated-subagent `task` and `task_resume` tools.
+Tau Superpowers is a collection of Agent Skills for spec-driven development, TDD, debugging, planning, and review. The Python Tau extension registers the isolated-subagent `task` and `task_resume` tools.
 
 The project combines ideas and material from [obra/superpowers](https://github.com/obra/superpowers) and [Fission-AI/OpenSpec](https://github.com/Fission-AI/OpenSpec), adapted for [Tau](https://github.com/earendil-works/tau).
 
@@ -224,7 +224,7 @@ While children run, the tool row refreshes after every child message so you can 
 - This change removed the call-level `cwd`, `agentScope`, `confirmProjectAgents`, `provider`, `model`, and `reasoningEffort` parameters, and it removed resuming a session under a different agent. A call that carries a removed parameter fails closed with a teach-back. The recovery for different work or a different agent is a fresh `task` call.
 - Project-layer agent definitions dispatch without per-call approval, and their names appear in the tool roster. Discovery always covers the bundled, user, and nearest-ancestor project layers.
 - A fresh child always spawns in the parent session's working directory. A child that needs another directory changes its own directory or receives absolute paths in its prompt.
-- Every fresh child runs in a pinned Tau session that `tau sessions --all` lists and the default `tau sessions` listing omits. Child sessions accumulate in the Tau session store with no retention. Cleanup is the quiescent store-maintenance procedure in the [feature spec](docs/design/2026-09-18-opencode-task-interface-spec.md):
+- Every fresh child runs in a pinned Tau session that `tau sessions --all` lists and the default `tau sessions` listing omits. Child sessions accumulate in the Tau session store with no retention. Cleanup is the quiescent store-maintenance procedure in the [living spec](docs/specs/subagent-dispatch.md):
   1. Find the child's line by `id` in the project `index.jsonl` files under `~/.tau/sessions/`.
   2. Stop the tau processes that use the store.
   3. Delete the transcript file that the line's `path` names.

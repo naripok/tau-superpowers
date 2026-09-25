@@ -46,7 +46,7 @@ Each agent gets one focused, self-contained prompt: specific scope, clear goal, 
 
 ### 3. Dispatch in Parallel
 
-Send several `task` calls in one message, one call per domain (call schema: `../using-superpowers/references/tau-tools.md`). The calls run concurrently, and each call carries one flat task object:
+Send several `task` calls in one message, one call per domain (call schema: `../using-superpowers/references/tau-tools.md`). The calls run concurrently, and each call carries one task:
 
 ```json
 {
