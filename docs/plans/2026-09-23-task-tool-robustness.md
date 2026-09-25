@@ -593,5 +593,5 @@ grep -n 'version = "0.1.0"' pyproject.toml
 
 Expected: all green, the reference scan passes, and the grep prints the version line.
 
-- [ ] Run all checks and record the transcript in the evidence directory
-- [ ] Commit: `git add docs/design/evidence/task-tool-robustness/post-implementation-tests/ && git commit -m "test: record post-implementation verification transcript"`
+- [x] Run all checks and record the transcript in the evidence directory
+- [x] Commit: `git add docs/design/evidence/task-tool-robustness/post-implementation-tests/ && git commit -m "test: record post-implementation verification transcript"`
