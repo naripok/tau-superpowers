@@ -72,9 +72,9 @@ _ACTION_VERB = r"(?:call|use|start|retry|invoke|re-?dispatch|direct)\w*"
 #: Behavior-level check for the "directs the caller to `task`" teach-back clause:
 #: one sentence names an action verb and the `task` tool, in either order. The
 #: two-token check stays true across reasonable rewordings of the teach-back
-#: while still requiring the direction to `task`: `\btask\b` does not match
-#: inside `task_id` or `task_resume`, and `[^.!?]*` does not cross a sentence
-#: boundary.
+#: and checks word-level co-occurrence within one sentence, not an enforced
+#: direction: `\btask\b` does not match inside `task_id` or `task_resume`,
+#: and `[^.!?]*` does not cross a sentence boundary.
 DIRECTS_TO_TASK = re.compile(
     rf"\b{_ACTION_VERB}[^.!?]*\btask\b|\btask\b[^.!?]*\b{_ACTION_VERB}",
     re.IGNORECASE,
