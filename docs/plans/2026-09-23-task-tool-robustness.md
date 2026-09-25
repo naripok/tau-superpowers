@@ -505,11 +505,11 @@ PYTHONPATH="$TAU_SITE_PACKAGES" uv run pytest -q
 
 Expected: the reference scan passes. The `reasoningEffort` grep matches only the README operator-notes lines that announce the stale-key behavior and the removals, and the `reasoningEffort?` child-result wire field in tau-tools.md's details shape (the wire key survives; only `agentScope` and `projectAgentsDir` drop). The `confirmProjectAgents|agentScope:` grep matches only the README operator-notes line that announces the removals. The remaining two greps print nothing. The suite count is the Task 6 gate count minus the one deleted README-contract test.
 
-- [ ] Update README.md per the behavior list
-- [ ] Update tau-tools.md per the behavior list
-- [ ] Apply the named sentence replacements and the verify-only checks across the thirteen skill files
-- [ ] Run the reference scan, the greps, and the suite
-- [ ] Commit: `git add README.md skills/ extensions/superpowers-subagent/tests/test_extension.py && git commit -m "docs: update task-surface consumers to the two-tool surface"`
+- [x] Update README.md per the behavior list
+- [x] Update tau-tools.md per the behavior list
+- [x] Apply the named sentence replacements and the verify-only checks across the thirteen skill files
+- [x] Run the reference scan, the greps, and the suite
+- [x] Commit: `git add README.md skills/ extensions/superpowers-subagent/tests/test_extension.py && git commit -m "docs: update task-surface consumers to the two-tool surface"`
 
 ### Task 8: Agent-facing surface evaluation
 
