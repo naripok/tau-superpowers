@@ -2,19 +2,22 @@
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import TYPE_CHECKING, cast
 
 from tau_agent.messages import AssistantMessage
+
+if TYPE_CHECKING:
+    from tau_coding.provider_catalog import ProviderCatalogEntry
 
 #: Single-slot memo for the effective catalog, keyed on the overlay file's
 #: path, mtime, and size. ``effective_catalog()`` re-reads and re-validates the
 #: whole merged catalog on every call once an overlay exists, and this module
 #: prices every child assistant message, so the entries stay valid until the
 #: overlay file changes.
-_catalog_memo: tuple[tuple[str, int, int], tuple[Any, ...]] | None = None
+_catalog_memo: tuple[tuple[str, int, int], tuple[ProviderCatalogEntry, ...]] | None = None
 
 
-def _effective_catalog_entries() -> tuple[Any, ...]:
+def _effective_catalog_entries() -> tuple[ProviderCatalogEntry, ...]:
     """Return the effective catalog, re-resolving only when the overlay changes."""
     global _catalog_memo
     from tau_coding.catalog_loader import USER_CATALOG_FILENAME, effective_catalog
