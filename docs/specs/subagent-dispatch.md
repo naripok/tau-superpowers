@@ -1013,14 +1013,24 @@ Any child count SHALL render as one frame: a counts headline (`task · <succeede
 
 ### Requirement: Catalog-based subagent cost estimation
 
-The extension SHALL estimate a USD cost for each accepted child assistant message from Tau's built-in provider catalog rates, using that message's provider, model, and token usage. Prompt tokens SHALL include fresh, cached, and cache-written tokens, and the message's own request size SHALL select the catalog cost tier. One-hour cache-write tokens SHALL be priced at the catalog's one-hour cache-write rate when the catalog distinguishes one-hour writes. A message is priced from the catalog when the estimator applies catalog rates to it. When the catalog has no entry for the message's provider and model, the extension SHALL use that message's provider-reported cost when it is non-zero. When neither source applies, the message SHALL contribute tokens but no cost. When both sources apply to one message, the child's two cost fields each SHALL accumulate their own contribution. Each child result SHALL carry its accumulated estimated cost as an additive usage field serialized as `estimatedCost`. No existing usage field, token total, status, or result content SHALL change because of estimation. The tool's rendered per-child usage line and `Total:` aggregate line SHALL show the combined reported and estimated cost of the child or of all children when it is above zero. The rendered cost SHALL keep the line's existing cost format and SHALL carry the `~` estimate mark before the amount when any estimated cost contributes to it. These lines SHALL NOT carry the incompleteness mark. When the estimator is unavailable or fails for a message, the extension SHALL skip estimation for that message and continue with reported-cost and token accounting unchanged.
+The extension SHALL estimate a USD cost for each accepted child assistant message from Tau's provider catalog rates, resolved from the effective catalog: the built-in rates overlaid by the user's `~/.tau/catalog.toml`. Rates SHALL re-resolve when the overlay file's path, modification time, or size changes. The estimate SHALL use that message's provider, model, and token usage. Prompt tokens SHALL include fresh, cached, and cache-written tokens, and the message's own request size SHALL select the catalog cost tier. One-hour cache-write tokens SHALL be priced at the catalog's one-hour cache-write rate when the catalog distinguishes one-hour writes. A message is priced from the catalog when the estimator applies catalog rates to it. When the catalog has no entry for the message's provider and model, the extension SHALL use that message's provider-reported cost when it is non-zero. When neither source applies, the message SHALL contribute tokens but no cost. When both sources apply to one message, the child's two cost fields each SHALL accumulate their own contribution. Each child result SHALL carry its accumulated estimated cost as an additive usage field serialized as `estimatedCost`. No existing usage field, token total, status, or result content SHALL change because of estimation. The tool's rendered per-child usage line and `Total:` aggregate line SHALL show the combined reported and estimated cost of the child or of all children when it is above zero. The rendered cost SHALL keep the line's existing cost format and SHALL carry the `~` estimate mark before the amount when any estimated cost contributes to it. These lines SHALL NOT carry the incompleteness mark. When the estimator is unavailable or fails for a message, the extension SHALL skip estimation for that message and continue with reported-cost and token accounting unchanged.
 
-The estimator is imported through a guarded seam. Estimates are API-rate equivalents of the catalog rates, matching the meaning of the parent usage section's estimate marker.
+The estimator is imported through a guarded seam. While a readable overlay exists, resolved rates stay memoized until the file's path, modification time, or size changes; without one, rates resolve from the built-in catalog on every message. Estimates are API-rate equivalents of the catalog rates, matching the meaning of the parent usage section's estimate marker.
 
 #### Scenario: Priced message
-- GIVEN a child assistant message whose provider and model exist in the built-in catalog with rates
+- GIVEN a child assistant message whose provider and model exist in the effective catalog with rates
 - WHEN the runner collects the message
 - THEN the child's estimated-cost usage field increases by the catalog price of that message's token breakdown
+
+#### Scenario: Overlay-priced message
+- GIVEN a child assistant message whose provider and model exist only in the user's `~/.tau/catalog.toml` overlay
+- WHEN the runner collects the message
+- THEN the child's estimated-cost usage field increases by the overlay price of that message's token breakdown
+
+#### Scenario: Overlay change reprices
+- GIVEN a message priced from the user's `~/.tau/catalog.toml` overlay
+- WHEN the overlay file's modification time or size changes
+- THEN the next collected message is priced at the changed rates
 
 #### Scenario: Per-request tier selection
 - GIVEN a catalog model prices prompt tokens above a size threshold at a different rate
@@ -1039,14 +1049,14 @@ The estimator is imported through a guarded seam. Estimates are API-rate equival
 - AND the child's reported-cost usage field increases by the reported amount
 
 #### Scenario: Unpriced provider with reported cost
-- GIVEN a message whose provider and model are absent from the catalog
+- GIVEN a message whose provider and model are absent from the effective catalog
 - AND the message carries a non-zero provider-reported cost
 - WHEN the runner collects the message
 - THEN the child's estimated-cost usage field does not change
 - AND the child's reported-cost usage field increases by the reported amount
 
 #### Scenario: Unpriced provider without reported cost
-- GIVEN a message whose provider and model are absent from the catalog
+- GIVEN a message whose provider and model are absent from the effective catalog
 - AND the message carries no provider-reported cost
 - WHEN the runner collects the message
 - THEN the message contributes its tokens to the child's usage
