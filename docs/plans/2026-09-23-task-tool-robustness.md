@@ -552,9 +552,9 @@ python scripts/agent_surface_evaluation.py \
 
 Expected: the suite stays at the Task 7 gate count, ruff is clean, the script exits 0 or exits 3 with the blocked report, and `report.md` records the four cases with the per-call fail-closed proofs and the residual-rate observations.
 
-- [ ] Write the evaluation script
-- [ ] Run it against the ambient provider and record the report and raw events in the evidence directory
-- [ ] Commit: `git add extensions/superpowers-subagent/scripts/ docs/design/evidence/task-tool-robustness/agent-surface-evaluation/ && git commit -m "test: add agent-facing surface evaluation"`
+- [x] Write the evaluation script
+- [x] Run it against the ambient provider and record the report and raw events in the evidence directory
+- [x] Commit: `git add extensions/superpowers-subagent/scripts/ docs/design/evidence/task-tool-robustness/agent-surface-evaluation/ && git commit -m "test: add agent-facing surface evaluation"`
 
 ### Task 9: Post-implementation verification evidence
 
