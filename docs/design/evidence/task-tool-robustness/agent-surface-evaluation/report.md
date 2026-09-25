@@ -1,10 +1,10 @@
 # Agent-facing surface evaluation — task-tool-robustness
 
-Recorded: 2026-09-25T01:11:05+00:00
+Recorded: 2026-09-25T01:38:52+00:00
 Session command: `tau --mode json --no-approve --no-extensions -e extensions/superpowers-subagent "<case prompt>"`
-Script exit: 0 — passed — every rejected call in the failed-resume cases records the fail-closed contract: no launched-child envelope, an empty `results` array, and the teach-back
+Script exit: 0. Passed: every rejected call in the failed-resume cases records the fail-closed contract (no launched-child envelope, an empty `results` array, and the teach-back), and each failed-resume case records at least one rejected call, so the proof is not vacuous.
 
-The sessions pass `--no-extensions` so the pinned `-e` path is the only loaded extension: explicit `-e` paths still load with the flag, while a same-name copy installed under `~/.tau/extensions` would otherwise shadow it (Tau's loader dedupes by name and the user dir precedes `-e` extras). The evaluation therefore exercises the repository's implemented surface.
+The sessions pass `--no-extensions` so the pinned `-e` path is the only loaded extension: explicit `-e` paths still load with the flag, while a same-name copy installed under `~/.tau/extensions` otherwise shadows it (Tau's loader dedupes by name and the user dir precedes `-e` extras). The evaluation therefore exercises the repository's implemented surface.
 
 The evaluation runs four scripted controller sessions against the provider and model the harness configures at evaluation time. Results are reported separately from the unit-test outcome. The hard measures bind per rejected call: a follow-up call a model makes after a teach-back is a legitimate new dispatch, so the session-level child counts are recorded, not gated.
 
@@ -12,60 +12,60 @@ The evaluation runs four scripted controller sessions against the provider and m
 
 Prompt: `Use the task tool to dispatch one general-purpose subagent. Ask it to report the working directory it runs in. Relay the report, then finish.`
 
-Session: exit code 0, 27.8s
+Session: exit code 0, 19.0s
 
 Provider/model: openrouter / z-ai/glm-5.3-flash
 
 Emitted task-surface calls (1):
 
-1. `task` arguments: `{"prompt": "Report the working directory you are running in. To do this, run `pwd` in your shell and also confirm what you observe. Reply with the exact absolute path and nothing else beyond a brief confirmation that it came from running the command. This is research only \u2014 do not write or modify any files.", "subagent_type": "general-purpose"}`
-   own result: launched 1 child(ren) — task_id=8e6b417a7e8645019ddb3b3048b3c764 state=completed
+1. `task` arguments: `{"prompt": "Run `pwd` in your shell and report the absolute path of the working directory you run in. This is a research/reporting task \u2014 do not write any files. Verify the result by echoing the command's output verbatim in your reply.", "subagent_type": "general-purpose"}`
+   own result: launched 1 child(ren) (task_id=2c6a44bf99374c29a713ca516b5ad9fc state=completed)
 
 Fail-closed teach-backs: none observed
 
 Launched children, session-level (recorded, not gated): 1
-- call 1 (`task`): task_id=8e6b417a7e8645019ddb3b3048b3c764 state=completed
+- call 1 (`task`): task_id=2c6a44bf99374c29a713ca516b5ad9fc state=completed
 
-Tool name observed: `task`; argument keys within the `task` surface: True;
-optional fields carried: 1 (`subagent_type`).
+Tool name observed: `task`. Argument keys within the `task` surface: True.
+Optional fields carried: 1 (`subagent_type`).
 
 ## Case 2 — resume
 
 Prompt: `Use the task tool to dispatch one general-purpose subagent and ask it to compute one plus one. Then use the task_resume tool to continue that child session and ask it to multiply the result by three. Relay both results.`
 
-Session: exit code 0, 29.9s
+Session: exit code 0, 28.5s
 
 Provider/model: openrouter / z-ai/glm-5.3-flash
 
 Emitted task-surface calls (2):
 
-1. `task` arguments: `{"prompt": "Compute one plus one. Reply with just the numeric result and a one-line explanation.", "subagent_type": "general-purpose"}`
-   own result: launched 1 child(ren) — task_id=3986701d0b1d4c528e8af7b3873f3981 state=completed
-2. `task_resume` arguments: `{"prompt": "Take your previous result (one plus one) and multiply it by three. Reply with just the numeric result and a one-line explanation.", "task_id": "3986701d0b1d4c528e8af7b3873f3981"}`
-   own result: launched 1 child(ren) — task_id=3986701d0b1d4c528e8af7b3873f3981 state=completed
+1. `task` arguments: `{"prompt": "Compute one plus one. Report only the numeric result.", "subagent_type": "general-purpose"}`
+   own result: launched 1 child(ren) (task_id=75e6ee52dd0d411096d44bcbec084d4f state=completed)
+2. `task_resume` arguments: `{"prompt": "Take the result you computed (one plus one) and multiply it by three. Report only the numeric result.", "task_id": "75e6ee52dd0d411096d44bcbec084d4f"}`
+   own result: launched 1 child(ren) (task_id=75e6ee52dd0d411096d44bcbec084d4f state=completed)
 
 Fail-closed teach-backs: none observed
 
 Launched children, session-level (recorded, not gated): 2
-- call 1 (`task`): task_id=3986701d0b1d4c528e8af7b3873f3981 state=completed
-- call 2 (`task_resume`): task_id=3986701d0b1d4c528e8af7b3873f3981 state=completed
+- call 1 (`task`): task_id=75e6ee52dd0d411096d44bcbec084d4f state=completed
+- call 2 (`task_resume`): task_id=75e6ee52dd0d411096d44bcbec084d4f state=completed
 
-Fresh children: 1; resumed children: 1.
-Fresh envelope task_id: `3986701d0b1d4c528e8af7b3873f3981`; task_resume received task_id: `3986701d0b1d4c528e8af7b3873f3981`; passthrough matches: True.
+Fresh children: 1. Resumed children: 1.
+Fresh envelope task_id: `75e6ee52dd0d411096d44bcbec084d4f`. task_resume received task_id: `75e6ee52dd0d411096d44bcbec084d4f`. Passthrough matches: True.
 A failure to resume is a recorded observation, not a gate.
 
 ## Case 3 — unknown-resume
 
 Prompt: `Use the task_resume tool with task_id set to the exact text nonexistent and the prompt 'Report status.' Wait for the result and relay it verbatim.`
 
-Session: exit code 0, 14.8s
+Session: exit code 0, 8.8s
 
 Provider/model: openrouter / z-ai/glm-5.3-flash
 
 Emitted task-surface calls (1):
 
 1. `task_resume` arguments: `{"prompt": "Report status.", "task_id": "nonexistent"}`
-   own result: no launched-child envelope; rejected — the result carries an empty `results` array; teach-back 1 below
+   own result: no launched-child envelope. Rejected: the result carries an empty `results` array (teach-back 1 below)
 
 Fail-closed teach-backs (1):
 
@@ -81,24 +81,24 @@ The resumed agent comes from the session-agent mapping at /home/tau/.tau/superpo
 
 Launched children, session-level (recorded, not gated): 0
 
-Rejected calls: 1. Per-rejected-call proof: every rejected call's own result carries an empty `results` array (the rejection marker); launched-child envelopes across those rejected results: 0 — the hard measure holds this at zero.
-Teach-back preserves `nonexistent`: True; directs the caller to `task`: True.
-Follow-up observation: 0 follow-up call(s) after the rejected call (none); a follow-up dispatch is a legitimate new dispatch, recorded not gated.
+Rejected calls: 1. Per-rejected-call proof: every rejected call's own result carries an empty `results` array (the rejection marker), and the launched-child envelopes across those rejected results total 0 (the hard measure holds this at zero).
+Teach-back preserves `nonexistent`: True. Directs the caller to `task`: True.
+Follow-up observation: 0 follow-up call(s) after the rejected call (none). A follow-up dispatch is a legitimate new dispatch, recorded not gated.
 
 ## Case 4 — camelcase
 
 Prompt: `Use the task tool to dispatch one general-purpose subagent. Pass timeoutSeconds with the value 120 as a call argument, exactly that spelling. Relay the result.`
 
-Session: exit code 0, 34.8s
+Session: exit code 0, 27.4s
 
 Provider/model: openrouter / z-ai/glm-5.3-flash
 
 Emitted task-surface calls (2):
 
-1. `task` arguments: `{"prompt": "This is a quick smoke-test task. Run `pwd` and `ls -la` in /workspace, then reply with a brief one-paragraph summary of what you found (directory contents and any notable files). Do not write, edit, or delete any files.", "subagent_type": "general-purpose", "timeoutSeconds": "120"}`
-   own result: no launched-child envelope; rejected — the result carries an empty `results` array; teach-back 1 below
-2. `task` arguments: `{"prompt": "This is a quick smoke-test task. Run `pwd` and `ls -la` in /workspace, then reply with a brief one-paragraph summary of what you found (directory contents and any notable files). Do not write, edit, or delete any files.", "subagent_type": "general-purpose", "timeout_seconds": 120}`
-   own result: launched 1 child(ren) — task_id=df27b9d53b3d49dfbad9e7ea79bfd73c state=completed
+1. `task` arguments: `{"prompt": "This is a test dispatch. Do research only, no code changes. In the working directory /workspace, run `ls -la` and report a brief summary of what the directory contains. Then report the word \"DONE\" on the final line.", "subagent_type": "general-purpose", "timeoutSeconds": "120"}`
+   own result: no launched-child envelope. Rejected: the result carries an empty `results` array (teach-back 1 below)
+2. `task` arguments: `{"prompt": "This is a test dispatch. Do research only, no code changes. In the working directory /workspace, run `ls -la` and report a brief summary of what the directory contains. Then report the word \"DONE\" on the final line.", "subagent_type": "general-purpose", "timeout_seconds": 120}`
+   own result: launched 1 child(ren) (task_id=750a8f8afeac499194835ffe8a849848 state=completed)
 
 Fail-closed teach-backs (1):
 
@@ -115,17 +115,17 @@ Example: {"prompt": "Find caching options"}
 ```
 
 Launched children, session-level (recorded, not gated): 1
-- call 2 (`task`): task_id=df27b9d53b3d49dfbad9e7ea79bfd73c state=completed
+- call 2 (`task`): task_id=750a8f8afeac499194835ffe8a849848 state=completed
 
-Rejected calls: 1. Per-rejected-call proof: every rejected call's own result carries an empty `results` array (the rejection marker); launched-child envelopes across those rejected results: 0 — the hard measure holds this at zero.
-Teach-back names `timeoutSeconds`: True; shows `timeout_seconds`: True.
-Residual-rate observation: the model emitted `timeoutSeconds` on 1 call(s); after the teach-back it made 1 follow-up call(s), 0 re-emitted `timeoutSeconds`, and 1 carried the corrected `timeout_seconds`.
+Rejected calls: 1. Per-rejected-call proof: every rejected call's own result carries an empty `results` array (the rejection marker), and the launched-child envelopes across those rejected results total 0 (the hard measure holds this at zero).
+Teach-back names `timeoutSeconds`: True. Shows `timeout_seconds`: True.
+Residual-rate observation: the model emitted `timeoutSeconds` on 1 call(s). After the teach-back it made 1 follow-up call(s), 0 re-emitted `timeoutSeconds`, and 1 carried the corrected `timeout_seconds`.
 
 ## Key measures
 
 - Optional fields on the ordinary fresh call (case 1 `task`): 1 (argument keys: `prompt`, `subagent_type`).
-- Accidental launches after a failed resume (case `unknown-resume`): 0 launched-child envelope(s) across the rejected calls' own results; session-level children: 0 (recorded, not gated).
-- Accidental launches after a failed resume (case `camelcase`): 0 launched-child envelope(s) across the rejected calls' own results; session-level children: 1 (recorded, not gated).
+- Accidental launches after a failed resume (case `unknown-resume`): 0 launched-child envelope(s) across the rejected calls' own results (rejected calls: 1). Session-level children: 0 (recorded, not gated).
+- Accidental launches after a failed resume (case `camelcase`): 0 launched-child envelope(s) across the rejected calls' own results (rejected calls: 1). Session-level children: 1 (recorded, not gated).
 - Residual camelCase rate (case `camelcase`): 0/1 follow-up call(s) re-emitted `timeoutSeconds` after the teach-back.
 
-Hard measures: PASS — every rejected call in the failed-resume cases records the fail-closed contract: no launched-child envelope, an empty `results` array, and the teach-back.
+Hard measures: PASS. Every rejected call in the failed-resume cases records the fail-closed contract (no launched-child envelope, an empty `results` array, and the teach-back), and each failed-resume case records at least one rejected call, so the proof is not vacuous.

@@ -15,17 +15,18 @@ explicit `-e` paths still load with the flag. Without it, a same-name copy insta
 precedes `-e` extras) and the sessions measure that copy instead of the repository surface.
 
 The hard measures bind per rejected call: in the unknown-resume and camelcase sessions,
-every rejected call's own result must record the fail-closed contract — no launched-child
-envelope, an empty `results` array, and the teach-back — so the rejected call itself
-launches zero children. A follow-up call the model makes after a teach-back is a
-legitimate new dispatch, so the session-level child count and the post-teach-back
-behavior are recorded observations, not gates.
+every rejected call's own result must record the fail-closed contract (no launched-child
+envelope, an empty `results` array, and the teach-back), so the rejected call itself
+launches zero children. Each failed-resume case must also record at least one rejected
+call, so the per-call proof is not vacuous. A follow-up call the model makes after a
+teach-back is a legitimate new dispatch, so the session-level child count and the
+post-teach-back behavior are recorded observations, not gates.
 
 Exit codes:
 - 0: every session ran and the hard measures hold (see above).
 - 1: a hard measure failed, or a session failed to run.
 - 3: the ambient harness has no configured provider. The report records the blocked
-  state; the gate accepts exit 3 with the blocked report.
+  state, and the gate accepts exit 3 with the blocked report.
 
 The script is stdlib-only and prints no environment values.
 """
@@ -65,17 +66,42 @@ TASK_SURFACE_FIELDS = frozenset({"prompt", "subagent_type", "description", "time
 TASK_OPTIONAL_FIELDS = frozenset({"subagent_type", "description", "timeout_seconds"})
 #: The camelCase remnant the dedicated teach-back names.
 CAMELCASE_FIELD = "timeoutSeconds"
-#: Substrings every rejected call's teach-back must carry, per failed-resume case.
-#: The hard measure binds to the rejected call's own result, so the checks read
-#: that call's content only.
-TEACH_BACK_CHECKS: dict[str, tuple[tuple[str, str], ...]] = {
+#: The action verbs the "directs the caller to `task`" teach-back clause can name,
+#: in any inflection (`calls`, `directed`, `re-dispatch`).
+_ACTION_VERB = r"(?:call|use|start|retry|invoke|re-?dispatch|direct)\w*"
+#: Behavior-level check for the "directs the caller to `task`" teach-back clause:
+#: one sentence names an action verb and the `task` tool, in either order. The
+#: two-token check stays true across reasonable rewordings of the teach-back
+#: while still requiring the direction to `task`: `\btask\b` does not match
+#: inside `task_id` or `task_resume`, and `[^.!?]*` does not cross a sentence
+#: boundary.
+DIRECTS_TO_TASK = re.compile(
+    rf"\b{_ACTION_VERB}[^.!?]*\btask\b|\btask\b[^.!?]*\b{_ACTION_VERB}",
+    re.IGNORECASE,
+)
+#: The teach-back checks per failed-resume case: the single source of the
+#: needles, read by both the exit gate (`rejected_call_violations`) and the
+#: recorded observations (`unknown_resume_observations`,
+#: `camelcase_observations`). Each entry is a check key (the observation key),
+#: the violation label, and the pattern the teach-back content must match. The
+#: hard measure binds to the rejected call's own result, so the gate reads that
+#: call's content only.
+TEACH_BACK_CHECKS: dict[str, tuple[tuple[str, str, re.Pattern[str]], ...]] = {
     "unknown-resume": (
-        ("preserve the rejected task_id `nonexistent`", "nonexistent"),
-        ("direct the caller to `task`", "call task with the agent and prompt"),
+        (
+            "preserves_nonexistent",
+            "preserve the rejected task_id `nonexistent`",
+            re.compile("nonexistent"),
+        ),
+        ("directs_to_task", "direct the caller to `task`", DIRECTS_TO_TASK),
     ),
     "camelcase": (
-        ("name `timeoutSeconds`", CAMELCASE_FIELD),
-        ("show `timeout_seconds`", "timeout_seconds"),
+        (
+            "names_timeoutSeconds",
+            "name `timeoutSeconds`",
+            re.compile(re.escape(CAMELCASE_FIELD)),
+        ),
+        ("shows_timeout_seconds", "show `timeout_seconds`", re.compile("timeout_seconds")),
     ),
 }
 
@@ -148,7 +174,7 @@ class SurfaceCall:
 
     `rejected` marks the implemented fail-closed contract: the result's details
     carry an empty `results` array. A rejected call launches no child and its
-    content is the teach-back; envelopes belong to non-rejected dispatches.
+    content is the teach-back. Envelopes belong to non-rejected dispatches.
     """
 
     tool: str
@@ -170,9 +196,6 @@ class CaseRecord:
     model: str | None
     #: The task-surface calls in emission order, each paired with its own result.
     calls: list[SurfaceCall]
-    #: Task-surface toolCall blocks read from assistant messages; cross-evidence
-    #: for the harness-observed calls.
-    assistant_task_calls: list[dict[str, object]]
 
     @property
     def rejected_calls(self) -> list[SurfaceCall]:
@@ -212,7 +235,7 @@ def parse_stream(
     """Parse stdout into JSON events and matching raw records.
 
     Every non-empty line becomes one raw record, so the recorded stream is the
-    complete session output; lines that fail to parse are preserved verbatim,
+    complete session output. Lines that fail to parse are preserved verbatim,
     truncated.
     """
 
@@ -249,7 +272,7 @@ def session_command(prompt: str) -> list[str]:
 def run_session(
     case: Case, timeout: float
 ) -> tuple[SessionFacts, list[dict[str, object]], list[dict[str, object]]]:
-    """Run one controller session; return its process facts, events, and raw records."""
+    """Run one controller session and return its facts, events, and raw records."""
 
     command = session_command(case.prompt)
     started = time.monotonic()
@@ -280,7 +303,7 @@ def run_session(
             exit_code=127,
             timed_out=False,
             duration_seconds=time.monotonic() - started,
-            stderr_tail=f"could not start tau: {exc}"[:STDERR_TAIL_CHARS],
+            stderr_tail=f"tau did not start: {exc}"[:STDERR_TAIL_CHARS],
         )
         return facts, [], []
     facts = SessionFacts(
@@ -294,7 +317,7 @@ def run_session(
 
 
 def _text_of(blocks: object) -> str:
-    """Concatenate the text blocks of one content list; other blocks are skipped."""
+    """Concatenate the text blocks of one content list. Other blocks are skipped."""
 
     if not isinstance(blocks, list):
         return ""
@@ -323,34 +346,6 @@ def _provider_model(events: list[dict[str, object]]) -> tuple[str | None, str | 
         model = message.get("model")
         return str(provider), None if model in (None, "unknown") else str(model)
     return None, None
-
-
-def _assistant_task_calls(events: list[dict[str, object]]) -> list[dict[str, object]]:
-    """Task-surface toolCall blocks read from assistant messages."""
-
-    calls = []
-    for event in events:
-        if event.get("type") != "message_end":
-            continue
-        message = event.get("message")
-        if not isinstance(message, dict) or message.get("role") != "assistant":
-            continue
-        content = message.get("content")
-        if not isinstance(content, list):
-            continue
-        for block in content:
-            if not isinstance(block, dict) or block.get("type") != "toolCall":
-                continue
-            if block.get("name") not in TASK_SURFACE_TOOLS:
-                continue
-            arguments = block.get("arguments")
-            calls.append(
-                {
-                    "tool": block.get("name"),
-                    "arguments": arguments if isinstance(arguments, dict) else {},
-                }
-            )
-    return calls
 
 
 def _envelopes_in(content: str) -> list[dict[str, object]]:
@@ -419,7 +414,6 @@ def build_record(case: Case, facts: SessionFacts, events: list[dict[str, object]
         provider=provider,
         model=model,
         calls=_pair_calls(events),
-        assistant_task_calls=_assistant_task_calls(events),
     )
 
 
@@ -435,7 +429,7 @@ def is_blocked(record: CaseRecord) -> bool:
 
 
 def evaluate(timeout: float) -> tuple[list[CaseRecord], list[dict[str, object]], bool]:
-    """Run the cases in order; stop early only on the blocked state.
+    """Run the cases in order and stop early only on the blocked state.
 
     Returns the case records, the raw records of every session, and whether the
     ambient harness was detected as having no configured provider.
@@ -506,26 +500,33 @@ def resume_observations(record: CaseRecord) -> dict[str, object]:
 
 
 def unknown_resume_observations(record: CaseRecord) -> dict[str, bool]:
-    """Whether each rejected call's teach-back preserves the id and directs to `task`."""
+    """Whether each rejected call's teach-back preserves the id and directs to `task`.
+
+    The booleans derive from the case's `TEACH_BACK_CHECKS` entries, so the
+    observations and the exit gate read the same needles.
+    """
 
     content = "\n".join(record.teach_backs)
     return {
-        "preserves_nonexistent": "nonexistent" in content,
-        "directs_to_task": "call task with the agent and prompt" in content,
+        key: bool(pattern.search(content))
+        for key, _, pattern in TEACH_BACK_CHECKS["unknown-resume"]
     }
 
 
 def camelcase_observations(record: CaseRecord) -> dict[str, object]:
     """The rejected teach-back facts and the residual camelCase observation.
 
-    The residual rate counts the follow-up calls after the teach-back: how many
-    re-emitted the camelCase field and how many carried the corrected spelling.
+    The teach-back booleans derive from the case's `TEACH_BACK_CHECKS` entries,
+    so the observations and the exit gate read the same needles. The residual
+    rate counts the follow-up calls after the teach-back: how many re-emitted
+    the camelCase field and how many carried the corrected spelling.
     """
 
     content = "\n".join(record.teach_backs)
     return {
-        "names_timeoutSeconds": CAMELCASE_FIELD in content,
-        "shows_timeout_seconds": "timeout_seconds" in content,
+        **{
+            key: bool(pattern.search(content)) for key, _, pattern in TEACH_BACK_CHECKS["camelcase"]
+        },
         "emitted_camelcase": sum(1 for call in record.calls if CAMELCASE_FIELD in call.arguments),
         "follow_up_calls": len(record.follow_up_calls),
         "residual_camelcase": sum(
@@ -568,8 +569,8 @@ def rejected_call_violations(record: CaseRecord) -> list[str]:
                 f"case {record.case}: rejected call {number} (`{call.tool}`) carries a "
                 "launched-child envelope in its own result"
             )
-        for label, needle in checks:
-            if needle not in call.content:
+        for _, label, pattern in checks:
+            if not pattern.search(call.content):
                 violations.append(
                     f"case {record.case}: rejected call {number} (`{call.tool}`) teach-back "
                     f"does not {label}"
@@ -577,25 +578,48 @@ def rejected_call_violations(record: CaseRecord) -> list[str]:
     return violations
 
 
+def _cases_without_rejected_calls(records: list[CaseRecord]) -> list[str]:
+    """The failed-resume cases whose sessions recorded no rejected call.
+
+    The hard-measure proof binds per rejected call, so a failed-resume session
+    with no rejected call makes the proof vacuous. The vacuous session is a
+    hard-measure failure, not a pass.
+    """
+
+    return [
+        name
+        for name in TEACH_BACK_CHECKS
+        if not any(record.case == name and record.rejected_calls for record in records)
+    ]
+
+
 def classify(records: list[CaseRecord], blocked: bool) -> tuple[int, str]:
     """The script exit code and the one-line outcome the report records.
 
     The hard measures bind per rejected call: in the failed-resume cases every
-    rejected call's own result must record the fail-closed contract. Session
-    child counts and post-teach-back behavior are recorded, not gated.
+    rejected call's own result must record the fail-closed contract, and each
+    failed-resume case must record at least one rejected call, so the proof is
+    not vacuous. Session child counts and post-teach-back behavior are recorded,
+    not gated.
     """
 
     if blocked:
-        return 3, "blocked — the ambient harness has no configured provider"
+        return 3, "Blocked: the ambient harness has no configured provider."
     if any(record.session.failed for record in records):
-        return 1, "failed — at least one session did not run to completion"
+        return 1, "Failed: at least one session did not run to completion."
     violations = [item for record in records for item in rejected_call_violations(record)]
     if violations:
-        return 1, f"failed — the fail-closed contract is unmet: {'; '.join(violations)}"
+        return 1, f"Failed: the fail-closed contract is unmet. {'; '.join(violations)}"
+    empty = _cases_without_rejected_calls(records)
+    if empty:
+        names = ", ".join(f"`{name}`" for name in empty)
+        return 1, f"Failed: no rejected call in {names}, so the per-call proof is vacuous."
     return (
         0,
-        "passed — every rejected call in the failed-resume cases records the fail-closed "
-        "contract: no launched-child envelope, an empty `results` array, and the teach-back",
+        "Passed: every rejected call in the failed-resume cases records the fail-closed "
+        "contract (no launched-child envelope, an empty `results` array, and the teach-back), "
+        "and each failed-resume case records at least one rejected call, so the proof is "
+        "not vacuous.",
     )
 
 
@@ -612,9 +636,9 @@ def _rejected_call_proof_line(record: CaseRecord) -> str:
 
     return (
         f"Rejected calls: {len(record.rejected_calls)}. Per-rejected-call proof: every "
-        f"rejected call's own result carries an empty `results` array (the rejection marker); "
-        f"launched-child envelopes across those rejected results: "
-        f"{accidental_launches(record)} — the hard measure holds this at zero."
+        f"rejected call's own result carries an empty `results` array (the rejection marker), "
+        f"and the launched-child envelopes across those rejected results total "
+        f"{accidental_launches(record)} (the hard measure holds this at zero)."
     )
 
 
@@ -628,13 +652,13 @@ def _render_call(position: int, call: SurfaceCall, teach_back_number: int | None
             f"task_id={envelope['task_id']} state={envelope['state']}"
             for envelope in call.envelopes
         )
-        own = f"own result: launched {len(call.envelopes)} child(ren) — {launched}"
+        own = f"own result: launched {len(call.envelopes)} child(ren) ({launched})"
     else:
         own = "own result: no launched-child envelope"
     if call.rejected:
         own += (
-            "; rejected — the result carries an empty `results` array; "
-            f"teach-back {teach_back_number} below"
+            ". Rejected: the result carries an empty `results` array "
+            f"(teach-back {teach_back_number} below)"
         )
     lines.append(f"   {own}")
     return lines
@@ -647,17 +671,17 @@ def _case_observations(record: CaseRecord) -> list[str]:
         observed = fresh_observations(record)
         optional = ", ".join(f"`{name}`" for name in observed["optional_fields"]) or "none"
         return [
-            f"Tool name observed: `{observed['tool']}`; argument keys within the `task` "
-            f"surface: {observed['keys_within_task_surface']};",
-            f"optional fields carried: {len(observed['optional_fields'])} ({optional}).",
+            f"Tool name observed: `{observed['tool']}`. Argument keys within the `task` "
+            f"surface: {observed['keys_within_task_surface']}.",
+            f"Optional fields carried: {len(observed['optional_fields'])} ({optional}).",
         ]
     if record.case == "resume":
         observed = resume_observations(record)
         return [
-            f"Fresh children: {observed['fresh_children']}; resumed children: "
+            f"Fresh children: {observed['fresh_children']}. Resumed children: "
             f"{observed['resumed_children']}.",
-            f"Fresh envelope task_id: `{observed['fresh_envelope_task_id']}`; task_resume "
-            f"received task_id: `{observed['task_resume_task_id']}`; passthrough matches: "
+            f"Fresh envelope task_id: `{observed['fresh_envelope_task_id']}`. task_resume "
+            f"received task_id: `{observed['task_resume_task_id']}`. Passthrough matches: "
             f"{observed['task_id_passthrough_matches']}.",
             "A failure to resume is a recorded observation, not a gate.",
         ]
@@ -665,20 +689,20 @@ def _case_observations(record: CaseRecord) -> list[str]:
         observed = unknown_resume_observations(record)
         return [
             _rejected_call_proof_line(record),
-            f"Teach-back preserves `nonexistent`: {observed['preserves_nonexistent']}; "
-            f"directs the caller to `task`: {observed['directs_to_task']}.",
+            f"Teach-back preserves `nonexistent`: {observed['preserves_nonexistent']}. "
+            f"Directs the caller to `task`: {observed['directs_to_task']}.",
             f"Follow-up observation: {len(record.follow_up_calls)} follow-up call(s) after "
-            f"the rejected call ({_tool_list(record.follow_up_calls)}); a follow-up dispatch "
+            f"the rejected call ({_tool_list(record.follow_up_calls)}). A follow-up dispatch "
             "is a legitimate new dispatch, recorded not gated.",
         ]
     if record.case == "camelcase":
         observed = camelcase_observations(record)
         return [
             _rejected_call_proof_line(record),
-            f"Teach-back names `timeoutSeconds`: {observed['names_timeoutSeconds']}; shows "
+            f"Teach-back names `timeoutSeconds`: {observed['names_timeoutSeconds']}. Shows "
             f"`timeout_seconds`: {observed['shows_timeout_seconds']}.",
             f"Residual-rate observation: the model emitted `timeoutSeconds` on "
-            f"{observed['emitted_camelcase']} call(s); after the teach-back it made "
+            f"{observed['emitted_camelcase']} call(s). After the teach-back it made "
             f"{observed['follow_up_calls']} follow-up call(s), "
             f"{observed['residual_camelcase']} re-emitted `timeoutSeconds`, and "
             f"{observed['corrected_spelling']} carried the corrected `timeout_seconds`.",
@@ -763,8 +787,8 @@ def render_key_measures(records: list[CaseRecord], *, exit_code: int, blocked: b
         lines.append(
             f"- Accidental launches after a failed resume (case `{name}`): "
             f"{accidental_launches(record)} launched-child envelope(s) across the rejected "
-            f"calls' own results; session-level children: {record.launched_children} "
-            "(recorded, not gated)."
+            f"calls' own results (rejected calls: {len(record.rejected_calls)}). "
+            f"Session-level children: {record.launched_children} (recorded, not gated)."
         )
     camel = next((item for item in records if item.case == "camelcase"), None)
     if camel is not None:
@@ -776,15 +800,16 @@ def render_key_measures(records: list[CaseRecord], *, exit_code: int, blocked: b
         )
     lines.append("")
     if blocked:
-        lines.append("Hard measures: BLOCKED — the provider the harness configures is missing.")
+        lines.append("Hard measures: BLOCKED. The provider the harness configures is missing.")
     elif exit_code == 0:
         lines.append(
-            "Hard measures: PASS — every rejected call in the failed-resume cases records the "
-            "fail-closed contract: no launched-child envelope, an empty `results` array, and "
-            "the teach-back."
+            "Hard measures: PASS. Every rejected call in the failed-resume cases records the "
+            "fail-closed contract (no launched-child envelope, an empty `results` array, and "
+            "the teach-back), and each failed-resume case records at least one rejected call, "
+            "so the proof is not vacuous."
         )
     else:
-        lines.append("Hard measures: FAIL — see the script exit line above.")
+        lines.append("Hard measures: FAIL. See the script exit line above.")
     lines.append("")
     return lines
 
@@ -808,11 +833,11 @@ def render_report(
         + " ".join(SESSION_FLAGS)
         + f" -e {extension_relative} "
         + '"<case prompt>"`',
-        f"Script exit: {exit_code} — {outcome}",
+        f"Script exit: {exit_code}. {outcome}",
         "",
         "The sessions pass `--no-extensions` so the pinned `-e` path is the only loaded "
         "extension: explicit `-e` paths still load with the flag, while a same-name copy "
-        "installed under `~/.tau/extensions` would otherwise shadow it (Tau's loader dedupes "
+        "installed under `~/.tau/extensions` otherwise shadows it (Tau's loader dedupes "
         "by name and the user dir precedes `-e` extras). The evaluation therefore exercises "
         "the repository's implemented surface.",
         "",
