@@ -1,16 +1,17 @@
 """Guarded estimator seam tests for per-message catalog pricing.
 
 These tests pin the "Catalog-based subagent cost estimation" scenarios at the
-seam level: argument forwarding to Tau's estimator, one-hour cache-write
-pricing split, tier selection by request size, and degradation to ``None``
-when the seam is missing, broken, or has no catalog entry.
+seam level: rate resolution through the effective catalog — built-in rates
+overlaid by ``~/.tau/catalog.toml`` — exact pricing per token breakdown,
+one-hour cache-write pricing split, tier selection by request size, and
+degradation to ``None`` when the seam is missing, broken, or has no catalog
+entry.
 """
 
 from __future__ import annotations
 
 import sys
-from collections.abc import Callable
-from dataclasses import dataclass
+from pathlib import Path
 
 import pytest
 from tau_agent.messages import AssistantMessage, Usage
@@ -42,55 +43,9 @@ def _message(
     )
 
 
-@dataclass(frozen=True)
-class _EstimatorCall:
-    """One recorded estimator invocation with its forwarded arguments."""
-
-    provider: str
-    model: str
-    fresh: int
-    cached: int
-    cache_write: int
-    cache_write_1h: int
-    output: int
-
-
-def _stub_estimator(
-    result: float | None,
-) -> tuple[Callable[..., float | None], list[_EstimatorCall]]:
-    """Return a keyword-strict estimator stub that records calls and returns
-    ``result``; the strict signature proves the wrapper forwards by keyword."""
-    calls: list[_EstimatorCall] = []
-
-    def record(
-        provider: str,
-        model: str,
-        *,
-        fresh: int,
-        cached: int,
-        cache_write: int,
-        cache_write_1h: int,
-        output: int,
-    ) -> float | None:
-        calls.append(
-            _EstimatorCall(
-                provider=provider,
-                model=model,
-                fresh=fresh,
-                cached=cached,
-                cache_write=cache_write,
-                cache_write_1h=cache_write_1h,
-                output=output,
-            )
-        )
-        return result
-
-    return record, calls
-
-
-def _raising_estimator(*_args: object, **_kwargs: object) -> float | None:
-    """Estimator stub that always fails."""
-    raise RuntimeError("estimator is broken")
+def _raising_resolver(*_args: object, **_kwargs: object) -> float | None:
+    """Catalog resolver stub that always fails."""
+    raise RuntimeError("catalog resolution is broken")
 
 
 def _model_rates(provider: str, model: str) -> dict[str, float]:
@@ -101,57 +56,9 @@ def _model_rates(provider: str, model: str) -> dict[str, float]:
     return metadata.cost
 
 
-def test_passthrough_returns_estimator_value_and_forwards_message_values(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Prove the seam returns the estimator's value and forwards the message's
-    provider, model, and all five token counts by keyword."""
-    message = _message(input=100, output=10, cache_read=5, cache_write=3, cache_write_1h=1234)
-    stub, calls = _stub_estimator(0.5)
-    monkeypatch.setattr("tau_coding.session_usage.estimated_request_cost", stub)
-
-    result = estimated_message_cost(message)
-
-    assert result == 0.5
-    assert calls == [
-        _EstimatorCall(
-            provider="prov-a",
-            model="model-a",
-            fresh=100,
-            cached=5,
-            cache_write=3,
-            cache_write_1h=1234,
-            output=10,
-        )
-    ]
-
-
-def test_none_cache_write_1h_forwards_zero(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Prove a missing one-hour write count reaches the estimator as zero —
-    the estimator's non-optional argument — rather than None."""
-    message = _message(input=10, output=2, cache_write_1h=None)
-    stub, calls = _stub_estimator(0.25)
-    monkeypatch.setattr("tau_coding.session_usage.estimated_request_cost", stub)
-
-    result = estimated_message_cost(message)
-
-    assert result == 0.25
-    assert calls == [
-        _EstimatorCall(
-            provider="prov-a",
-            model="model-a",
-            fresh=10,
-            cached=0,
-            cache_write=0,
-            cache_write_1h=0,
-            output=2,
-        )
-    ]
-
-
 def test_missing_seam_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Prove a missing Tau usage module degrades to None instead of raising."""
-    monkeypatch.setitem(sys.modules, "tau_coding.session_usage", None)
+    """Prove a missing Tau catalog module degrades to None instead of raising."""
+    monkeypatch.setitem(sys.modules, "tau_coding.catalog_loader", None)
 
     result = estimated_message_cost(_message(input=10, output=2))
 
@@ -159,27 +66,141 @@ def test_missing_seam_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_raising_seam_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Prove an estimator failure degrades to None instead of raising."""
-    monkeypatch.setattr("tau_coding.session_usage.estimated_request_cost", _raising_estimator)
+    """Prove a catalog resolution failure degrades to None instead of raising."""
+    monkeypatch.setattr("tau_coding.catalog_loader.effective_catalog", _raising_resolver)
 
     result = estimated_message_cost(_message(input=10, output=2))
 
     assert result is None
 
 
-def test_estimator_none_passes_through(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Prove the estimator's own None — no catalog entry for the model —
-    reaches the caller unchanged as an unpriced message."""
-    stub, calls = _stub_estimator(None)
-    monkeypatch.setattr("tau_coding.session_usage.estimated_request_cost", stub)
-
+def test_model_without_catalog_rates_returns_none(isolated_home: Path) -> None:
+    """Prove a message whose provider and model are absent from the effective
+    catalog — built-in plus any overlay — is unpriced: None, not zero."""
     result = estimated_message_cost(_message(provider="prov-a", model="model-a"))
 
     assert result is None
-    assert len(calls) == 1
 
 
-def test_real_catalog_prices_a_costed_model() -> None:
+def test_user_overlay_prices_a_model_missing_from_the_builtin_catalog(
+    isolated_home: Path,
+) -> None:
+    """Prove a message whose provider and model exist only in the user's
+    ``~/.tau/catalog.toml`` overlay is priced from the overlay rates — the
+    operator's fix for models Tau's built-in catalog omits."""
+    overlay = isolated_home / ".tau" / "catalog.toml"
+    overlay.parent.mkdir(parents=True)
+    overlay.write_text(
+        "\n".join(
+            [
+                "schema_version = 1",
+                "",
+                "[[providers]]",
+                'name = "overlay-provider"',
+                'display_name = "Overlay Provider"',
+                'kind = "openai-compatible"',
+                'base_url = "https://overlay.example/v1"',
+                'api_key_env = "OVERLAY_API_KEY"',
+                'docs_url = "https://overlay.example/docs"',
+                'models = ["overlay-model"]',
+                'default_model = "overlay-model"',
+                "",
+                '[providers.model_metadata."overlay-model"]',
+                'input = ["text"]',
+                "context_window = 1000000",
+                "cost = { input = 2.0, output = 6.0, cacheRead = 0.5, cacheWrite = 1.0,"
+                " cacheWrite1h = 4.0 }",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    message = _message(
+        provider="overlay-provider",
+        model="overlay-model",
+        input=1_000_000,
+        output=1_000_000,
+        cache_read=1_000_000,
+        cache_write=1_000_000,
+        cache_write_1h=500_000,
+    )
+
+    result = estimated_message_cost(message)
+
+    assert result == pytest.approx(11.0)
+
+
+def test_overlay_resolution_is_memoized_until_the_overlay_file_changes(
+    monkeypatch: pytest.MonkeyPatch, isolated_home: Path
+) -> None:
+    """Prove the effective catalog resolves once while the overlay file stays
+    unchanged and re-resolves after the file changes, so per-message pricing
+    avoids re-parsing the overlay on every child message without going stale."""
+    from tau_coding import catalog_loader
+
+    overlay = isolated_home / ".tau" / "catalog.toml"
+    overlay.parent.mkdir(parents=True)
+    real_effective_catalog = catalog_loader.effective_catalog
+    calls = 0
+
+    def counting_effective_catalog() -> object:
+        nonlocal calls
+        calls += 1
+        return real_effective_catalog()
+
+    monkeypatch.setattr("tau_coding.catalog_loader.effective_catalog", counting_effective_catalog)
+
+    def write_overlay(input_rate: str) -> None:
+        overlay.write_text(
+            "\n".join(
+                [
+                    "schema_version = 1",
+                    "",
+                    "[[providers]]",
+                    'name = "overlay-provider"',
+                    'display_name = "Overlay Provider"',
+                    'kind = "openai-compatible"',
+                    'base_url = "https://overlay.example/v1"',
+                    'api_key_env = "OVERLAY_API_KEY"',
+                    'docs_url = "https://overlay.example/docs"',
+                    'models = ["overlay-model"]',
+                    'default_model = "overlay-model"',
+                    "",
+                    '[providers.model_metadata."overlay-model"]',
+                    'input = ["text"]',
+                    "context_window = 1000000",
+                    f"cost = {{ input = {input_rate}, output = 6.0, cacheRead = 0.5,"
+                    " cacheWrite = 1.0, cacheWrite1h = 4.0 }",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+    message = _message(
+        provider="overlay-provider",
+        model="overlay-model",
+        input=1_000_000,
+        output=1_000_000,
+        cache_read=1_000_000,
+        cache_write=1_000_000,
+        cache_write_1h=500_000,
+    )
+
+    write_overlay("2.0")
+    first = estimated_message_cost(message)
+    second = estimated_message_cost(message)
+
+    assert first == pytest.approx(11.0)
+    assert second == pytest.approx(11.0)
+    assert calls == 1
+
+    write_overlay("25.0")
+    third = estimated_message_cost(message)
+
+    assert third == pytest.approx(34.0)
+    assert calls == 2
+
+
+def test_real_catalog_prices_a_costed_model(isolated_home: Path) -> None:
     """Prove the real Tau import path prices a message whose model carries
     catalog rates, without any stubbing."""
     entry = builtin_provider_entry("anthropic")
@@ -193,7 +214,9 @@ def test_real_catalog_prices_a_costed_model() -> None:
     assert result > 0
 
 
-def test_real_catalog_prices_one_hour_cache_writes_at_their_rate() -> None:
+def test_real_catalog_prices_one_hour_cache_writes_at_their_rate(
+    isolated_home: Path,
+) -> None:
     """Prove one-hour writes price at the catalog's 1-hour rate and the rest of
     the write count at the 5-minute rate, while a message without a one-hour
     count prices every written token at the 5-minute rate."""
@@ -224,7 +247,7 @@ def test_real_catalog_prices_one_hour_cache_writes_at_their_rate() -> None:
     assert priced_without == pytest.approx(expected_without)
 
 
-def test_real_catalog_selects_tier_per_request_size() -> None:
+def test_real_catalog_selects_tier_per_request_size(isolated_home: Path) -> None:
     """Prove tier selection follows the request size: input sized at the tier
     threshold prices at the lower-tier rate and one token more prices at the
     higher-tier rate."""
