@@ -37,6 +37,7 @@ Copy this checklist into your working notes. Mark each item as you complete it. 
 - [ ] **Ask clarifying questions**: purpose, constraints, success criteria. Assess scope first. If the request spans multiple independent subsystems, help the user decompose it into sub-projects. Each sub-project gets its own brainstorm, spec, plan, and implementation cycle. Batch independent questions in one message. Prefer multiple-choice
 - [ ] **Propose 2-3 approaches**: with trade-offs and your recommendation. Lead with your recommendation
 - [ ] **Present the complete design**: One message, scaled to complexity. Cover: architecture, components, data flow, error handling, testing. Record every accepted decision. This conversation is elicitation for the proposal author. It grants no approval
+- [ ] **Classify edge cases**: Judge every edge case that the design surfaced as strictly necessary or optional under the Occam's Razor Rule. Carry the optional ones into the proposal's `Optional Edge Cases` section
 - [ ] **Set up the worktree**: Invoke using-git-worktrees (`../using-git-worktrees/SKILL.md`) before you persist any artifact. Commit all artifacts and code to this branch, never to the default branch
 - [ ] **Write the proposal**: `docs/design/YYYY-MM-DD-<topic>-proposal.md` at the selected depth. Transfer every accepted decision from this conversation into the proposal
 - [ ] **Dispatch the cold proposal review**: Use `proposal-document-reviewer-prompt.md`. One initial review per proposal version. Loop until the reviewer approves. Resolve blocking findings before operator review
@@ -59,6 +60,26 @@ Each proposal and spec gate makes one initial review dispatch per artifact versi
 - Break the system into units. Each unit must have one clear purpose and communicate through well-defined interfaces. You must be able to understand and test each unit independently
 - For each unit, you must be able to answer: what does it do, how does other code use it, what does it depend on
 - Prefer smaller, focused files over large ones that do too much
+
+## Occam's Razor Rule
+
+Judge every edge case that the design surfaces as strictly necessary or optional before it enters an artifact.
+
+An edge case is strictly necessary only when the change is incorrect, incomplete, or unsafe for its stated use without handling it. At least one of these conditions holds:
+
+- A stated requirement or acceptance example exercises the case on its main path.
+- A documented contract, interface, or living spec requires the handling.
+- Data integrity, security, privacy, or an applicable High-risk trigger depends on the handling.
+- The change itself introduces the case, and without handling it the change breaks current behavior.
+
+Every other edge case is optional. For example: rare environments, inputs outside the stated contract, hypothetical misuse, and defensive checks for states that the requirements make unreachable.
+
+Handle only strictly necessary edge cases. An optional edge case receives no requirement, no scenario, no task, and no test. Record each optional edge case in the proposal's `Optional Edge Cases` section. The entry names the scenario and the consequence of not handling it. Never drop an optional edge case silently.
+
+The operator picks the optional edge cases to handle. The agent never adds optional edge-case handling on its own initiative:
+
+- Before operator approval: the operator names the items to move into scope. The author moves them into Required Outcomes and In scope. The items then flow through the spec and the plan normally.
+- After operator approval: the operator request goes through proposal change control. The proposal moves the item into scope, repeats cold review, and obtains operator approval again. Then the feature spec and the plan carry the work.
 
 ## Working in Existing Codebases
 
@@ -107,6 +128,9 @@ Every non-Direct proposal contains this minimum content:
 
 ## Risks
 <!-- Risks and their treatment. A High-risk proposal adds compatibility, migration, rollout, rollback, observability, recovery, and risk treatment. Use None for a category the change does not need. -->
+
+## Optional Edge Cases
+<!-- Edge cases judged optional under the Occam's Razor Rule. Each entry names the scenario and the consequence of not handling it. No entry receives a requirement, a scenario, a task, or a test. The operator picks any entry to move into scope. Use None when every considered edge case is strictly necessary. -->
 
 ## Assumptions
 <!-- Assumptions the plan can rely on. Use None when there are none. -->

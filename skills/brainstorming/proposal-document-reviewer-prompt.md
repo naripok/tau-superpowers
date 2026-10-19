@@ -50,6 +50,7 @@ The child has no controller conversation history and receives no brainstorm hist
     | Evidence grounding | The baseline, discrepancy, consumer, interface, contract, data, security, operations, rollout, and rollback claims match the named evidence paths. Read the evidence before you judge the claims. A material discrepancy the proposal does not resolve is a blocking finding. |
     | Depth | The proposal carries the content the selected depth requires. |
     | Impact and risk | Impact covers the affected areas, and each risk carries a treatment. |
+    | Edge-case classification | The proposal classifies every edge case it surfaces as strictly necessary or optional under the Occam's Razor Rule. Optional edge cases appear only in the `Optional Edge Cases` section, each with its scenario and the consequence of not handling it. No requirement, outcome, acceptance example, or scope item covers an optional edge case. The named evidence supports every strictly necessary classification. An unsupported or missing classification is a blocking finding. |
     | Unresolved decisions | The `Unresolved Decisions` section reads `None`. Any unresolved controlled decision blocks approval. |
     | Clarity | Every sentence has one meaning on one read. A statement a cold reader cannot interpret without guessing is a blocking clarity finding, even when every section exists. |
     | Risk classification | The named evidence supports the selected depth and its risk classification. An unresolved, contradicted, or unsupported classification is a blocking finding. |

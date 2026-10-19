@@ -43,6 +43,8 @@ The proposal and the feature spec are **complementary contracts**. The plan impl
 
 **Conflict rule:** if the proposal and the feature spec prescribe incompatible outcomes, stop. Do not choose a local interpretation. The workflow repairs and re-reviews the affected upstream artifact through proposal change control before planning resumes.
 
+**Optional edge cases:** the proposal's `Optional Edge Cases` section lists edge cases that stay unhandled. The section binds like a non-goal: no task, no test, and no defensive code covers one. The operator adds one only by explicit request, and the request goes through proposal change control before planning resumes.
+
 **Baseline mapping:** map changed behavior to implementation tasks with named proof. Map established unchanged baseline behavior only to preservation or regression checks, never to change tasks. Proposal-owned work that spec review retained (internal constraints, non-behavioral in-scope work) maps to a task or a named check.
 
 Every task in the plan must map to a feature-spec requirement or to a proposal-owned item that spec review retained (internal constraint, non-behavioral in-scope work, or risk treatment).
@@ -134,6 +136,7 @@ Every task must contain complete contracts. Never write these **plan failures**:
 - References to types, functions, or methods not defined in any task
 - Tasks without verification commands
 - Dependence on chat history or a bare cross-reference: restate every constraint, term, and decision the task needs. A cross-reference provides traceability, never required meaning
+- A task, a test, or a defensive behavior for an edge case that the proposal lists under `Optional Edge Cases`
 - High-risk plans that leave an applicable compatibility, migration, rollout, rollback, observability, recovery, or approved risk-treatment obligation without a mapped task, check, or approved `None` disposition. `None` is valid only when the approved proposal marks the category inapplicable or approves no action
 
 The plan does NOT contain:
@@ -146,7 +149,7 @@ The plan does NOT contain:
 Every plan embeds the shared code standards in its header so that implementers and reviewers apply them consistently:
 
 - **DRY**: duplicated logic and repeated test patterns exist once.
-- **Minimal implementation (YAGNI)**: the simplest code that satisfies the contract of the task. No speculative edge-case handling, no defensive checks for states that cannot occur, no unrequested error paths.
+- **Minimal implementation (YAGNI)**: the simplest code that satisfies the contract of the task. Every guard, branch, and error path traces to a contract obligation or a strictly necessary edge case under the Occam's Razor Rule. No defensive checks for states that the requirements make unreachable, no unrequested error paths.
 - **Low cyclomatic complexity**: code must encode a single valid path whenever possible. Keep branches shallow and conditionals honest.
 - **Type safety**: invalid system states must not be representable by the type system. Use precise types rather than untyped escapes or stringly-typed states.
 - **No unnecessary abstractions**: prefer simple, direct solutions. If a real caller needs indirection, add it. Otherwise, do not add it.
@@ -175,6 +178,8 @@ After you write the complete plan, check it yourself before you dispatch the rev
 **7. Signature consistency:** Do the types, signatures, and names used in later tasks match what earlier tasks define? A function named `clearLayers()` in Task 3 but `clearFullLayers()` in Task 7 is a bug.
 
 **8. Standards coverage:** Does every contract respect the Implementation Standards? A task that prescribes a workaround, a silent fallback, or an unnecessary abstraction is a plan failure.
+
+**9. Optional edge cases:** Does any task, test, or defensive behavior cover an edge case from the proposal's `Optional Edge Cases` section? Remove it. Plan one only after the operator requests it and proposal change control moves it into scope.
 
 Fix issues inline, then continue. Add missing tasks. Add missing test behaviors.
 

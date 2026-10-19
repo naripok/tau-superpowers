@@ -128,6 +128,7 @@ A concrete consequence is one of these:
 - The claim is factually wrong for the artifact.
 - The finding has no concrete consequence.
 - The finding demands handling for a scenario the governing contract does not require.
+- The finding demands handling for an edge case that the governing contract lists as optional.
 - The finding demands changes beyond the contract scope.
 
 A claim that the artifact does not exhibit at its stated location counts as factually wrong for the artifact.

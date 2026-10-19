@@ -103,6 +103,7 @@ This is a template for constructing the `prompt` value of a Tau `task` tool call
     - Does the change stay inside the approved proposal's scope, binding architecture, and constraints?
     - Is any non-goal violated or any excluded feature implemented?
     - Does each proposal acceptance example hold against the evidence?
+    - Did the change implement handling for an edge case that the proposal lists under `Optional Edge Cases`?
     - Is every mapped High-risk obligation evidenced (compatibility, migration, rollout, rollback, observability, recovery, approved risk treatments)?
 
     Report violations of proposal-owned contracts under Spec Compliance so the controller applies proposal change control rather than a local interpretation.

@@ -39,6 +39,14 @@ Never dispatch a subagent and then do the same read or command yourself. The dis
 
 Write all developer-facing text per the writing-unambiguous-text skill. This text includes documentation, specs, plans, docstrings, code comments, commit message bodies, error and log messages, and reports to the user. Short sentences. Imperative procedures, with the condition before the command. Banned modals: should, would, may, might, could, shall. Exception: RFC 2119 keywords (SHALL, MUST, SHOULD) in requirement statements stay exact. Use "check" as the only verb for verification. Identifiers, code, and quoted messages stay exact. Language tooling rules for doc comments override style rules. Read the writing-unambiguous-text SKILL.md before you write or rewrite a long document.
 
+## Occam's Razor Rule
+
+Judge every edge case the work surfaces as strictly necessary or optional before it enters any artifact. An edge case is strictly necessary only when the change is incorrect, incomplete, or unsafe for its stated use without handling it. Every other edge case is optional.
+
+Handle only strictly necessary edge cases. Plan, implement, and test no optional edge case. Record each optional edge case in the proposal's `Optional Edge Cases` section so the operator can decide on it. Direct work has no proposal, so name optional edge cases to the user instead. The operator picks the optional edge cases to handle and requests each one explicitly. A request after operator approval goes through proposal change control. The brainstorming skill owns the complete rule.
+
+This rule and the YAGNI usage check (`../receiving-code-review/SKILL.md`) serve one principle: build only strictly necessary work. This rule classifies edge-case handling at design time. The YAGNI usage check tests existing code and capability suggestions at review time.
+
 ## How Skills Work
 
 Tau initially places only the name, description, and path of each model-invocable skill in the system prompt. Users can invoke a skill explicitly with `/skill:<name>`. Resolve supporting files relative to the skill directory.

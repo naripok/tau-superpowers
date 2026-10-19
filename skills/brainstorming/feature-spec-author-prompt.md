@@ -42,6 +42,7 @@ The author context is fresh. The dispatch carries no brainstorm history and no o
     - Never invent a policy, threshold, exception, constraint, decision, or operator-visible outcome. Use only what the approved proposal or established current behavior states.
     - Use RFC 2119 keywords (SHALL, MUST, SHOULD) in every requirement. Keep requirement names descriptive and under 50 characters. Write at least one GIVEN/WHEN/THEN scenario per requirement. Scenarios must be testable.
     - Describe WHAT the system does, not HOW: no class names, library choices, or file paths.
+    - Do not derive a requirement or a scenario for an edge case that the approved proposal lists under `Optional Edge Cases`. Only in-scope proposal text produces a requirement.
 
     ## Undocumented Existing Domain
 
