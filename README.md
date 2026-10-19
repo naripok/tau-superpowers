@@ -25,7 +25,7 @@ flowchart TD
     FA --> IN["Operator chooses a local merge or a pull request"]
 ```
 
-Every review gate loops: a review with blocking findings returns the artifact for repair, and a new review covers the changed version. Four skills apply at any stage:
+Every review gate loops: a review with blocking findings returns the artifact for repair, and a new review covers the changed version. See [Agent Review Loops](#agent-review-loops) for the mechanics of this loop. Four skills apply at any stage:
 
 - `systematic-debugging` diagnoses root causes.
 - `test-driven-development` applies red-green-refactor discipline.
@@ -46,6 +46,63 @@ The main flow is:
 | `docs/design/YYYY-MM-DD-<topic>-proposal.md` | Operator-approved intent: outcomes, acceptance, scope, constraints, approach, risks |
 | `docs/design/YYYY-MM-DD-<topic>-spec.md` | Complete observable post-change behavior, derived from the approved proposal |
 | `docs/plans/YYYY-MM-DD-<topic>.md` | Task contracts implementing spec behavior within proposal constraints |
+
+## Agent Review Loops
+
+Every review gate runs one loop between the main agent and a reviewer subagent. The main agent is the workflow agent in the parent session. It dispatches every child and adjudicates every report. The reviewer subagents are the bundled `code-review` and `document-review` agents. Each reviewer runs in an isolated context with the read-only `review` profile. It never sees the conversation of the main agent.
+
+Every dispatch must carry the complete inputs: the artifact, the governing contract, the artifact identities, and the evidence. The governing contract is the stated requirements that the artifact was produced against. The contract is one of these: the task text, the plan, the feature spec, or the stated requirements of the proposal. The reviewer returns one strict report: a verdict plus Critical, Important, and Minor findings.
+
+```mermaid
+flowchart TD
+    D["One initial review per artifact version<br/>with one complete input set and one review task"] --> R["Reviewer report:<br/>verdict plus Critical, Important, and Minor findings"]
+    R --> A["Adjudication before action:<br/>endorse or reject every finding with a reason"]
+    A -->|"Endorsed"| F["Fix dispatches carry only endorsed findings"]
+    F --> NV["The changed artifact is a new version:<br/>one new complete initial review"]
+    NV --> R
+    A -->|"Rejected"| C["Confirmation re-dispatch to the same reviewer:<br/>fix results and rejection reasons"]
+    C --> CW{"The reviewer confirms or withdraws<br/>each finding on technical grounds"}
+    CW -->|"Withdrawn"| CL["The finding closes"]
+    CW -->|"Maintained Critical"| OP["All workflow dispatches stop:<br/>the operator upholds the finding or the rejection"]
+    OP -->|"Finding upheld"| F
+    OP -->|"Rejection upheld"| CL
+    CW -->|"Maintained, not Critical"| CL
+    CL --> G["The gate advances on review approval<br/>with no open endorsed Critical or Important finding"]
+```
+
+The workflow puts reviewer subagents at these gates:
+
+| Gate | Reviewer | Skill that runs the gate |
+| --- | --- | --- |
+| Proposal cold review | `document-review` | `brainstorming` |
+| Feature-spec review | `document-review` | `brainstorming` |
+| Plan review | `document-review` | `writing-plans` |
+| Per-task implementation review, Standard and High-risk | `code-review` | `subagent-driven-development` |
+| Final whole-change review, both execution routes | `code-review` | `subagent-driven-development` or `executing-plans` |
+| Living-spec synchronization review | `document-review` | `finishing-a-development-branch` |
+| Ad-hoc review outside the workflow gates | `code-review` | `requesting-code-review` |
+
+One pass of the loop:
+
+1. **Dispatch:** The main agent sends one initial review for one artifact version, one complete input set, and one review task. It dispatches no duplicate initial review for the same version, inputs, and task.
+2. **Adjudicate:** Before the main agent acts on any finding, it verifies every claim against the artifact and records an endorse or reject verdict with a reason. An endorsement needs a factually correct claim, a concrete consequence, and no rejection ground. `receiving-code-review` is the adjudication skill for this step at every gate.
+3. **Fix:** Endorsed Critical and Important findings go to fix dispatches, and a fix dispatch carries only endorsed findings. An endorsed Minor finding follows the same fix path, or the main agent records a deferral. A deferral does not block gate closure. At the inline final review of `executing-plans`, the main agent is the implementer and applies the endorsed Critical and Important fixes itself.
+4. **Confirm:** When adjudication rejects at least one finding, the main agent returns every rejected finding to the same reviewer. The confirmation re-dispatch carries the fix results and the rejection reason for each rejected finding. A `task_resume` call on the session of that reviewer carries it. The reviewer confirms or withdraws each finding on technical grounds only, and a withdrawn finding closes. When no finding is rejected, the gate continues with no confirmation re-dispatch.
+5. **Escalate:** When the reviewer maintains a rejected Critical finding, the main agent stops all workflow dispatches and presents the disagreement to the operator. The operator decision upholds the finding or the rejection. An upheld finding becomes endorsed, and the fix path applies it. An upheld rejection closes the finding. A maintained rejection that is not Critical closes with a recorded disagreement.
+6. **Re-review:** The changed artifact is a new version and receives one new complete initial review. The gate advances only when the review approves and no endorsed Critical or Important fix stays open.
+
+**Version accounting.** Approvals attach to the exact reviewed version:
+
+- An edit creates a new version, and the new version repeats the review.
+- An edit to the operator-approved proposal also repeats cold review and operator approval.
+- A changed upstream input invalidates every affected downstream review.
+- A format-only correction that cannot change the meaning does not repeat the complete review.
+- A plan-checkbox tracking flip records task progress and creates no new version.
+- A `BLOCKED` or `NEEDS_CONTEXT` result permits one new complete review when the added context changes the inputs or the review task.
+
+The operator acts at two points in the loop. The operator approves the exact proposal version after its cold review, and the operator decides a maintained Critical rejection. The workflow requests no operator approval for the feature spec, the plan, or the living-spec synchronization.
+
+The living spec [review adjudication](docs/specs/review-adjudication.md) carries the complete adjudication contract for every gate.
 
 ## What You Get
 
