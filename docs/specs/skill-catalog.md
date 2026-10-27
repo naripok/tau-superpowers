@@ -86,7 +86,7 @@ Each new skill name SHALL follow the package naming convention: lowercase letter
 - AND every name SHALL start with a verb-first gerund (`designing`, `enforcing`, or `redesigning`)
 - AND no name SHALL duplicate an existing or another new skill name
 
-#### Requirement: Model-invocable set stays five skills
+#### Requirement: Model-invocable set stays three skills
 
 The change SHALL add no model-invocable skill. The change SHALL change no existing skill's frontmatter. After the change, the model-invocable skills of the package SHALL be exactly the three entrypoint skills: `using-superpowers`, `systematic-debugging`, and `writing-skills`.
 
@@ -235,7 +235,7 @@ The Skill Priority section of the `using-superpowers` skill SHALL add one line t
 - WHEN a task is "Fix this bug"
 - THEN the routing SHALL send the task to `systematic-debugging` first, then to domain-specific skills
 
-#### Requirement: Entrypoint wording names five skills
+#### Requirement: Entrypoint wording names three skills
 
 The entrypoint wording in the `using-superpowers` skill SHALL name the three entrypoint skills: this skill, `systematic-debugging`, and `writing-skills`.
 
