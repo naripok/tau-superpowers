@@ -34,13 +34,13 @@ The package SHALL ship seven new chained skills as seven new directories under `
 | `brutalist-skill` | `industrial-brutalist-ui` | `designing-brutalist-interfaces` |
 | `output-skill` | `full-output-enforcement` | `enforcing-complete-output` |
 
-The body of each new `SKILL.md` SHALL be byte-identical to the body of the corresponding upstream `SKILL.md` at upstream commit `e988add`. The bodies SHALL NOT be rewritten to the writing-unambiguous-text standard; this verbatim carry is the operator-accepted exception to the package writing standard. The package SHALL carry no upstream artifact other than the seven `SKILL.md` files.
+The body of each new `SKILL.md` SHALL be byte-identical to the body of the corresponding upstream `SKILL.md` at upstream commit `e988add`. The bodies SHALL NOT be rewritten to match the package's own prose conventions; this verbatim carry is operator-accepted. The package SHALL carry no upstream artifact other than the seven `SKILL.md` files.
 
 ##### Scenario: Skill directory inventory
 
 - GIVEN the repository after the change
 - WHEN an auditor lists the directories under `skills/` that contain a `SKILL.md`
-- THEN the list SHALL contain exactly 23 directories
+- THEN the list SHALL contain exactly 21 directories
 - AND the list SHALL include the seven new names from the mapping table
 - AND each of the seven new directories SHALL contain exactly one file, `SKILL.md`
 
@@ -88,13 +88,13 @@ Each new skill name SHALL follow the package naming convention: lowercase letter
 
 #### Requirement: Model-invocable set stays five skills
 
-The change SHALL add no model-invocable skill. The change SHALL change no existing skill's frontmatter, including the frontmatter of `writing-actionable-text`. After the change, the model-invocable skills of the package SHALL be exactly the five entrypoint skills: `using-superpowers`, `systematic-debugging`, `writing-unambiguous-text`, `writing-skills`, and `writing-actionable-text`.
+The change SHALL add no model-invocable skill. The change SHALL change no existing skill's frontmatter. After the change, the model-invocable skills of the package SHALL be exactly the three entrypoint skills: `using-superpowers`, `systematic-debugging`, and `writing-skills`.
 
 ##### Scenario: Skill index contents
 
 - GIVEN the package after the change, installed for a user
 - WHEN a session starts and Tau builds the skill index
-- THEN the index SHALL list exactly `using-superpowers`, `systematic-debugging`, `writing-unambiguous-text`, `writing-skills`, and `writing-actionable-text`
+- THEN the index SHALL list exactly `using-superpowers`, `systematic-debugging`, and `writing-skills`
 - AND the index SHALL list none of the seven new skill names
 
 ##### Scenario: Existing frontmatter unchanged
@@ -172,25 +172,24 @@ With the change applied, every test script under `tests/` SHALL pass, and the re
 
 #### Requirement: Two skill tiers
 
-The package SHALL keep two tiers of skills. Entrypoint skills are model-invocable, and Tau lists them in every skill index, including subagent prompts. Chained skills set `disable-model-invocation: true`, and Tau keeps them out of every skill index; a workflow step that requires a chained skill loads it on demand by sibling path. After the change the package SHALL have 5 entrypoint skills and 18 chained skills, 23 skills total.
+The package SHALL keep two tiers of skills. Entrypoint skills are model-invocable, and Tau lists them in every skill index, including subagent prompts. Chained skills set `disable-model-invocation: true`, and Tau keeps them out of every skill index; a workflow step that requires a chained skill loads it on demand by sibling path. After the change the package SHALL have 3 entrypoint skills and 18 chained skills, 21 skills total.
 
 ##### Scenario: Tier membership audit
 
-- GIVEN the 23 skill directories after the change
+- GIVEN the 21 skill directories after the change
 - WHEN an auditor classifies each skill by its frontmatter
-- THEN exactly 5 skills SHALL carry no `disable-model-invocation` field, and they SHALL be the five entrypoint skills
+- THEN exactly 3 skills SHALL carry no `disable-model-invocation` field, and they SHALL be the three entrypoint skills
 - AND the remaining 18 skills SHALL each set `disable-model-invocation: true`
 
 #### Requirement: Skill Map lists every skill
 
-The Skill Map in the `using-superpowers` skill SHALL carry exactly one row per skill in the package. After the change, the Skill Map SHALL have 23 rows: the 15 baseline rows unchanged, 7 new chained-skill rows (see Carried skill load conditions), and 1 new entrypoint row for `writing-actionable-text`. This resolves the baseline discrepancy in which the Skill Map listed 15 of the package's skills. The Skill Map SHALL remain the reachable reference that keeps every chained skill alive.
+The Skill Map in the `using-superpowers` skill SHALL carry exactly one row per skill in the package. After the change, the Skill Map SHALL have 21 rows: the 14 surviving baseline rows, and 7 new chained-skill rows (see Carried skill load conditions). This resolves the baseline discrepancy in which the Skill Map listed 15 of the package's skills. The Skill Map SHALL remain the reachable reference that keeps every chained skill alive.
 
 ##### Scenario: Row inventory
 
 - GIVEN the `using-superpowers` skill after the change
 - WHEN an auditor counts the Skill Map rows and compares them with the skill directories under `skills/`
-- THEN the Skill Map SHALL have one row per skill directory, 23 rows
-- AND the Skill Map SHALL contain an entrypoint-tier row for `writing-actionable-text`
+- THEN the Skill Map SHALL have one row per skill directory, 21 rows
 
 ##### Scenario: Baseline rows unchanged
 
@@ -238,43 +237,42 @@ The Skill Priority section of the `using-superpowers` skill SHALL add one line t
 
 #### Requirement: Entrypoint wording names five skills
 
-The entrypoint wording in the `using-superpowers` skill SHALL name the five entrypoint skills: this skill, `systematic-debugging`, `writing-unambiguous-text`, `writing-skills`, and `writing-actionable-text`. The wording SHALL NOT describe a four-entrypoint package. This resolves the stale baseline prose that named four entrypoint skills.
+The entrypoint wording in the `using-superpowers` skill SHALL name the three entrypoint skills: this skill, `systematic-debugging`, and `writing-skills`.
 
 ##### Scenario: Entrypoint wording audit
 
 - GIVEN the `using-superpowers` skill after the change
 - WHEN an auditor reads the entrypoint wording and compares it with the skills that carry no `disable-model-invocation` frontmatter in the tree
-- THEN the wording SHALL name exactly the same five skills
-- AND no other name SHALL appear in that wording as an entrypoint
+- THEN the wording SHALL name exactly the same three skills
 
 #### Requirement: README states the correct skill catalog
 
-The README SHALL state a skill count of 23, and that number SHALL equal the number of skill directories the package ships. The Included Skills table SHALL list every shipped skill: the 15 baseline rows, 7 new rows for the carried skills, and 1 new row for `writing-actionable-text`, which the baseline table omitted. Each new row SHALL name the skill and state a one-line purpose for it. This resolves the baseline discrepancy in which the README stated 15 skills.
+The README SHALL state a skill count of 21, and that number SHALL equal the number of skill directories the package ships. The Included Skills table SHALL list every shipped skill: the 14 surviving baseline rows and 7 new rows for the carried skills. Each new row SHALL name the skill and state a one-line purpose for it.
 
 ##### Scenario: Count audit
 
 - GIVEN the README after the change and the skill directories under `skills/`
 - WHEN an auditor compares the stated skill count with the directory count
-- THEN the README SHALL state 23 Tau-discoverable Agent Skills
+- THEN the README SHALL state 21 Tau-discoverable Agent Skills
 - AND that number SHALL equal the number of skill directories
 
 ##### Scenario: Table completeness
 
 - GIVEN the Included Skills table after the change
 - WHEN an auditor compares the table rows with the skill directories
-- THEN the table SHALL have one row per shipped skill, 23 rows
-- AND the table SHALL contain the rows for the seven carried skills and for `writing-actionable-text`
+- THEN the table SHALL have one row per shipped skill, 21 rows
+- AND the table SHALL contain the rows for the seven carried skills
 - AND each new row SHALL state a one-line purpose
 
 #### Requirement: README entrypoint wording matches the tree
 
-The two-tier paragraph in the README SHALL name the same five skills that carry no `disable-model-invocation` frontmatter in the tree. This resolves the stale baseline wording that named four entrypoint skills.
+The two-tier paragraph in the README SHALL name the same three skills that carry no `disable-model-invocation` frontmatter in the tree.
 
 ##### Scenario: README wording audit
 
 - GIVEN the README after the change
 - WHEN an auditor reads the entrypoint wording and compares it with the model-invocable skills in the tree
-- THEN the wording SHALL name exactly `using-superpowers`, `systematic-debugging`, `writing-unambiguous-text`, `writing-skills`, and `writing-actionable-text`
+- THEN the wording SHALL name exactly `using-superpowers`, `systematic-debugging`, and `writing-skills`
 
 #### Requirement: README attribution note
 

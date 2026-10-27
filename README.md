@@ -106,7 +106,7 @@ The living spec [review adjudication](docs/specs/review-adjudication.md) carries
 
 ## What You Get
 
-- 23 Tau-discoverable Agent Skills covering the full design-to-delivery workflow.
+- 21 Tau-discoverable Agent Skills covering the full design-to-delivery workflow.
 - Two tools: `task` dispatches one isolated Tau subprocess per call into a pinned session, and `task_resume` continues that session by its `task_id`. The call surface is snake_case: `prompt`, `subagent_type`, `description`, `task_id`, and `timeout_seconds`.
 - Fail-closed validation before any child starts. A rejected call returns the teach-back as the result content, with no task envelope, an empty `results` array, and no `planned` field. Validation considers only the providers and models the harness can actually run: credentials, scoped models, pins, and the session's own pair. The error lists the valid options.
 - Bundled child agents: `general-purpose`, tool-enforced `read-only`, `implementation`, `code-review`, and `document-review` (`read` + read-only `bash`, strict `## Code Review`/`## Document Review` reports). Children inherit the parent session's provider, model, and thinking level unless the config file or the agent definition pins one.
@@ -138,14 +138,12 @@ The living spec [review adjudication](docs/specs/review-adjudication.md) carries
 | `using-git-worktrees` | Isolate feature work in Git worktrees |
 | `using-superpowers` | Select the workflow depth (Direct, Bounded, Standard, High-risk) and apply the workflow skills |
 | `verification-before-completion` | Require fresh evidence before completion claims |
-| `writing-unambiguous-text` | Write developer-facing text with ASD-STE100 Simplified Technical English rules |
-| `writing-actionable-text` | Write responses, instructions, docs, runbooks, and error messages that drive immediate action |
 | `writing-plans` | Turn the feature spec and approved proposal into complementary contract-based implementation plans |
 | `writing-skills` | Author and test Tau Agent Skills |
 
 Tau initially loads only skill names, descriptions, and paths, and reads the full `SKILL.md` when a skill matches the task. Use `/skill:<name>` to invoke one explicitly.
 
-The package uses two tiers. Five entrypoint skills stay model-invocable and route work in: `using-superpowers` (workflow and depth gates), `systematic-debugging`, `writing-unambiguous-text`, `writing-skills`, and `writing-actionable-text`. Every other skill sets `disable-model-invocation: true`, so no skill index carries it. A workflow step that needs a chained skill reads its `SKILL.md` by sibling path at that step; `using-superpowers` owns the skill map and the reachability rule.
+The package uses two tiers. Three entrypoint skills stay model-invocable and route work in: `using-superpowers` (workflow and depth gates), `systematic-debugging`, and `writing-skills`. Every other skill sets `disable-model-invocation: true`, so no skill index carries it. A workflow step that needs a chained skill reads its `SKILL.md` by sibling path at that step; `using-superpowers` owns the skill map and the reachability rule.
 
 ## Requirements
 

@@ -47,7 +47,6 @@ The child has no controller conversation history. Name the spec, proposal, and l
     | Scope | Focused enough for a single implementation plan — not covering multiple independent subsystems. |
     | Necessity | No unrequested features or over-engineering. |
     | Optional edge cases | The spec adds no requirement or scenario for an edge case that the approved proposal lists under `Optional Edge Cases`. Such a requirement is an invented decision and a blocking finding. |
-    | Style | Prose follows writing-unambiguous-text: short sentences, no banned modals. RFC 2119 keywords (SHALL, MUST, SHOULD) in requirement statements are legal. |
 
     ## Temporary Governing-Claim Dispositions
 

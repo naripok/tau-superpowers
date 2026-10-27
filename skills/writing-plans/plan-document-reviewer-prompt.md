@@ -46,7 +46,6 @@ The child has no controller conversation history. Name the plan, feature spec, a
     | Task decomposition | Tasks have clear boundaries, each traces to a feature-spec requirement or a retained proposal-owned item with its test proof or named check, and each is sized as one coherent change producing one commit. |
     | Buildability | An implementer can build the right thing from the contracts without guessing the intended API, error behavior, or test expectations. |
     | Standards | The plan header carries the shared implementation standards and the approved-proposal contract, and no task prescribes a hack, workaround, silent fallback, or unnecessary abstraction. |
-    | Style | Prose follows writing-unambiguous-text: short sentences, imperative steps, no banned modals. |
 
     ## Review Accounting
 

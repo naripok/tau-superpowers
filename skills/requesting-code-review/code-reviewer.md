@@ -77,8 +77,6 @@ Fill every placeholder, then dispatch with:
     - Application docstrings say what and why (not how). Test docstrings say what
       behavior the test proves and why it is needed?
     - Documentation describes only the current behavior?
-    - Docstrings, comments, and documentation follow writing-unambiguous-text?
-      Short sentences, imperative procedures, no banned modals?
 
     **Architecture:**
     - Sound design decisions? Security or performance problems in the changed code?

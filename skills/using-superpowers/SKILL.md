@@ -37,7 +37,10 @@ Never dispatch a subagent and then do the same read or command yourself. The dis
 
 ## Writing Standard
 
-Write all developer-facing text per the writing-unambiguous-text skill. This text includes documentation, specs, plans, docstrings, code comments, commit message bodies, error and log messages, and reports to the user. Short sentences. Imperative procedures, with the condition before the command. Banned modals: should, would, may, might, could, shall. Exception: RFC 2119 keywords (SHALL, MUST, SHOULD) in requirement statements stay exact. Use "check" as the only verb for verification. Identifiers, code, and quoted messages stay exact. Language tooling rules for doc comments override style rules. Read the writing-unambiguous-text SKILL.md before you write or rewrite a long document.
+Rely on the model's own writing ability. The package gives no writing-style rules. Two reliability rules apply:
+
+- Never use "should" in agent instructions: models read it as optional. State requirements with "must" and recommendations as facts.
+- Code, identifiers, commands, flags, file paths, quoted error messages, and numbers with units stay exact in every edit: rewrite the wording, never the technical content.
 
 ## Occam's Razor Rule
 
@@ -53,7 +56,7 @@ Tau initially places only the name, description, and path of each model-invocabl
 
 This package uses two tiers:
 
-- **Entrypoint skills** are model-invocable. Tau lists them in every skill index, including subagent prompts. They route work into the package: this skill, systematic-debugging, writing-unambiguous-text, writing-skills, and writing-actionable-text.
+- **Entrypoint skills** are model-invocable. Tau lists them in every skill index, including subagent prompts. They route work into the package: this skill, systematic-debugging, and writing-skills.
 - **Chained skills** set `disable-model-invocation: true` in their frontmatter. Tau keeps them out of every skill index. A workflow step that requires a chained skill loads it on demand: read its `SKILL.md` by sibling path, then follow it. A chained skill without a reachable reference from a visible skill, a dispatch template, or a sibling skill is dead.
 
 The `task` tool handles subagent dispatch (see [`references/tau-tools.md`](references/tau-tools.md)). A child does not inherit this conversation, so every delegated task must be self-contained. Children cannot invoke skills; the dispatch templates carry the behavior children need.
@@ -66,9 +69,7 @@ Every skill in this package is one directory under the installed skills root, so
 | --- | --- | --- |
 | using-superpowers (this skill) | entrypoint | any nontrivial task, before routing |
 | systematic-debugging | entrypoint | any bug, test failure, or unexpected behavior |
-| writing-unambiguous-text | entrypoint | writing or rewriting developer-facing text |
 | writing-skills | entrypoint | creating or editing skills |
-| writing-actionable-text | entrypoint | writing responses, instructions, docs, runbooks, or error messages |
 | brainstorming | chained | non-Direct work: proposal, feature spec |
 | using-git-worktrees | chained | workspace isolation before any artifact is persisted |
 | writing-plans | chained | approved feature spec, before implementation |

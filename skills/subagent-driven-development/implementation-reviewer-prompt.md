@@ -122,9 +122,6 @@ This is a template for constructing the `prompt` value of a Tau `task` tool call
     - Any unnecessary abstractions, unnecessary fallbacks, or hacks/workarounds?
     - Do docstrings say what and why (not how)? Does documentation describe only
       the current behavior, with no references to old states or removed behavior?
-    - Do docstrings, comments, and docs follow writing-unambiguous-text?
-      Short sentences, imperative procedures, no banned modals (should, would,
-      may, might, could).
 
     ## Scope Calibration
 
