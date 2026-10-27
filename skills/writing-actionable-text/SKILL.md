@@ -17,6 +17,14 @@ Five facts drive every rule below:
 4. Time estimates feel uniform. "A bit of work" and "a few hours" register the same. Vague estimates fail.
 5. Dopamine is scarce. Visible progress matters. Buried wins do not register.
 
+## Match the format to the content
+
+For immediate actions, use concise instructions and numbered steps. For research, explanations, and design rationale, use cohesive paragraphs with descriptive headings.
+
+Scannability does not mean one sentence per paragraph. Keep related reasoning together. Do not force descriptive sections into action lists or isolated statements.
+
+Apply "lead with the next action" and "end with one concrete next action" to the response as a whole. Do not apply them to every section of a document.
+
 ## Rules
 
 ### 1. Lead with the next action

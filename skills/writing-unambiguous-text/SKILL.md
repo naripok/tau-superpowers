@@ -40,6 +40,30 @@ Do not mix the two in one passage. A note inside a procedure is descriptive: 25-
 
 2. **One instruction per sentence**, unless two actions happen at the same time. A step can have a second sentence for an immediate result or limit. Descriptive text: one main assertion per sentence, one topic per paragraph, at most six sentences per paragraph.
 
+**Paragraph structure.** Group related descriptive sentences into cohesive paragraphs. Keep a claim, its supporting evidence, and its immediate qualification together. Start a new paragraph when the topic or purpose changes, not whenever a sentence ends.
+
+Sentence-length limits do not require paragraph breaks. A single-sentence paragraph is valid for a standalone warning, conclusion, or transition. Do not use single-sentence paragraphs as the default for explanations or long documents.
+
+Use lists for actual steps, alternatives, criteria, or independently useful items. Do not turn connected reasoning into a list merely to shorten its appearance.
+
+Before:
+
+```markdown
+The backend commits the payment type.
+
+It then sends analytics.
+
+Analytics can fail after the commit.
+
+An error response does not prove that the save failed.
+```
+
+Prefer:
+
+```markdown
+The backend commits the payment type before it sends analytics. Analytics can fail after the commit, so an error response does not prove that the save failed.
+```
+
 3. **Imperative, condition first.** Write instructions in the imperative. Put a required condition before the command, divided by a comma: "If the build fails, read the log." In an instruction, every "if" and "when" stands at the start of its sentence, before the command.
 
 4. **Warnings: command first, risk second.** Start with a clear command or condition, then give the risk. Use "WARNING" for damage risk. For example: "WARNING: Do not use the `--force` flag against production. The flag deletes rows that do not match the source."
@@ -78,7 +102,7 @@ Do not mix the two in one passage. A note inside a procedure is descriptive: 25-
 
 ## Self-Check Before You Deliver
 
-This step is not optional. Run these eight checks on your draft:
+This step is not optional. Run these nine checks on your draft:
 
 1. **Preservation (Rule 19).** Compare the draft with the source. Each source component keeps its information and semantic role. Restore each component that the repair did not have to change.
 2. **Splits (Rule 17, Rule 18).** Examine every split. If a finite clause or a reorder gives a clear sentence within the limits, remove the split. Each necessary split states every original logical relationship explicitly.
@@ -88,6 +112,7 @@ This step is not optional. Run these eight checks on your draft:
 6. **Term consistency (Rule 13).** Search for the pick-family terms you did not choose: check, verify, confirm, ensure, "make sure that". Scan for config/settings and run/execute rotations. Replace each hit with your chosen term.
 7. **Lists (Rule 11).** Check each vertical list: colon on the lead-in, uppercase first letter on each item, a period only on a full-sentence item, no nested lists, no instructions mixed with facts.
 8. **Untouchables (Rule 20).** Make sure that code, identifiers, quoted errors, UI labels, and numbers with units are unchanged.
+9. **Paragraph cohesion (Rule 2).** Check consecutive single-sentence paragraphs. If they develop the same point, combine them. Keep separate paragraphs only when their topics or purposes differ.
 
 Fix what you find, then deliver.
 
