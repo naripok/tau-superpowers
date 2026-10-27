@@ -32,7 +32,11 @@ When asked to CHECK text instead of writing it, report each violation as: rule n
 | Sentence limit | 20 words | 25 words |
 | Unit rule | One instruction per sentence | One topic per paragraph, at most six sentences |
 
-Do not mix the two in one passage. A note inside a procedure is descriptive: 25-word limit, no imperative.
+Select the dominant purpose of each passage. In descriptive documents, express related recommendations and constraints as descriptions of the proposed behavior. In procedures, use imperative instructions with supporting explanatory notes.
+
+Do not separate related content into different paragraphs solely to avoid mixing descriptive and imperative sentences. First, rewrite the passage into a consistent voice.
+
+A note inside a procedure is descriptive: 25-word limit, no imperative.
 
 ## The Rules
 
@@ -41,6 +45,32 @@ Do not mix the two in one passage. A note inside a procedure is descriptive: 25-
 2. **One instruction per sentence**, unless two actions happen at the same time. A step can have a second sentence for an immediate result or limit. Descriptive text: one main assertion per sentence, one topic per paragraph, at most six sentences per paragraph.
 
 **Paragraph structure.** Group related descriptive sentences into cohesive paragraphs. Keep a claim, its supporting evidence, and its immediate qualification together. Start a new paragraph when the topic or purpose changes, not whenever a sentence ends.
+
+**Keep dependent sentences with their context.** Keep a recommendation, constraint, qualification, or consequence in the same paragraph as the statement it directly governs. A change in sentence function does not, by itself, justify a paragraph break.
+
+Start a new paragraph only when the topic or purpose changes. Do not isolate a sentence merely because it gives an instruction after an explanation.
+
+Check short paragraphs that begin with verbs such as "Record", "Preserve", "Keep", or "Do not". If the instruction depends on the preceding explanation, integrate it with that explanation. For descriptive documents, rewrite the instruction as a description of the proposed behavior. For procedures, keep the instruction in the relevant step.
+
+Apply the same check to an imperative sentence inside a descriptive paragraph. If the instruction depends on the surrounding explanation, rewrite it as a description of the proposed behavior.
+
+These verbs are review cues, not a blacklist. An independent instruction remains valid as a separate step or paragraph. The decision depends on its relationship to the surrounding content, not its opening word.
+
+Before:
+
+```markdown
+The Express path requires a matching SetupIntent ID and `status === 'succeeded'`. The card path accepts a result without an SDK error.
+
+Record both the SDK result and the existing acceptance decision. Do not strengthen card validation or weaken Express validation.
+```
+
+After:
+
+```markdown
+The Express path requires a matching SetupIntent ID and `status === 'succeeded'`. The card path accepts a result without an SDK error. The proposed instrumentation records both the SDK result and the existing acceptance decision without strengthening card validation or weakening Express validation.
+```
+
+The rewrite preserves both acceptance behaviors, both observation requirements, and both prohibitions on changing validation. It describes the proposed behavior in one paragraph instead of switching into a detached instruction.
 
 Sentence-length limits do not require paragraph breaks. A single-sentence paragraph is valid for a standalone warning, conclusion, or transition. Do not use single-sentence paragraphs as the default for explanations or long documents.
 
@@ -112,7 +142,9 @@ This step is not optional. Run these nine checks on your draft:
 6. **Term consistency (Rule 13).** Search for the pick-family terms you did not choose: check, verify, confirm, ensure, "make sure that". Scan for config/settings and run/execute rotations. Replace each hit with your chosen term.
 7. **Lists (Rule 11).** Check each vertical list: colon on the lead-in, uppercase first letter on each item, a period only on a full-sentence item, no nested lists, no instructions mixed with facts.
 8. **Untouchables (Rule 20).** Make sure that code, identifiers, quoted errors, UI labels, and numbers with units are unchanged.
-9. **Paragraph cohesion (Rule 2).** Check consecutive single-sentence paragraphs. If they develop the same point, combine them. Keep separate paragraphs only when their topics or purposes differ.
+9. **Paragraph cohesion and contextual dependence (Rule 2).** Check every paragraph boundary, including boundaries between multi-sentence paragraphs. Does the next paragraph qualify, constrain, explain, or prescribe an action for the preceding statement? If so, keep the related content together unless a distinct topic or purpose requires separation.
+
+   Check isolated imperatives, imperative sentences inside descriptive paragraphs, and sentences containing backward references such as "both", "this", "these", or "that result". Keep each sentence with the context it needs. Rewrite the voice where necessary instead of inserting a paragraph break.
 
 Fix what you find, then deliver.
 
